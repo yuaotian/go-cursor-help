@@ -314,6 +314,18 @@ irm https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/
 ```
 > デュアルモード操作とトライアルリセット機能を備えた強化版Cursorマシンコード修正ツール
 
+**キャッシュ回避（Windows）：** ミラー/プロキシのキャッシュで古いスクリプトが取得される場合、URL 末尾にタイムスタンプのクエリを付けて回避できます（GitHub raw + タイムスタンプ推奨）：
+
+```powershell
+irm "https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1?$(Get-Date -Format yyyyMMddHHmmss)" | iex
+```
+
+`wget.la` などのミラーを使う場合も同様に、URL 末尾へタイムスタンプを追加できます：
+
+```powershell
+irm "https://wget.la/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1?$(Get-Date -Format yyyyMMddHHmmss)" | iex
+```
+
 <div align="center">
 <img src="img/run_success.png" alt="Run Success" width="600"/>
 </div>
