@@ -1,23 +1,42 @@
-# Binary files
+# Compiled binary
+/cursor-id-modifier
+/cursor-id-modifier.exe
+
+# Build output directories
+bin/
+dist/
+
+# Go specific
+go.sum
+go/
+.cache/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Build and release artifacts
+releases/
+*.syso
+*.exe
+*.exe~
 *.dll
 *.so
 *.dylib
 
-# Build directories
-releases/
-cursor-id-modifier
-
-
-# Go specific
-go.sum
+# Test files
+*.test
+*.out
+coverage.txt
 
 # Temporary files
 *.tmp
 *~
-
-# System files
-.DS_Store
-Thumbs.db
-
-.vscode
-/.idea
+*.bak
+*.log

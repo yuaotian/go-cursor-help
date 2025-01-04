@@ -1,14 +1,18 @@
-project_name: cursor-id-modifier
+version: 2
 
 before:
   hooks:
     - go mod tidy
+    - go mod vendor
+    - go mod verify
 
 builds:
-  - env:
+  - id: cursor-id-modifier
+    main: ./cmd/cursor-id-modifier/main.go
+    binary: cursor-id-modifier
+    env:
       - CGO_ENABLED=0
-    ldflags:
-      - -s -w -X main.version={{.Version}}
+      - GO111MODULE=on
     goos:
       - linux
       - windows
@@ -16,41 +20,73 @@ builds:
     goarch:
       - amd64
       - arm64
-    mod_timestamp: '{{ .CommitTimestamp }}'
+      - "386"
+    ignore:
+      - goos: darwin
+        goarch: "386"
+    ldflags:
+      - -s -w
+      - -X 'main.version={{.Version}}'
+      - -X 'main.commit={{.ShortCommit}}'
+      - -X 'main.date={{.CommitDate}}'
+      - -X 'main.builtBy=goreleaser'
     flags:
       - -trimpath
-    binary: cursor_id_modifier_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    mod_timestamp: '{{ .CommitTimestamp }}'
 
 archives:
-  - format: binary
-    name_template: "{{ .Binary }}"
+  - id: binary
+    format: binary
+    name_template: >-
+      {{- .ProjectName }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+    builds:
+      - cursor-id-modifier
     allow_different_binary_count: true
+    files:
+      - none*
+
+checksum:
+  name_template: 'checksums.txt'
+  algorithm: sha256
+
+release:
+  draft: true
+  prerelease: auto
+  mode: replace
+  header: |
+    ## Release {{.Tag}} ({{.Date}})
+    
+    See [CHANGELOG.md](CHANGELOG.md) for details.
+  footer: |
+    **Full Changelog**: https://github.com/owner/repo/compare/{{ .PreviousTag }}...{{ .Tag }}
+  extra_files:
+    - glob: 'LICENSE*'
+    - glob: 'README*'
+    - glob: 'CHANGELOG*'
 
 changelog:
-  use: github
   sort: asc
-  groups:
-    - title: Features
-      regexp: "^.*feat[(\\w)]*:+.*$"
-      order: 0
-    - title: 'Bug Fixes'
-      regexp: "^.*fix[(\\w)]*:+.*$"
-      order: 1
-    - title: Others
-      order: 999
+  use: github
   filters:
     exclude:
       - '^docs:'
       - '^test:'
       - '^ci:'
-      - '^chore:'
       - Merge pull request
       - Merge branch
+  groups:
+    - title: Features
+      regexp: "^.*feat[(\\w)]*:+.*$"
+      order: 0
+    - title: 'Bug fixes'
+      regexp: "^.*fix[(\\w)]*:+.*$"
+      order: 1
+    - title: Others
+      order: 999
 
-release:
-  github:
-    owner: '{{ .Env.GITHUB_REPOSITORY_OWNER }}'
-    name: '{{ .Env.GITHUB_REPOSITORY_NAME }}'
-  draft: false
-  prerelease: auto
-  mode: replace
+project_name: cursor-id-modifier

@@ -5,6 +5,10 @@ GREEN='\033[0;32m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color / 无颜色
 
+# Build optimization flags
+OPTIMIZATION_FLAGS="-trimpath -ldflags=\"-s -w\""
+PARALLEL_JOBS=$(nproc || echo "4")  # Get number of CPU cores or default to 4
+
 # Messages / 消息
 EN_MESSAGES=(
     "Starting build process for version"
@@ -18,8 +22,6 @@ EN_MESSAGES=(
     "Successful builds:"
     "Failed builds:"
     "Generated files:"
-    "Build process interrupted"
-    "Error:"
 )
 
 CN_MESSAGES=(
@@ -70,82 +72,68 @@ handle_error() {
 
 # 清理函数 / Cleanup function
 cleanup() {
-    echo "$(get_message 1)"
-    rm -rf ../bin
+    if [ -d "../bin" ]; then
+        rm -rf ../bin
+        echo -e "${GREEN}$(get_message 1)${NC}"
+    fi
 }
 
-# 创建输出目录 / Create output directory
-create_output_dir() {
-    echo "$(get_message 2)"
-    mkdir -p ../bin || handle_error "$(get_message 3)"
-}
-
-# 构建函数 / Build function
+# Build function with optimizations
 build() {
     local os=$1
     local arch=$2
-    local suffix=$3
+    local ext=""
+    [ "$os" = "windows" ] && ext=".exe"
     
-    echo -e "\n$(get_message 4) $os ($arch)..."
+    echo -e "${GREEN}$(get_message 4) $os/$arch${NC}"
     
-    output_name="../bin/cursor_id_modifier_v${VERSION}_${os}_${arch}${suffix}"
-    
-    GOOS=$os GOARCH=$arch go build -o "$output_name" ../main.go
-    
-    if [ $? -eq 0 ]; then
-        echo -e "${GREEN}✓ $(get_message 5) ${output_name}${NC}"
-    else
-        echo -e "${RED}✗ $(get_message 6) $os $arch${NC}"
-        return 1
-    fi
+    GOOS=$os GOARCH=$arch CGO_ENABLED=0 go build \
+        -trimpath \
+        -ldflags="-s -w" \
+        -o "../bin/$os/$arch/cursor-id-modifier$ext" \
+        -a -installsuffix cgo \
+        -mod=readonly \
+        ../cmd/cursor-id-modifier &
 }
 
-# 主函数 / Main function
-main() {
-    # 显示构建信息 / Display build info
-    echo "$(get_message 0) ${VERSION}"
+# Parallel build execution
+build_all() {
+    local builds=0
+    local max_parallel=$PARALLEL_JOBS
     
-    # 清理旧文件 / Clean old files
-    cleanup
-    
-    # 创建输出目录 / Create output directory
-    create_output_dir
-    
-    # 定义构建目标 / Define build targets
+    # Define build targets
     declare -A targets=(
-        ["windows_amd64"]=".exe"
-        ["darwin_amd64"]=""
-        ["darwin_arm64"]=""
-        ["linux_amd64"]=""
+        ["linux/amd64"]=1
+        ["linux/386"]=1
+        ["linux/arm64"]=1
+        ["windows/amd64"]=1
+        ["windows/386"]=1
+        ["darwin/amd64"]=1
+        ["darwin/arm64"]=1
     )
     
-    # 构建计数器 / Build counters
-    local success_count=0
-    local fail_count=0
-    
-    # 遍历所有目标进行构建 / Build all targets
     for target in "${!targets[@]}"; do
-        os=${target%_*}
-        arch=${target#*_}
-        suffix=${targets[$target]}
+        IFS='/' read -r os arch <<< "$target"
+        build "$os" "$arch"
         
-        if build "$os" "$arch" "$suffix"; then
-            ((success_count++))
-        else
-            ((fail_count++))
+        ((builds++))
+        
+        if ((builds >= max_parallel)); then
+            wait
+            builds=0
         fi
     done
     
-    # 显示构建结果 / Display build results
-    echo -e "\n$(get_message 7)"
-    echo -e "${GREEN}$(get_message 8) $success_count${NC}"
-    if [ $fail_count -gt 0 ]; then
-        echo -e "${RED}$(get_message 9) $fail_count${NC}"
-    fi
-    
-    # 显示生成的文件列表 / Display generated files
-    echo -e "\n$(get_message 10)"
-    ls -1 ../bin
+    # Wait for remaining builds
+    wait
+}
+
+# Main execution
+main() {
+    cleanup
+    mkdir -p ../bin || { echo -e "${RED}$(get_message 3)${NC}"; exit 1; }
+    build_all
+    echo -e "${GREEN}Build completed successfully${NC}"
 }
 
 # 捕获错误信号 / Catch error signals
