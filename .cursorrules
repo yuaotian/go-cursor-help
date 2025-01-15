@@ -1,0 +1,125 @@
+# Go Cursor Help
+
+Every time you choose to apply a rule(s), explicitly state the rule(s) in the output. You can abbreviate the rule description to a single word or phrase.
+
+## Project Context
+A Go-based CLI tool for cursor manipulation and text processing
+- Command-line interface for text and cursor operations
+- Modular design with clear separation of concerns
+- Focus on performance and reliability
+- Cross-platform compatibility
+
+## Code Style and Structure
+- Write idiomatic, clean Go code following standard Go conventions
+- Use interfaces for abstraction and modularity
+- Follow Go project layout standards
+- Use descriptive function and variable names
+- Structure repository files as follows:
+```
+cmd/                    # Main applications
+├── cursor-id-modifier/ # CLI entry points
+internal/              # Private application code
+├── config/           # Configuration handling
+├── ui/              # User interface components
+├── process/         # Process management
+└── lang/            # Language-specific code
+pkg/                 # Public library code
+├── idgen/          # ID generation utilities
+scripts/             # Build and installation scripts
+├── install.sh      # Unix installation
+└── install.ps1     # Windows installation
+```
+
+## Tech Stack
+- Go 1.21+
+- Standard library
+- Minimal external dependencies
+- Cross-platform compatibility
+
+## Naming Conventions
+- Use snake_case for file names
+- Use PascalCase for exported identifiers
+- Use camelCase for unexported identifiers
+- Package names should be lowercase, single-word
+- Test files should end with _test.go
+
+## Go Usage
+- Follow Go idioms and best practices
+- Use interfaces for abstraction
+- Implement proper error handling
+- Use context for cancellation where appropriate
+- Prefer composition over inheritance
+- Use go modules for dependency management
+- Write comprehensive godoc comments
+
+## Error Handling
+- Return errors rather than using panic
+- Use meaningful error messages
+- Wrap errors with additional context when appropriate
+- Implement proper error types when needed
+- Log errors at appropriate levels
+
+## Code Organization
+- Keep packages focused and cohesive
+- Use internal/ for private implementation
+- Place shared code in pkg/
+- Main applications in cmd/
+- Follow standard Go project layout
+
+## Testing
+- Write unit tests for all packages
+- Use table-driven tests
+- Benchmark performance-critical code
+- Use testdata/ directory for test fixtures
+- Implement integration tests where needed
+
+## Documentation
+- Write clear godoc comments
+- Maintain comprehensive README
+- Document command-line flags
+- Include usage examples
+- Keep installation instructions up-to-date
+
+## Performance
+- Profile code when needed
+- Optimize hot paths
+- Use benchmarks to verify improvements
+- Consider memory allocations
+- Handle resources properly
+
+## CLI Design
+- Consistent flag naming
+- Clear help messages
+- Proper exit codes
+- Progress indicators for long operations
+- User-friendly error messages
+
+## Git Usage
+Commit Message Prefixes:
+- "fix:" for bug fixes
+- "feat:" for new features
+- "perf:" for performance improvements
+- "docs:" for documentation
+- "test:" for adding tests
+- "refactor:" for code refactoring
+- "chore:" for maintenance
+
+Rules:
+- Use conventional commits format
+- Keep commits focused and atomic
+- Write clear commit messages
+- Reference issues when applicable
+
+## Development Workflow
+- Use proper version control
+- Follow semantic versioning
+- Review code before merging
+- Test across platforms
+- Update documentation as needed
+
+## Security
+- Handle user input safely
+- Validate file paths
+- Check permissions appropriately
+- Follow security best practices
+- Keep dependencies updated

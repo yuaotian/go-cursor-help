@@ -1,6 +1,7 @@
 package lang
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"strings"
@@ -47,85 +48,107 @@ type TextResource struct {
 }
 
 var (
-	currentLanguage     Language
-	currentLanguageOnce sync.Once
-	languageMutex       sync.RWMutex
+	currentLanguage Language
+	languageMutex   sync.RWMutex
 )
 
-// GetCurrentLanguage returns the current language, detecting it if not already set
+// GetCurrentLanguage returns the current language, detecting it if not already set.
+// The detection process follows this order:
+// 1. Check environment variables (LANG, LANGUAGE, LC_ALL)
+// 2. Check OS-specific locale settings
+// 3. Fall back to English if detection fails
 func GetCurrentLanguage() Language {
-	currentLanguageOnce.Do(func() {
-		currentLanguage = detectLanguage()
-	})
-
 	languageMutex.RLock()
-	defer languageMutex.RUnlock()
+	if currentLanguage != "" {
+		defer languageMutex.RUnlock()
+		return currentLanguage
+	}
+	languageMutex.RUnlock()
+
+	languageMutex.Lock()
+	defer languageMutex.Unlock()
+	if currentLanguage == "" {
+		var err error
+		currentLanguage, err = detectLanguage()
+		if err != nil {
+			// Log error but continue with English as fallback
+			fmt.Fprintf(os.Stderr, "Language detection failed: %v, falling back to English\n", err)
+			currentLanguage = EN
+		}
+	}
 	return currentLanguage
 }
 
-// SetLanguage sets the current language
+// SetLanguage sets the current language.
+// This is thread-safe and can be called from multiple goroutines.
 func SetLanguage(lang Language) {
 	languageMutex.Lock()
 	defer languageMutex.Unlock()
 	currentLanguage = lang
 }
 
-// GetText returns the TextResource for the current language
+// GetText returns the TextResource for the current language.
+// This is thread-safe and can be called from multiple goroutines.
 func GetText() TextResource {
 	return texts[GetCurrentLanguage()]
 }
 
-// detectLanguage detects the system language
-func detectLanguage() Language {
+// detectLanguage detects the system language.
+// Returns an error if the detection process fails.
+func detectLanguage() (Language, error) {
 	// Check environment variables first
-	if isChineseEnvVar() {
-		return CN
-	}
-
-	// Then check OS-specific locale
-	if isWindows() {
-		if isWindowsChineseLocale() {
-			return CN
-		}
-	} else if isUnixChineseLocale() {
-		return CN
-	}
-
-	return EN
-}
-
-func isChineseEnvVar() bool {
 	for _, envVar := range []string{"LANG", "LANGUAGE", "LC_ALL"} {
-		if lang := os.Getenv(envVar); lang != "" && strings.Contains(strings.ToLower(lang), "zh") {
-			return true
+		if lang := os.Getenv(envVar); lang != "" {
+			if strings.Contains(strings.ToLower(lang), "zh") {
+				return CN, nil
+			}
 		}
 	}
-	return false
+
+	// Check OS-specific locale
+	if os.Getenv("OS") == "Windows_NT" {
+		isZH, err := isWindowsChineseLocale()
+		if err != nil {
+			return EN, fmt.Errorf("failed to detect Windows locale: %w", err)
+		}
+		if isZH {
+			return CN, nil
+		}
+	} else {
+		output, err := exec.Command("locale").Output()
+		if err != nil {
+			return EN, fmt.Errorf("failed to get system locale: %w", err)
+		}
+		if strings.Contains(strings.ToLower(string(output)), "zh_cn") {
+			return CN, nil
+		}
+	}
+
+	return EN, nil
 }
 
-func isWindows() bool {
-	return os.Getenv("OS") == "Windows_NT"
-}
-
-func isWindowsChineseLocale() bool {
+// isWindowsChineseLocale checks if the Windows system locale is Chinese.
+// Returns an error if the locale check fails.
+func isWindowsChineseLocale() (bool, error) {
 	// Check Windows UI culture
 	cmd := exec.Command("powershell", "-Command",
 		"[System.Globalization.CultureInfo]::CurrentUICulture.Name")
 	output, err := cmd.Output()
 	if err == nil && strings.HasPrefix(strings.ToLower(strings.TrimSpace(string(output))), "zh") {
-		return true
+		return true, nil
+	}
+	if err != nil {
+		// Don't return error here, try the next method
+		fmt.Fprintf(os.Stderr, "Failed to get Windows UI culture: %v\n", err)
 	}
 
-	// Check Windows locale
+	// Check Windows locale as fallback
 	cmd = exec.Command("wmic", "os", "get", "locale")
 	output, err = cmd.Output()
-	return err == nil && strings.Contains(string(output), "2052")
-}
-
-func isUnixChineseLocale() bool {
-	cmd := exec.Command("locale")
-	output, err := cmd.Output()
-	return err == nil && strings.Contains(strings.ToLower(string(output)), "zh_cn")
+	if err != nil {
+		return false, fmt.Errorf("failed to get Windows locale: %w", err)
+	}
+	return strings.Contains(string(output), "2052"), nil
 }
 
 // texts contains all translations

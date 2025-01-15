@@ -10,8 +10,8 @@ import (
 
 // SpinnerConfig defines spinner configuration
 type SpinnerConfig struct {
-	Frames []string        // Animation frames for the spinner
-	Delay  time.Duration   // Delay between frame updates
+	Frames []string      // Animation frames for the spinner
+	Delay  time.Duration // Delay between frame updates
 }
 
 // DefaultSpinnerConfig returns the default spinner configuration
@@ -28,7 +28,7 @@ type Spinner struct {
 	message string
 	current int
 	active  bool
-	stopCh  chan struct{}
+	done    chan struct{}
 	mu      sync.RWMutex
 }
 
@@ -39,27 +39,16 @@ func NewSpinner(config *SpinnerConfig) *Spinner {
 	}
 	return &Spinner{
 		config: config,
-		stopCh: make(chan struct{}),
+		done:   make(chan struct{}),
 	}
 }
-
-// State management
 
 // SetMessage sets the spinner message
 func (s *Spinner) SetMessage(message string) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.message = message
+	s.mu.Unlock()
 }
-
-// IsActive returns whether the spinner is currently active
-func (s *Spinner) IsActive() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.active
-}
-
-// Control methods
 
 // Start begins the spinner animation
 func (s *Spinner) Start() {
@@ -71,39 +60,34 @@ func (s *Spinner) Start() {
 	s.active = true
 	s.mu.Unlock()
 
-	go s.run()
+	go s.animate()
 }
 
 // Stop halts the spinner animation
 func (s *Spinner) Stop() {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	if !s.active {
+		s.mu.Unlock()
 		return
 	}
-
 	s.active = false
-	close(s.stopCh)
-	s.stopCh = make(chan struct{})
-	fmt.Print("\r") // Clear the spinner line
+	close(s.done)
+	s.done = make(chan struct{})
+	message := s.message
+	s.mu.Unlock()
+	
+	green := color.New(color.FgGreen, color.Bold)
+	fmt.Printf("\r %s %s\n", green.Sprint("✓"), message) // Show green tick and message
 }
 
-// Internal methods
-
-func (s *Spinner) run() {
+func (s *Spinner) animate() {
+	cyan := color.New(color.FgCyan, color.Bold)
 	ticker := time.NewTicker(s.config.Delay)
 	defer ticker.Stop()
 
-	cyan := color.New(color.FgCyan, color.Bold)
-	message := s.message
-
-	// Print initial state
-	fmt.Printf("\r %s %s", cyan.Sprint(s.config.Frames[0]), message)
-
 	for {
 		select {
-		case <-s.stopCh:
+		case <-s.done:
 			return
 		case <-ticker.C:
 			s.mu.RLock()
@@ -113,10 +97,10 @@ func (s *Spinner) run() {
 			}
 			frame := s.config.Frames[s.current%len(s.config.Frames)]
 			s.current++
+			message := s.message
 			s.mu.RUnlock()
 
-			fmt.Printf("\r %s", cyan.Sprint(frame))
-			fmt.Printf("\033[%dG%s", 4, message) // Move cursor and print message
+			fmt.Printf("\r %s %s", cyan.Sprint(frame), message)
 		}
 	}
 }

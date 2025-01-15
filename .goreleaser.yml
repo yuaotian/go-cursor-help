@@ -3,7 +3,6 @@ version: 2
 before:
   hooks:
     - go mod tidy
-    - go mod vendor
     - go mod verify
 
 builds:
@@ -20,73 +19,79 @@ builds:
     goarch:
       - amd64
       - arm64
-      - "386"
     ignore:
-      - goos: darwin
-        goarch: "386"
+      - goos: linux
+        goarch: arm64
+      - goos: windows
+        goarch: arm64
     ldflags:
       - -s -w
       - -X 'main.version={{.Version}}'
-      - -X 'main.commit={{.ShortCommit}}'
-      - -X 'main.date={{.CommitDate}}'
-      - -X 'main.builtBy=goreleaser'
     flags:
       - -trimpath
     mod_timestamp: '{{ .CommitTimestamp }}'
 
 archives:
-  - id: binary
-    format: binary
+  - id: binary-unix
     name_template: >-
-      {{- .ProjectName }}_
-      {{- .Version }}_
-      {{- .Os }}_
-      {{- if eq .Arch "amd64" }}x86_64
-      {{- else if eq .Arch "386" }}i386
-      {{- else }}{{ .Arch }}{{ end }}
+      {{ .ProjectName }}_
+      {{- if eq .Os "darwin" }}macOS{{ else }}{{ title .Os }}{{ end }}_
+      {{- if eq .Arch "amd64" }}x86_64{{ else }}{{ .Arch }}{{ end }}
+    format: binary
     builds:
       - cursor-id-modifier
-    allow_different_binary_count: true
     files:
       - none*
+    allow_different_binary_count: true
+    format_overrides:
+      - goos: windows
+        format: zip
+
+universal_binaries:
+  - replace: true
+    name_template: "{{ .ProjectName }}_macOS_universal"
+    ids:
+      - cursor-id-modifier
 
 checksum:
-  name_template: 'checksums.txt'
+  name_template: 'checksums_{{ .Version }}.txt'
   algorithm: sha256
 
 release:
-  draft: true
-  prerelease: auto
+  draft: false
+  prerelease: false
   mode: replace
+  name_template: "Release {{.Tag}}"
   header: |
     ## Release {{.Tag}} ({{.Date}})
     
-    See [CHANGELOG.md](CHANGELOG.md) for details.
-  footer: |
-    **Full Changelog**: https://github.com/owner/repo/compare/{{ .PreviousTag }}...{{ .Tag }}
+    This is the {{.Tag}} release of cursor-id-modifier.
+
+    ### Quick Installation
+
+    #### Unix/macOS
+    ```bash
+    curl -fsSL https://raw.githubusercontent.com/yuaotian/go-cursor-help/master/scripts/install.sh | sudo bash
+    ```
+
+    #### Windows (PowerShell)
+    ```powershell
+    Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/yuaotian/go-cursor-help/master/scripts/install.ps1'))
+    ```
   extra_files:
     - glob: 'LICENSE*'
     - glob: 'README*'
-    - glob: 'CHANGELOG*'
+  replace_existing_draft: true
+  skip_upload: false
+
+project_name: cursor-id-modifier
 
 changelog:
   sort: asc
-  use: github
   filters:
     exclude:
       - '^docs:'
       - '^test:'
-      - '^ci:'
+      - '^chore:'
       - Merge pull request
       - Merge branch
-  groups:
-    - title: Features
-      regexp: "^.*feat[(\\w)]*:+.*$"
-      order: 0
-    - title: 'Bug fixes'
-      regexp: "^.*fix[(\\w)]*:+.*$"
-      order: 1
-    - title: Others
-      order: 999
-
-project_name: cursor-id-modifier

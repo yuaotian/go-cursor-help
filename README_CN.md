@@ -55,19 +55,19 @@ You've reached your trial request limit.
 <td>
 
 **Windows** ✅
-- x64 & x86
+- 通用版本
 
 </td>
 <td>
 
 **macOS** ✅
-- Intel & M-series
+- 通用版本
 
 </td>
 <td>
 
 **Linux** ✅
-- x64 & ARM64
+- 通用版本
 
 </td>
 </tr>
@@ -133,25 +133,11 @@ irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaoti
 > 从 [releases](https://github.com/yuaotian/go-cursor-help/releases/latest) 下载适合您系统的文件
 
 <details>
-<summary>Windows 安装包</summary>
+<summary>下载链接</summary>
 
-- 64位: `cursor-id-modifier_windows_x64.exe`
-- 32位: `cursor-id-modifier_windows_x86.exe`
-</details>
-
-<details>
-<summary>macOS 安装包</summary>
-
-- Intel: `cursor-id-modifier_darwin_x64_intel`
-- M1/M2: `cursor-id-modifier_darwin_arm64_apple_silicon`
-</details>
-
-<details>
-<summary>Linux 安装包</summary>
-
-- 64位: `cursor-id-modifier_linux_x64`
-- 32位: `cursor-id-modifier_linux_x86`
-- ARM64: `cursor-id-modifier_linux_arm64`
+- Windows: `go-cursor-help_windows`
+- macOS: `go-cursor-help_macos`
+- Linux: `go-cursor-help_linux`
 </details>
 
 ### 🔧 技术细节
@@ -173,7 +159,6 @@ irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaoti
 - `telemetry.machineId`
 - `telemetry.macMachineId`
 - `telemetry.devDeviceId`
-- `telemetry.sqmId`
 </details>
 
 <details>

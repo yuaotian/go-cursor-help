@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"os/user"
-	"runtime"
-	"runtime/debug"
+	"path/filepath"
 	"strings"
 
 	"github.com/yuaotian/go-cursor-help/internal/config"
+	"github.com/yuaotian/go-cursor-help/internal/errors"
 	"github.com/yuaotian/go-cursor-help/internal/lang"
+	"github.com/yuaotian/go-cursor-help/internal/platform"
 	"github.com/yuaotian/go-cursor-help/internal/process"
 	"github.com/yuaotian/go-cursor-help/internal/ui"
 	"github.com/yuaotian/go-cursor-help/pkg/idgen"
@@ -20,7 +20,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// Global variables
 var (
 	version     = "dev"
 	setReadOnly = flag.Bool("r", false, "set storage.json to read-only mode")
@@ -29,65 +28,46 @@ var (
 )
 
 func main() {
-	setupErrorRecovery()
-	handleFlags()
+	errorHandler := errors.NewHandler(log)
+	defer errorHandler.HandlePanic(waitForEnter)
+
+	if *showVersion {
+		fmt.Printf("Cursor ID Modifier v%s\n", version)
+		os.Exit(0)
+	}
+
 	setupLogger()
 
-	username := getCurrentUser()
-	log.Debug("Running as user:", username)
+	username, err := platform.GetCurrentUser()
+	if err != nil {
+		errorHandler.LogFatal(err, "Failed to get current user", waitForEnter)
+	}
 
-	// Initialize components
 	display := ui.NewDisplay(nil)
 	configManager := initConfigManager(username)
 	generator := idgen.NewGenerator()
 	processManager := process.NewManager(nil, log)
 
-	// Check and handle privileges
-	if err := handlePrivileges(display); err != nil {
+	if err := ensureAdminPrivileges(display); err != nil {
 		return
 	}
 
-	// Setup display
 	setupDisplay(display)
 
-	text := lang.GetText()
-
-	// Handle Cursor processes
-	if err := handleCursorProcesses(display, processManager); err != nil {
+	if err := processManager.HandleCursorProcesses(); err != nil {
+		display.ShowError("Failed to close Cursor. Please close it manually and try again.")
+		waitForEnter()
 		return
 	}
 
-	// Handle configuration
-	oldConfig := readExistingConfig(display, configManager, text)
-	newConfig := generateNewConfig(display, generator, oldConfig, text)
-
-	if err := saveConfiguration(display, configManager, newConfig); err != nil {
+	if err := updateConfiguration(display, configManager, generator, lang.GetText()); err != nil {
 		return
 	}
 
-	// Show completion messages
 	showCompletionMessages(display)
 
 	if os.Getenv("AUTOMATED_MODE") != "1" {
-		waitExit()
-	}
-}
-
-func setupErrorRecovery() {
-	defer func() {
-		if r := recover(); r != nil {
-			log.Errorf("Panic recovered: %v\n", r)
-			debug.PrintStack()
-			waitExit()
-		}
-	}()
-}
-
-func handleFlags() {
-	flag.Parse()
-	if *showVersion {
-		fmt.Printf("Cursor ID Modifier v%s\n", version)
-		os.Exit(0)
+		waitForEnter()
 	}
 }
 
@@ -100,18 +80,6 @@ func setupLogger() {
 	log.SetLevel(logrus.InfoLevel)
 }
 
-func getCurrentUser() string {
-	if username := os.Getenv("SUDO_USER"); username != "" {
-		return username
-	}
-
-	user, err := user.Current()
-	if err != nil {
-		log.Fatal(err)
-	}
-	return user.Username
-}
-
 func initConfigManager(username string) *config.Manager {
 	configManager, err := config.NewManager(username)
 	if err != nil {
@@ -120,35 +88,33 @@ func initConfigManager(username string) *config.Manager {
 	return configManager
 }
 
-func handlePrivileges(display *ui.Display) error {
-	isAdmin, err := checkAdminPrivileges()
+func ensureAdminPrivileges(display *ui.Display) error {
+	isAdmin, err := platform.CheckAdminPrivileges()
 	if err != nil {
 		log.Error(err)
-		waitExit()
+		waitForEnter()
 		return err
 	}
 
-	if !isAdmin {
-		if runtime.GOOS == "windows" {
-			return handleWindowsPrivileges(display)
-		}
-		display.ShowPrivilegeError(
-			lang.GetText().PrivilegeError,
-			lang.GetText().RunWithSudo,
-			lang.GetText().SudoExample,
-		)
-		waitExit()
-		return fmt.Errorf("insufficient privileges")
+	if isAdmin {
+		return nil
 	}
-	return nil
+
+	if platform.IsWindows() {
+		return elevateWindowsPrivileges(display)
+	}
+
+	display.ShowPrivilegeError(
+		lang.GetText().PrivilegeError,
+		lang.GetText().RunWithSudo,
+		lang.GetText().SudoExample,
+	)
+	waitForEnter()
+	return fmt.Errorf("insufficient privileges")
 }
 
-func handleWindowsPrivileges(display *ui.Display) error {
-	message := "\nRequesting administrator privileges..."
-	if lang.GetCurrentLanguage() == lang.CN {
-		message = "\n请求管理员权限..."
-	}
-	fmt.Println(message)
+func elevateWindowsPrivileges(display *ui.Display) error {
+	fmt.Println(getPrivilegeMessage())
 
 	if err := selfElevate(); err != nil {
 		log.Error(err)
@@ -158,53 +124,62 @@ func handleWindowsPrivileges(display *ui.Display) error {
 			lang.GetText().RunWithSudo,
 			lang.GetText().SudoExample,
 		)
-		waitExit()
+		waitForEnter()
 		return err
 	}
 	return nil
 }
 
+func getPrivilegeMessage() string {
+	if lang.GetCurrentLanguage() == lang.CN {
+		return "\n请求管理员权限..."
+	}
+	return "\nRequesting administrator privileges..."
+}
+
 func setupDisplay(display *ui.Display) {
-	if err := display.ClearScreen(); err != nil {
+	if err := platform.ClearScreen(); err != nil {
 		log.Warn("Failed to clear screen:", err)
 	}
 	display.ShowLogo()
 	fmt.Println()
 }
 
-func handleCursorProcesses(display *ui.Display, processManager *process.Manager) error {
-	if os.Getenv("AUTOMATED_MODE") == "1" {
-		log.Debug("Running in automated mode, skipping Cursor process closing")
-		return nil
+func showIdComparison(display *ui.Display, oldConfig, newConfig *config.StorageConfig) {
+	fmt.Println("\n[Original IDs / 原始 ID]")
+	if oldConfig != nil {
+		display.ShowInfo(fmt.Sprintf("Machine ID: %s", oldConfig.TelemetryMachineId))
+		display.ShowInfo(fmt.Sprintf("Mac Machine ID: %s", oldConfig.TelemetryMacMachineId))
+		display.ShowInfo(fmt.Sprintf("Dev Device ID: %s", oldConfig.TelemetryDevDeviceId))
+	} else {
+		display.ShowInfo("No previous configuration found / 未找到先前配置")
 	}
 
-	display.ShowProgress("Closing Cursor...")
-	log.Debug("Attempting to close Cursor processes")
+	fmt.Println("\n[Newly Generated IDs / 新生成 ID]")
+	display.ShowInfo(fmt.Sprintf("Machine ID: %s", newConfig.TelemetryMachineId))
+	display.ShowInfo(fmt.Sprintf("Mac Machine ID: %s", newConfig.TelemetryMacMachineId))
+	display.ShowInfo(fmt.Sprintf("Dev Device ID: %s", newConfig.TelemetryDevDeviceId))
+	fmt.Println()
+}
 
-	if err := processManager.KillCursorProcesses(); err != nil {
-		log.Error("Failed to close Cursor:", err)
-		display.StopProgress()
-		display.ShowError("Failed to close Cursor. Please close it manually and try again.")
-		waitExit()
+func updateConfiguration(display *ui.Display, configManager *config.Manager, generator *idgen.Generator, text lang.TextResource) error {
+	oldConfig := readExistingConfig(display, configManager, text)
+	newConfig := generateNewConfig(display, generator, text)
+
+	showIdComparison(display, oldConfig, newConfig)
+
+	display.ShowProgress("Saving configuration...")
+	if err := configManager.SaveConfig(newConfig, *setReadOnly); err != nil {
+		log.Error(err)
+		waitForEnter()
 		return err
 	}
-
-	if processManager.IsCursorRunning() {
-		log.Error("Cursor processes still detected after closing")
-		display.StopProgress()
-		display.ShowError("Failed to close Cursor completely. Please close it manually and try again.")
-		waitExit()
-		return fmt.Errorf("cursor still running")
-	}
-
-	log.Debug("Successfully closed all Cursor processes")
 	display.StopProgress()
 	fmt.Println()
 	return nil
 }
 
 func readExistingConfig(display *ui.Display, configManager *config.Manager, text lang.TextResource) *config.StorageConfig {
-	fmt.Println()
 	display.ShowProgress(text.ReadingConfig)
 	oldConfig, err := configManager.ReadConfig()
 	if err != nil {
@@ -216,55 +191,30 @@ func readExistingConfig(display *ui.Display, configManager *config.Manager, text
 	return oldConfig
 }
 
-func generateNewConfig(display *ui.Display, generator *idgen.Generator, oldConfig *config.StorageConfig, text lang.TextResource) *config.StorageConfig {
+func generateNewConfig(display *ui.Display, generator *idgen.Generator, text lang.TextResource) *config.StorageConfig {
 	display.ShowProgress(text.GeneratingIds)
 	newConfig := &config.StorageConfig{}
 
-	if machineID, err := generator.GenerateMachineID(); err != nil {
-		log.Fatal("Failed to generate machine ID:", err)
-	} else {
-		newConfig.TelemetryMachineId = machineID
+	generateID := func(genFn func() (string, error), field *string, idType string) {
+		id, err := genFn()
+		if err != nil {
+			log.Fatalf("Failed to generate %s: %v", idType, err)
+		}
+		*field = id
 	}
 
-	if macMachineID, err := generator.GenerateMacMachineID(); err != nil {
-		log.Fatal("Failed to generate MAC machine ID:", err)
-	} else {
-		newConfig.TelemetryMacMachineId = macMachineID
-	}
-
-	if deviceID, err := generator.GenerateDeviceID(); err != nil {
-		log.Fatal("Failed to generate device ID:", err)
-	} else {
-		newConfig.TelemetryDevDeviceId = deviceID
-	}
-
-	if oldConfig != nil && oldConfig.TelemetrySqmId != "" {
-		newConfig.TelemetrySqmId = oldConfig.TelemetrySqmId
-	} else if sqmID, err := generator.GenerateSQMID(); err != nil {
-		log.Fatal("Failed to generate SQM ID:", err)
-	} else {
-		newConfig.TelemetrySqmId = sqmID
-	}
+	generateID(generator.GenerateMachineID, &newConfig.TelemetryMachineId, "machine ID")
+	generateID(generator.GenerateMacMachineID, &newConfig.TelemetryMacMachineId, "MAC machine ID")
+	generateID(generator.GenerateDeviceID, &newConfig.TelemetryDevDeviceId, "device ID")
 
 	display.StopProgress()
 	fmt.Println()
 	return newConfig
 }
 
-func saveConfiguration(display *ui.Display, configManager *config.Manager, newConfig *config.StorageConfig) error {
-	display.ShowProgress("Saving configuration...")
-	if err := configManager.SaveConfig(newConfig, *setReadOnly); err != nil {
-		log.Error(err)
-		waitExit()
-		return err
-	}
-	display.StopProgress()
-	fmt.Println()
-	return nil
-}
-
 func showCompletionMessages(display *ui.Display) {
-	display.ShowSuccess(lang.GetText().SuccessMessage, lang.GetText().RestartMessage)
+	text := lang.GetText()
+	display.ShowSuccess(text.SuccessMessage, text.RestartMessage)
 	fmt.Println()
 
 	message := "Operation completed!"
@@ -272,59 +222,60 @@ func showCompletionMessages(display *ui.Display) {
 		message = "操作完成！"
 	}
 	display.ShowInfo(message)
+
+	if platform.IsLinux() {
+		fmt.Println()
+		if lang.GetCurrentLanguage() == lang.CN {
+			display.ShowInfo("请手动重启 Cursor。")
+		} else {
+			display.ShowInfo("Please restart Cursor manually.")
+		}
+	}
 }
 
-func waitExit() {
+func waitForEnter() {
 	fmt.Print(lang.GetText().PressEnterToExit)
 	os.Stdout.Sync()
 	bufio.NewReader(os.Stdin).ReadString('\n')
 }
 
-func checkAdminPrivileges() (bool, error) {
-	switch runtime.GOOS {
-	case "windows":
-		cmd := exec.Command("net", "session")
-		return cmd.Run() == nil, nil
-
-	case "darwin", "linux":
-		currentUser, err := user.Current()
-		if err != nil {
-			return false, fmt.Errorf("failed to get current user: %w", err)
-		}
-		return currentUser.Uid == "0", nil
-
-	default:
-		return false, fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
-	}
-}
-
 func selfElevate() error {
 	os.Setenv("AUTOMATED_MODE", "1")
+	exe, err := os.Executable()
+	if err != nil {
+		return err
+	}
 
-	switch runtime.GOOS {
-	case "windows":
-		verb := "runas"
-		exe, _ := os.Executable()
+	if platform.IsWindows() {
 		cwd, _ := os.Getwd()
 		args := strings.Join(os.Args[1:], " ")
+		// Create a batch file to run the elevated command and pause
+		batchFile := filepath.Join(os.TempDir(), "cursor_elevate.bat")
+		batchContent := fmt.Sprintf(`@echo off
+echo Elevating privileges...
+powershell -Command "Start-Process '%s' -ArgumentList '%s' -Verb RunAs -Wait"
+if %%ERRORLEVEL%% neq 0 (
+    echo Failed to elevate privileges
+    pause
+    exit /b 1
+)
+`, exe, args)
 
-		cmd := exec.Command("cmd", "/C", "start", verb, exe, args)
-		cmd.Dir = cwd
-		return cmd.Run()
-
-	case "darwin", "linux":
-		exe, err := os.Executable()
-		if err != nil {
-			return err
+		if err := os.WriteFile(batchFile, []byte(batchContent), 0700); err != nil {
+			return fmt.Errorf("failed to create batch file: %w", err)
 		}
+		defer os.Remove(batchFile)
 
-		cmd := exec.Command("sudo", append([]string{exe}, os.Args[1:]...)...)
-		cmd.Stdin = os.Stdin
+		cmd := exec.Command("cmd", "/C", batchFile)
+		cmd.Dir = cwd
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		return cmd.Run()
-
-	default:
-		return fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
 	}
+
+	cmd := exec.Command("sudo", append([]string{exe}, os.Args[1:]...)...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }

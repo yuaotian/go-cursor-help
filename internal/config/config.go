@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
-	"runtime"
 	"sync"
 	"time"
+
+	"github.com/yuaotian/go-cursor-help/internal/platform"
 )
 
 // StorageConfig represents the storage configuration
@@ -15,7 +17,6 @@ type StorageConfig struct {
 	TelemetryMacMachineId string `json:"telemetry.macMachineId"`
 	TelemetryMachineId    string `json:"telemetry.machineId"`
 	TelemetryDevDeviceId  string `json:"telemetry.devDeviceId"`
-	TelemetrySqmId        string `json:"telemetry.sqmId"`
 	LastModified          string `json:"lastModified"`
 	Version               string `json:"version"`
 }
@@ -28,11 +29,11 @@ type Manager struct {
 
 // NewManager creates a new configuration manager
 func NewManager(username string) (*Manager, error) {
-	configPath, err := getConfigPath(username)
+	configDir, err := platform.GetConfigDir(username)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get config path: %w", err)
+		return nil, fmt.Errorf("failed to get config directory: %w", err)
 	}
-	return &Manager{configPath: configPath}, nil
+	return &Manager{configPath: filepath.Join(configDir, "storage.json")}, nil
 }
 
 // ReadConfig reads the existing configuration
@@ -61,93 +62,76 @@ func (m *Manager) SaveConfig(config *StorageConfig, readOnly bool) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// Ensure parent directories exist
+	// Create directory with full permissions
 	if err := os.MkdirAll(filepath.Dir(m.configPath), 0755); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
-	// Prepare updated configuration
-	updatedConfig := m.prepareUpdatedConfig(config)
-
-	// Write configuration
-	if err := m.writeConfigFile(updatedConfig, readOnly); err != nil {
-		return err
+	// Ensure we have write permissions
+	if err := m.ensureWritePermissions(); err != nil {
+		return fmt.Errorf("failed to set write permissions: %w", err)
 	}
 
-	return nil
-}
-
-// prepareUpdatedConfig merges existing config with updates
-func (m *Manager) prepareUpdatedConfig(config *StorageConfig) map[string]interface{} {
-	// Read existing config
-	originalFile := make(map[string]interface{})
-	if data, err := os.ReadFile(m.configPath); err == nil {
-		json.Unmarshal(data, &originalFile)
+	configMap := map[string]interface{}{
+		"telemetry.macMachineId": config.TelemetryMacMachineId,
+		"telemetry.machineId":    config.TelemetryMachineId,
+		"telemetry.devDeviceId":  config.TelemetryDevDeviceId,
+		"lastModified":           time.Now().UTC().Format(time.RFC3339),
 	}
 
-	// Update fields
-	originalFile["telemetry.sqmId"] = config.TelemetrySqmId
-	originalFile["telemetry.macMachineId"] = config.TelemetryMacMachineId
-	originalFile["telemetry.machineId"] = config.TelemetryMachineId
-	originalFile["telemetry.devDeviceId"] = config.TelemetryDevDeviceId
-	originalFile["lastModified"] = time.Now().UTC().Format(time.RFC3339)
-	// originalFile["version"] = "1.0.1"
-
-	return originalFile
-}
-
-// writeConfigFile handles the atomic write of the config file
-func (m *Manager) writeConfigFile(config map[string]interface{}, readOnly bool) error {
-	// Marshal with indentation
-	content, err := json.MarshalIndent(config, "", "    ")
+	content, err := json.MarshalIndent(configMap, "", "    ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
 
-	// Write to temporary file
-	tmpPath := m.configPath + ".tmp"
-	if err := os.WriteFile(tmpPath, content, 0666); err != nil {
-		return fmt.Errorf("failed to write temporary file: %w", err)
+	// Write with full permissions first
+	if err := os.WriteFile(m.configPath, content, 0666); err != nil {
+		return fmt.Errorf("failed to write config file: %w", err)
 	}
 
-	// Set final permissions
-	fileMode := os.FileMode(0666)
+	// Set read-only mode after writing if requested
 	if readOnly {
-		fileMode = 0444
-	}
-
-	if err := os.Chmod(tmpPath, fileMode); err != nil {
-		os.Remove(tmpPath)
-		return fmt.Errorf("failed to set temporary file permissions: %w", err)
-	}
-
-	// Atomic rename
-	if err := os.Rename(tmpPath, m.configPath); err != nil {
-		os.Remove(tmpPath)
-		return fmt.Errorf("failed to rename file: %w", err)
-	}
-
-	// Sync directory
-	if dir, err := os.Open(filepath.Dir(m.configPath)); err == nil {
-		defer dir.Close()
-		dir.Sync()
+		if err := m.setReadOnlyMode(); err != nil {
+			return fmt.Errorf("failed to set read-only mode: %w", err)
+		}
 	}
 
 	return nil
 }
 
-// getConfigPath returns the path to the configuration file
-func getConfigPath(username string) (string, error) {
-	var configDir string
-	switch runtime.GOOS {
-	case "windows":
-		configDir = filepath.Join(os.Getenv("APPDATA"), "Cursor", "User", "globalStorage")
-	case "darwin":
-		configDir = filepath.Join("/Users", username, "Library", "Application Support", "Cursor", "User", "globalStorage")
-	case "linux":
-		configDir = filepath.Join("/home", username, ".config", "Cursor", "User", "globalStorage")
-	default:
-		return "", fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
+// ensureWritePermissions ensures the file is writable
+func (m *Manager) ensureWritePermissions() error {
+	if _, err := os.Stat(m.configPath); err != nil {
+		if os.IsNotExist(err) {
+			return nil // File doesn't exist yet, no need to modify permissions
+		}
+		return err
 	}
-	return filepath.Join(configDir, "storage.json"), nil
+
+	if platform.IsWindows() {
+		// Use attrib to remove read-only attribute on Windows
+		cmd := exec.Command("attrib", "-R", m.configPath)
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to remove read-only attribute: %w", err)
+		}
+		return nil
+	}
+
+	// Unix systems
+	return os.Chmod(m.configPath, 0666)
+}
+
+// setReadOnlyMode sets the file to read-only
+func (m *Manager) setReadOnlyMode() error {
+	if platform.IsWindows() {
+		// Use attrib to set read-only attribute on Windows
+		cmd := exec.Command("attrib", "+R", m.configPath)
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to set read-only attribute: %w", err)
+		}
+		return nil
+	}
+
+	// Unix systems
+	return os.Chmod(m.configPath, 0444)
 }
