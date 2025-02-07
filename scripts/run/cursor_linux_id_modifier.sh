@@ -1,16 +1,18 @@
 #!/bin/bash
+set -euo pipefail  # Exit immediately on error, unset variable, or pipeline error
 
-# 设置错误处理
-set -e
-
-# 颜色定义
+#==============================
+# Define Colors for Logging
+#==============================
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'  # No Color
 
-# 日志函数
+#==============================
+# Logging Functions
+#==============================
 log_info() {
     echo -e "${GREEN}[INFO]${NC} $1"
 }
@@ -27,10 +29,12 @@ log_debug() {
     echo -e "${BLUE}[DEBUG]${NC} $1"
 }
 
-# 获取当前用户
+#==============================
+# Get the current non-root username
+#==============================
 get_current_user() {
     if [ "$EUID" -eq 0 ]; then
-        echo "$SUDO_USER"
+        echo "${SUDO_USER:-root}"
     else
         echo "$USER"
     fi
@@ -38,86 +42,92 @@ get_current_user() {
 
 CURRENT_USER=$(get_current_user)
 if [ -z "$CURRENT_USER" ]; then
-    log_error "无法获取用户名"
+    log_error "Unable to retrieve username"
     exit 1
 fi
 
-# 定义配置文件路径 (修改为 Linux 路径)
+#==============================
+# Define configuration file path and backup directory (Linux paths)
+#==============================
 STORAGE_FILE="/home/$CURRENT_USER/.config/Cursor/User/globalStorage/storage.json"
 BACKUP_DIR="/home/$CURRENT_USER/.config/Cursor/User/globalStorage/backups"
 
-# 检查权限
+#==============================
+# Check for proper permissions
+#==============================
 check_permissions() {
     if [ "$EUID" -ne 0 ]; then
-        log_error "请使用 sudo 运行此脚本"
-        echo "示例: sudo $0"
+        log_error "Please run this script using sudo"
+        echo "Example: sudo $0"
         exit 1
     fi
 }
 
-# 检查并关闭 Cursor 进程
+#==============================
+# Check for and terminate any running Cursor processes
+#==============================
 check_and_kill_cursor() {
-    log_info "检查 Cursor 进程..."
-    
+    log_info "Checking for Cursor processes..."
+
     local attempt=1
     local max_attempts=5
-    
-    # 函数：获取进程详细信息
+
+    # Function: Get process details for a given process name
     get_process_details() {
         local process_name="$1"
-        log_debug "正在获取 $process_name 进程详细信息："
+        log_debug "Retrieving details for $process_name process:"
         ps aux | grep -E "/[C]ursor|[C]ursor$" || true
     }
-    
+
     while [ $attempt -le $max_attempts ]; do
-        # 使用更精确的方式查找 Cursor 进程
+        # Use a more precise method to find Cursor processes
         CURSOR_PIDS=$(ps aux | grep -E "/[C]ursor|[C]ursor$" | awk '{print $2}' || true)
         
         if [ -z "$CURSOR_PIDS" ]; then
-            log_info "未发现运行中的 Cursor 进程"
+            log_info "No running Cursor processes found"
             return 0
         fi
         
-        log_warn "发现 Cursor 进程正在运行"
+        log_warn "Found running Cursor process(es)"
         get_process_details "Cursor"
+        log_warn "Attempting to close Cursor process(es)..."
         
-        log_warn "尝试关闭 Cursor 进程..."
-        
-        # 遍历每个 PID 并尝试终止
+        # Iterate through each PID and attempt to terminate it
         for pid in $CURSOR_PIDS; do
             if [ $attempt -eq $max_attempts ]; then
-                log_warn "尝试强制终止进程 PID: ${pid}..."
-                kill -9 "${pid}" 2>/dev/null || true
+                log_warn "Attempting to force terminate process PID: ${pid}..."
+                kill -9 "$pid" 2>/dev/null || true
             else
-                kill "${pid}" 2>/dev/null || true
+                kill "$pid" 2>/dev/null || true
             fi
         done
         
         sleep 2
         
-        # 检查是否还有 Cursor 进程在运行
+        # Check if any Cursor processes are still running
         if ! ps aux | grep -E "/[C]ursor|[C]ursor$" > /dev/null; then
-            log_info "Cursor 进程已成功关闭"
+            log_info "Cursor processes have been successfully closed"
             return 0
         fi
         
-        log_warn "等待进程关闭，尝试 $attempt/$max_attempts..."
+        log_warn "Waiting for processes to close, attempt $attempt/$max_attempts..."
         ((attempt++))
         sleep 1
     done
     
-    log_error "在 $max_attempts 次尝试后仍无法关闭 Cursor 进程"
+    log_error "Unable to close Cursor processes after $max_attempts attempts"
     get_process_details "Cursor"
-    log_error "请手动关闭进程后重试"
+    log_error "Please manually close the process(es) and try again"
     exit 1
 }
 
-# 备份系统 ID
+#==============================
+# Backup system ID (machine-id and hostname)
+#==============================
 backup_system_id() {
-    log_info "正在备份系统 ID..."
+    log_info "Backing up system ID..."
     local system_id_file="$BACKUP_DIR/system_id.backup_$(date +%Y%m%d_%H%M%S)"
     
-    # 获取并备份 machine-id
     {
         echo "# Original Machine ID Backup" > "$system_id_file"
         echo "## /var/lib/dbus/machine-id:" >> "$system_id_file"
@@ -131,23 +141,25 @@ backup_system_id() {
         
         chmod 444 "$system_id_file"
         chown "$CURRENT_USER:$CURRENT_USER" "$system_id_file"
-        log_info "系统 ID 已备份到: $system_id_file"
+        log_info "System ID backed up to: $system_id_file"
     } || {
-        log_error "备份系统 ID 失败"
+        log_error "Failed to backup system ID"
         return 1
     }
 }
 
-# 备份配置文件
+#==============================
+# Backup the configuration file
+#==============================
 backup_config() {
-    # 检查文件权限
+    # Check file write permissions
     if [ -f "$STORAGE_FILE" ] && [ ! -w "$STORAGE_FILE" ]; then
-        log_error "无法写入配置文件，请检查权限"
+        log_error "Unable to write to configuration file, please check permissions"
         exit 1
     fi
     
     if [ ! -f "$STORAGE_FILE" ]; then
-        log_warn "配置文件不存在，跳过备份"
+        log_warn "Configuration file does not exist, skipping backup"
         return 0
     fi
     
@@ -157,121 +169,153 @@ backup_config() {
     if cp "$STORAGE_FILE" "$backup_file"; then
         chmod 644 "$backup_file"
         chown "$CURRENT_USER:$CURRENT_USER" "$backup_file"
-        log_info "配置已备份到: $backup_file"
+        log_info "Configuration backed up to: $backup_file"
     else
-        log_error "备份失败"
+        log_error "Backup failed"
         exit 1
     fi
 }
 
-# 生成随机 ID
+#==============================
+# Generate a random ID (32 bytes in hex)
+#==============================
 generate_random_id() {
-    # Linux 可以使用 /dev/urandom
     head -c 32 /dev/urandom | xxd -p
 }
 
-# 生成随机 UUID
+#==============================
+# Generate a random UUID (lowercase)
+#==============================
 generate_uuid() {
-    # Linux 使用 uuidgen 命令
     uuidgen | tr '[:upper:]' '[:lower:]'
 }
 
-# 生成新的配置
+#==============================
+# Escape replacement strings for sed
+#==============================
+escape_sed_replacement() {
+    # Escape characters /, &, |, and # in the input string
+    echo "$1" | sed -e 'g'
+}
+
+#==============================
+# Update a JSON field in the configuration file.
+# If the sed pattern doesn't match, log a warning.
+# Parameters:
+#   $1 - JSON field name (e.g., telemetry.machineId)
+#   $2 - Replacement value (should be pre-escaped if necessary)
+#   $3 - File to update
+#==============================
+update_field() {
+    local field="$1"
+    local replacement="$2"
+    local file="$3"
+    local pattern="\"${field}\": *\"[^\"]*\""
+    
+    if ! grep -q -E "$pattern" "$file"; then
+        log_warn "Pattern for ${field} not found in configuration file"
+    fi
+    
+    sed -i "s|${pattern}|\"${field}\": \"${replacement}\"|" "$file"
+}
+
+#==============================
+# Update the configuration with new IDs
+#==============================
 generate_new_config() {
-    # 错误处理
-    if ! command -v xxd &> /dev/null; then
-        log_error "未找到 xxd 命令，请安装 xxd,使用 apt-get install xxd"
-        exit 1
-    fi
+    # Ensure required commands exist
+    command -v xxd >/dev/null || { log_error "Command xxd not found, please install xxd (e.g., apt-get install xxd)"; exit 1; }
+    command -v uuidgen >/dev/null || { log_error "Command uuidgen not found, please install uuidgen (e.g., apt-get install uuid-runtime)"; exit 1; }
     
-    if ! command -v uuidgen &> /dev/null; then
-        log_error "未找到 uuidgen 命令，请安装 uuidgen,使用 apt-get install uuid-runtime"
-        exit 1
-    fi
-    
-    # 检查配置文件是否存在
     if [ ! -f "$STORAGE_FILE" ]; then
-        log_error "未找到配置文件: $STORAGE_FILE"
-        log_warn "请先安装并运行一次 Cursor 后再使用此脚本"
+        log_error "Configuration file not found: $STORAGE_FILE"
+        log_warn "Please install and run Cursor at least once before using this script"
         exit 1
     fi
     
-    # 修改系统 machine-id
+    # Update system machine-id if applicable
     if [ -f "/etc/machine-id" ]; then
-        log_info "正在修改系统 machine-id..."
-        local new_machine_id=$(uuidgen | tr -d '-')
+        log_info "Modifying system machine-id..."
+        local new_machine_id
+        new_machine_id=$(uuidgen | tr -d '-')
         
-        # 备份原始 machine-id
+        # Backup original machine-id
         backup_system_id
         
-        # 修改 machine-id
-        echo "$new_machine_id" | sudo tee /etc/machine-id > /dev/null
+        # Update machine-id
+        echo "$new_machine_id" > /etc/machine-id
         if [ -f "/var/lib/dbus/machine-id" ]; then
-            sudo ln -sf /etc/machine-id /var/lib/dbus/machine-id
+            ln -sf /etc/machine-id /var/lib/dbus/machine-id
         fi
-        log_info "系统 machine-id 已更新"
+        log_info "System machine-id has been updated"
     fi
     
-    # 将 auth0|user_ 转换为字节数组的十六进制
-    local prefix_hex=$(echo -n "auth0|user_" | xxd -p)
-    local random_part=$(generate_random_id)
+    # Convert "auth0|user_" to its hexadecimal representation
+    local prefix_hex
+    prefix_hex=$(echo -n "auth0|user_" | xxd -p)
+    local random_part
+    random_part=$(generate_random_id)
     local machine_id="${prefix_hex}${random_part}"
     
-    local mac_machine_id=$(generate_random_id)
-    local device_id=$(generate_uuid | tr '[:upper:]' '[:lower:]')
-    local sqm_id="{$(generate_uuid | tr '[:lower:]' '[:upper:]')}"
+    local mac_machine_id
+    mac_machine_id=$(generate_random_id)
+    local device_id
+    device_id=$(generate_uuid)
+    local sqm_id
+    sqm_id="{$(generate_uuid | tr '[:lower:]' '[:upper:]')}"
     
-    # 增强的转义函数
-    escape_sed_replacement() {
-        echo "$1" | sed -e 'g'
-    }
-
-    # 对变量进行转义处理
+    # Escape the values for sed replacement
+    local machine_id_escaped
     machine_id_escaped=$(escape_sed_replacement "$machine_id")
+    local mac_machine_id_escaped
     mac_machine_id_escaped=$(escape_sed_replacement "$mac_machine_id")
+    local device_id_escaped
     device_id_escaped=$(escape_sed_replacement "$device_id")
+    local sqm_id_escaped
     sqm_id_escaped=$(escape_sed_replacement "$sqm_id")
-
-    # 使用增强正则表达式和转义
-    sed -i "s|\"telemetry\.machineId\": *\"[^\"]*\"|\"telemetry.machineId\": \"${machine_id_escaped}\"|" "$STORAGE_FILE"
-    sed -i "s|\"telemetry\.macMachineId\": *\"[^\"]*\"|\"telemetry.macMachineId\": \"${mac_machine_id_escaped}\"|" "$STORAGE_FILE"
-    sed -i "s|\"telemetry\.devDeviceId\": *\"[^\"]*\"|\"telemetry.devDeviceId\": \"${device_id_escaped}\"|" "$STORAGE_FILE"
-    sed -i "s|\"telemetry\.sqmId\": *\"[^\"]*\"|\"telemetry.sqmId\": \"${sqm_id_escaped}\"|" "$STORAGE_FILE"
-
-    # 设置文件权限和所有者
-    chmod 444 "$STORAGE_FILE"  # 改为只读权限
+    
+    # Update configuration JSON fields.
+    update_field "telemetry.machineId" "${machine_id_escaped}" "$STORAGE_FILE"
+    update_field "telemetry.macMachineId" "${mac_machine_id_escaped}" "$STORAGE_FILE"
+    update_field "telemetry.devDeviceId" "${device_id_escaped}" "$STORAGE_FILE"
+    update_field "telemetry.sqmId" "${sqm_id_escaped}" "$STORAGE_FILE"
+    
+    # Set configuration file to read-only
+    chmod 444 "$STORAGE_FILE"
     chown "$CURRENT_USER:$CURRENT_USER" "$STORAGE_FILE"
     
-    # 验证权限设置
+    # Verify file is no longer writable; if not, try using chattr for extra protection
     if [ -w "$STORAGE_FILE" ]; then
-        log_warn "无法设置只读权限，尝试使用其他方法..."
-        # 在 Linux 上使用 chattr 命令设置不可修改属性
-        if command -v chattr &> /dev/null; then
-            chattr +i "$STORAGE_FILE" 2>/dev/null || log_warn "chattr 设置失败"
+        log_warn "Unable to set file to read-only, trying alternative method..."
+        if command -v chattr &>/dev/null; then
+            chattr +i "$STORAGE_FILE" 2>/dev/null || log_warn "chattr failed to set attribute"
         fi
     else
-        log_info "成功设置文件只读权限"
+        log_info "Successfully set file to read-only"
     fi
     
     echo
-    log_info "已更新配置:"
+    log_info "Configuration updated:"
     log_debug "machineId: $machine_id"
     log_debug "macMachineId: $mac_machine_id"
     log_debug "devDeviceId: $device_id"
     log_debug "sqmId: $sqm_id"
 }
 
-# 显示文件树结构
+#==============================
+# Display the file tree structure for the storage folder
+#==============================
 show_file_tree() {
-    local base_dir=$(dirname "$STORAGE_FILE")
+    local base_dir
+    base_dir=$(dirname "$STORAGE_FILE")
     echo
-    log_info "文件结构:"
+    log_info "File structure:"
     echo -e "${BLUE}$base_dir${NC}"
     echo "├── globalStorage"
-    echo "│   ├── storage.json (已修改)"
+    echo "│   ├── storage.json (modified)"
     echo "│   └── backups"
     
-    # 列出备份文件
+    # List backup files
     if [ -d "$BACKUP_DIR" ]; then
         local backup_files=("$BACKUP_DIR"/*)
         if [ ${#backup_files[@]} -gt 0 ] && [ -e "${backup_files[0]}" ]; then
@@ -281,105 +325,108 @@ show_file_tree() {
                 fi
             done
         else
-            echo "│       └── (空)"
+            echo "│       └── (empty)"
         fi
     fi
     echo
 }
 
-# 显示公众号信息
+#==============================
+# Display follow info (public account message)
+#==============================
 show_follow_info() {
     echo
     echo -e "${GREEN}================================${NC}"
-    echo -e "${YELLOW}  关注公众号【煎饼果子卷AI】一起交流更多Cursor技巧和AI知识 ${NC}"
+    echo -e "${YELLOW}  Follow the public account [煎饼果子卷AI] to exchange more Cursor skills and AI knowledge  ${NC}"
     echo -e "${GREEN}================================${NC}"
     echo
 }
 
-# 修改 disable_auto_update 函数,在失败处理时添加手动教程
+#==============================
+# Disable Cursor auto-update by removing/locking the updater directory
+#==============================
 disable_auto_update() {
     echo
-    log_warn "是否要禁用 Cursor 自动更新功能？"
-    echo "0) 否 - 保持默认设置 (按回车键)"
-    echo "1) 是 - 禁用自动更新"
+    log_warn "Do you want to disable the Cursor auto-update feature?"
+    echo "0) No - Keep default settings (press Enter)"
+    echo "1) Yes - Disable auto-update"
     read -r choice
     
     if [ "$choice" = "1" ]; then
         echo
-        log_info "正在处理自动更新..."
+        log_info "Processing auto-update settings..."
         local updater_path="$HOME/.config/cursor-updater"
         
-        # 定义手动设置教程
         show_manual_guide() {
             echo
-            log_warn "自动设置失败,请尝试手动操作："
-            echo -e "${YELLOW}手动禁用更新步骤：${NC}"
-            echo "1. 打开终端"
-            echo "2. 复制粘贴以下命令："
+            log_warn "Automatic setup failed, please try manual steps:"
+            echo -e "${YELLOW}Manual steps to disable auto-update:${NC}"
+            echo "1. Open a terminal"
+            echo "2. Copy and paste the following command:"
             echo -e "${BLUE}rm -rf \"$updater_path\" && touch \"$updater_path\" && chmod 444 \"$updater_path\"${NC}"
             echo
-            echo -e "${YELLOW}如果上述命令提示权限不足，请使用 sudo：${NC}"
+            echo -e "${YELLOW}If you encounter insufficient permission errors, try using sudo:${NC}"
             echo -e "${BLUE}sudo rm -rf \"$updater_path\" && sudo touch \"$updater_path\" && sudo chmod 444 \"$updater_path\"${NC}"
             echo
-            echo -e "${YELLOW}如果要添加额外保护（推荐），请执行：${NC}"
+            echo -e "${YELLOW}For additional protection (recommended), execute:${NC}"
             echo -e "${BLUE}sudo chattr +i \"$updater_path\"${NC}"
             echo
-            echo -e "${YELLOW}验证方法：${NC}"
-            echo "1. 运行命令：ls -l \"$updater_path\""
-            echo "2. 确认文件权限为 r--r--r--"
-            echo "3. 运行命令：lsattr \"$updater_path\""
-            echo "4. 确认有 'i' 属性（如果执行了 chattr 命令）"
+            echo -e "${YELLOW}Verification steps:${NC}"
+            echo "1. Run: ls -l \"$updater_path\""
+            echo "2. Ensure the file permissions are r--r--r--"
+            echo "3. Run: lsattr \"$updater_path\""
+            echo "4. Verify that the 'i' attribute is present (if chattr was executed)"
             echo
-            log_warn "完成后请重启 Cursor"
+            log_warn "After completing, please restart Cursor"
         }
         
         if [ -d "$updater_path" ]; then
             rm -rf "$updater_path" 2>/dev/null || {
-                log_error "删除 cursor-updater 目录失败"
+                log_error "Failed to delete cursor-updater directory"
                 show_manual_guide
                 return 1
             }
-            log_info "成功删除 cursor-updater 目录"
+            log_info "Successfully deleted cursor-updater directory"
         fi
         
         touch "$updater_path" 2>/dev/null || {
-            log_error "创建阻止文件失败"
+            log_error "Failed to create blocking file"
             show_manual_guide
             return 1
         }
         
         if ! chmod 444 "$updater_path" 2>/dev/null || ! chown "$CURRENT_USER:$CURRENT_USER" "$updater_path" 2>/dev/null; then
-            log_error "设置文件权限失败"
+            log_error "Failed to set file permissions"
             show_manual_guide
             return 1
         fi
         
-        # 尝试设置不可修改属性
-        if command -v chattr &> /dev/null; then
+        if command -v chattr &>/dev/null; then
             chattr +i "$updater_path" 2>/dev/null || {
-                log_warn "chattr 设置失败"
+                log_warn "chattr failed to set attribute"
                 show_manual_guide
                 return 1
             }
         fi
         
-        # 验证设置是否成功
         if [ ! -f "$updater_path" ] || [ -w "$updater_path" ]; then
-            log_error "验证失败：文件权限设置可能未生效"
+            log_error "Verification failed: file permissions may not have taken effect"
             show_manual_guide
             return 1
         fi
         
-        log_info "成功禁用自动更新"
+        log_info "Successfully disabled auto-update"
     else
-        log_info "保持默认设置，不进行更改"
+        log_info "Keeping default settings, no changes made"
     fi
 }
 
-# 主函数
+#==============================
+# Main function to execute all tasks
+#==============================
 main() {
     clear
-    # 显示 Logo
+    # Display ASCII Logo
     echo -e "
     ██████╗██╗   ██╗██████╗ ███████╗ ██████╗ ██████╗ 
    ██╔════╝██║   ██║██╔══██╗██╔════╝██╔═══██╗██╔══██╗
@@ -389,27 +436,27 @@ main() {
     ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═╝  ╚═╝
     "
     echo -e "${BLUE}================================${NC}"
-    echo -e "${GREEN}   Cursor ID 修改工具          ${NC}"
-    echo -e "${YELLOW}  关注公众号【煎饼果子卷AI】一起交流更多Cursor技巧和AI知识(脚本免费、关注公众号加群有更多技巧和大佬)  ${NC}"
+    echo -e "${GREEN}   Cursor ID Modification Tool          ${NC}"
+    echo -e "${YELLOW}  Follow the public account [煎饼果子卷AI] to exchange more Cursor skills and AI knowledge (script is free; follow and join the group for more tips and experts)  ${NC}"
     echo -e "${BLUE}================================${NC}"
     echo
-    echo -e "${YELLOW}[重要提示]${NC} 本工具支持 Cursor v0.45.x"
-    echo -e "${YELLOW}[重要提示]${NC} 本工具免费，关注公众号加群有更多技巧和大佬"
+    echo -e "${YELLOW}[IMPORTANT]${NC} This tool supports Cursor v0.45.x"
+    echo -e "${YELLOW}[IMPORTANT]${NC} This tool is free. Follow the public account and join the group for more tips and experts"
     echo
-    
+
     check_permissions
     check_and_kill_cursor
     backup_config
     generate_new_config
-    
+
     echo
-    log_info "操作完成！"
+    log_info "Operation completed!"
     show_follow_info
     show_file_tree
-    log_info "请重启 Cursor 以应用新的配置"
-    
+    log_info "Please restart Cursor to apply the new configuration"
+
     disable_auto_update
 }
 
-# 执行主函数
+# Execute main function
 main
