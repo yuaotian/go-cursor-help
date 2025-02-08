@@ -537,7 +537,7 @@ modify_mac_address() {
 }
 
 # 新增恢复功能选项
-add_restore_feature() {
+restore_feature() {
     local backup_files=("$BACKUP_DIR"/*.backup_*)
     echo "可用的备份文件："
     select backup in "${backup_files[@]}"; do
