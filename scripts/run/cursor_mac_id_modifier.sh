@@ -609,7 +609,7 @@ main() {
     show_follow_info
 
     # 新增恢复功能选项
-    restore_feature
+    add_restore_feature
 }
 
 # 执行主函数
