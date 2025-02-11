@@ -221,7 +221,7 @@ generate_new_config() {
     
     # 增强的转义函数
     escape_sed_replacement() {
-        echo "$1" | sed -e 's/[\/&]/\\&/g'
+        echo "$1" | sed -e 's/[\/&|#@]/\\&/g'
     }
 
     # 对变量进行转义处理
