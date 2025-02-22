@@ -399,16 +399,24 @@ try {
         }
 
         try {
-            # 删除现有目录
+            # 检查cursor-updater是否存在
             if (Test-Path $updaterPath) {
-                try {
-                    Remove-Item -Path $updaterPath -Force -Recurse -ErrorAction Stop
-                    Write-Host "$GREEN[信息]$NC 成功删除 cursor-updater 目录"
-                }
-                catch {
-                    Write-Host "$RED[错误]$NC 删除 cursor-updater 目录失败"
-                    Show-ManualGuide
+                # 如果是文件,说明已经创建了阻止更新
+                if ((Get-Item $updaterPath) -is [System.IO.FileInfo]) {
+                    Write-Host "$GREEN[信息]$NC 已创建阻止更新文件,无需再次阻止"
                     return
+                }
+                # 如果是目录,尝试删除
+                else {
+                    try {
+                        Remove-Item -Path $updaterPath -Force -Recurse -ErrorAction Stop
+                        Write-Host "$GREEN[信息]$NC 成功删除 cursor-updater 目录"
+                    }
+                    catch {
+                        Write-Host "$RED[错误]$NC 删除 cursor-updater 目录失败"
+                        Show-ManualGuide
+                        return
+                    }
                 }
             }
 
