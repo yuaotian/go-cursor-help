@@ -271,8 +271,27 @@ Windows 用户可以手动禁用自动更新功能：
 2. 删除目录：`C:\Users\用户名\AppData\Local\cursor-updater`
 3. 创建同名文件：`cursor-updater`（不带扩展名）
 
-macOS/Linux 用户可以尝试在系统中找到类似的`cursor-updater`目录进行相同操作。
+Linux用户可以尝试在系统中找到类似的`cursor-updater`目录进行相同操作。
 
+MacOS用户按照以下步骤操作：
+
+```bash
+# 关闭所有 Cursor 进程
+pkill -f "Cursor"
+
+# 备份app-update.yml并创建空的只读文件代替原文件
+cd /Applications/Cursor.app/Contents/Resources
+mv app-update.yml app-update.yml.bak
+touch app-update.yml
+chmod 444 app-update.yml
+
+# 打开Cursor设置，将更新模式设置为“无”，该步骤必须执行，否则Cursor依然会自动检查更新
+# 步骤：Settings -> Application -> Update, 将Mode设置为none
+
+# 注意: cursor-updater修改方法可能已失效。但为了以防万一，还是删除更新目录并创建阻止文件
+rm -rf ~/Library/Application\ Support/cursor-updater
+touch ~/Library/Application\ Support/cursor-updater
+```
 </details>
 
 <details>
