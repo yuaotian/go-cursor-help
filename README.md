@@ -84,11 +84,22 @@ Select `1` to automatically complete the disable operation.
 
 **macOS:**
 ```bash
+# NOTE: As tested, this method only works for version 0.45.11 and below.
 # Close Cursor
 pkill -f "Cursor"
-# Remove update directory and create blocking file
-rm -rf ~/Library/Application\ Support/cursor-updater
-touch ~/Library/Application\ Support/cursor-updater
+# Replacing app-update.yml with a blank/read-only file
+cd /Applications/Cursor.app/Contents/Resources
+mv app-update.yml app-update.yml.bak
+touch app-update.yml
+chmod 444 app-update.yml
+
+# Go to Settings -> Application -> Update, set Mode to none.
+# This must be done to prevent Cursor from checking for updates.
+
+# NOTE: The cursor-updater modification method may no longer be effective
+# In any case, remove update directory and create blocking file
+rm -rf ~/Library/Application\ Support/Caches/cursor-updater
+touch ~/Library/Application\ Support/Caches/cursor-updater
 ```
 
 **Linux:**
