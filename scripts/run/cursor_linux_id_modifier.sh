@@ -43,8 +43,13 @@ if [ -z "$CURRENT_USER" ]; then
 fi
 
 # 定义配置文件路径
-STORAGE_FILE="$HOME/.config/Cursor/User/globalStorage/storage.json"
-BACKUP_DIR="$HOME/.config/Cursor/User/globalStorage/backups"
+if [ "$EUID" -eq 0 ] && [ -n "$SUDO_USER" ]; then
+    USER_HOME=$(eval echo ~$SUDO_USER)
+else
+    USER_HOME="$HOME"
+fi
+STORAGE_FILE="$USER_HOME/.config/Cursor/User/globalStorage/storage.json"
+BACKUP_DIR="$USER_HOME/.config/Cursor/User/globalStorage/backups"
 
 # 检查权限
 check_permissions() {
