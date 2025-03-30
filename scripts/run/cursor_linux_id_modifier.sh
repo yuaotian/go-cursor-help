@@ -587,7 +587,7 @@ global.macMachineId = '$mac_machine_id';
                     
                     log_debug "完成最通用注入"
                     ((modified_count++))
-                }
+                fi
             else
                 log_info "文件已经被修改过，跳过修改"
             fi
