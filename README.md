@@ -503,8 +503,8 @@ Modifying this registry key may affect:
 </td>
 <td align="center">
 <b>WeChat</b><br>
-<img src="img/qun-12.png" width="500" alt="WeChat"><br>
-<em>二维码7天内(4月25日前)有效，过期请加微信</em>
+<img src="img/qun13.png" width="500" alt="WeChat"><br>
+<em>二维码7天内(5月30日前)有效，过期请加微信</em>
 </td>
 <!-- <td align="center">
 <b>ETC</b><br>
