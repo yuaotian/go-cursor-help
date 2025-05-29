@@ -15,8 +15,8 @@
 > ⚠️ **IMPORTANT NOTICE**
 > 
 > This tool currently supports:
-> - ✅ Windows: Latest 0.49.x versions (Supported)
-> - ✅ Mac/Linux: Latest 0.49.x versions (Supported, feedback welcome)
+> - ✅ Windows: Latest 0.50.x versions (Supported)
+> - ✅ Mac/Linux: Latest 0.50.x versions (Supported, feedback welcome)
 >
 > Please check your Cursor version before using this tool.
 

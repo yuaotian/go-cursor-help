@@ -149,7 +149,7 @@ function Get-CursorVersion {
 $cursorVersion = Get-CursorVersion
 Write-Host ""
 
-Write-Host "$YELLOW[重要提示]$NC 最新的 0.49.x (以支持)"
+Write-Host "$YELLOW[重要提示]$NC 最新的 0.50.x (以支持)"
 Write-Host ""
 
 # 检查并关闭 Cursor 进程

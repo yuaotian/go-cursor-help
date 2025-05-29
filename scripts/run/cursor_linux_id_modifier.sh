@@ -202,7 +202,7 @@ install_cursor_appimage() {
     if ! find_appimage; then
         log_warn "在 '$APPIMAGE_SEARCH_DIR' 目录下未找到 '$APPIMAGE_PATTERN' 文件。"
         # --- 新增：添加文件名格式提醒 ---
-        log_info "请确保 AppImage 文件名格式类似: Cursor-版本号-架构.AppImage (例如: Cursor-0.49.6-aarch64.AppImage 或 Cursor-x.y.z-x86_64.AppImage)"
+        log_info "请确保 AppImage 文件名格式类似: Cursor-版本号-架构.AppImage (例如: Cursor-0.50.6-aarch64.AppImage 或 Cursor-x.y.z-x86_64.AppImage)"
         # --- 结束：添加文件名格式提醒 ---
         # 等待用户放置文件
         read -p $"请将 Cursor AppImage 文件放入 '$APPIMAGE_SEARCH_DIR' 目录，然后按 Enter 键继续..."

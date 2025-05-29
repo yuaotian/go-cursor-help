@@ -3,7 +3,7 @@
 AppImage instructions:
 mkdir -p ~/Downloads/Cursor
 cd ~/Downloads/Cursor
-cd Cursor && ./Cursor-0.49.5-x86_64.AppImage --appimage-extract
+cd Cursor && ./Cursor-0.50.5-x86_64.AppImage --appimage-extract
 mkdir -p ~/.local
 rsync -rt ~/Downloads/Cursor/squashfs-root/usr/ ~/.local
 # ^ copy the subfolders not usr itself, so the resulting executable should be ~/.local/bin/cursor
