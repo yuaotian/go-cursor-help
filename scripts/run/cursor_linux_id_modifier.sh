@@ -1084,6 +1084,67 @@ select_menu_option() {
     done
 }
 
+# 新增 Cursor 初始化清理函数
+cursor_initialize_cleanup() {
+    log_info "正在执行 Cursor 初始化清理..."
+    # CURSOR_CONFIG_DIR 在脚本全局已定义: $HOME/.config/Cursor
+    local USER_CONFIG_BASE_PATH="$CURSOR_CONFIG_DIR/User"
+
+    log_debug "用户配置基础路径: $USER_CONFIG_BASE_PATH"
+
+    local files_to_delete=(
+        "$USER_CONFIG_BASE_PATH/globalStorage/state.vscdb"
+        "$USER_CONFIG_BASE_PATH/globalStorage/state.vscdb.backup"
+    )
+    
+    local folder_to_clean_contents="$USER_CONFIG_BASE_PATH/History"
+    local folder_to_delete_completely="$USER_CONFIG_BASE_PATH/workspaceStorage"
+
+    # 删除指定文件
+    for file_path in "${files_to_delete[@]}"; do
+        log_debug "检查文件: $file_path"
+        if [ -f "$file_path" ]; then
+            if rm -f "$file_path"; then
+                log_info "已删除文件: $file_path"
+            else
+                log_error "删除文件 $file_path 失败"
+            fi
+        else
+            log_warn "文件不存在，跳过删除: $file_path"
+        fi
+    done
+
+    # 清空指定文件夹内容
+    log_debug "检查待清空文件夹: $folder_to_clean_contents"
+    if [ -d "$folder_to_clean_contents" ]; then
+        if find "$folder_to_clean_contents" -mindepth 1 -delete; then
+            log_info "已清空文件夹内容: $folder_to_clean_contents"
+        else
+            if [ -z "$(ls -A "$folder_to_clean_contents")" ]; then
+                 log_info "文件夹 $folder_to_clean_contents 现在为空。"
+            else
+                 log_error "清空文件夹 $folder_to_clean_contents 内容失败 (部分或全部)。请检查权限或手动删除。"
+            fi
+        fi
+    else
+        log_warn "文件夹不存在，跳过清空: $folder_to_clean_contents"
+    fi
+
+    # 删除指定文件夹及其内容
+    log_debug "检查待删除文件夹: $folder_to_delete_completely"
+    if [ -d "$folder_to_delete_completely" ]; then
+        if rm -rf "$folder_to_delete_completely"; then
+            log_info "已删除文件夹: $folder_to_delete_completely"
+        else
+            log_error "删除文件夹 $folder_to_delete_completely 失败"
+        fi
+    else
+        log_warn "文件夹不存在，跳过删除: $folder_to_delete_completely"
+    fi
+
+    log_info "Cursor 初始化清理完成。"
+}
+
 # 主函数
 main() {
     # 初始化日志文件
@@ -1156,6 +1217,9 @@ main() {
          exit 1
     fi
     
+    # 执行 Cursor 初始化清理
+    cursor_initialize_cleanup
+
     # 备份并处理配置文件 (机器码重置选项)
     if ! generate_new_config; then
          log_error "处理配置文件时出错，脚本中止。"

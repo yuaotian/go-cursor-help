@@ -50,6 +50,66 @@ log_cmd_output() {
     echo "" >> "$LOG_FILE"
 }
 
+# 新增 Cursor 初始化清理函数
+cursor_initialize_cleanup() {
+    log_info "正在执行 Cursor 初始化清理..."
+    local BASE_PATH="$HOME/Library/Application Support/Cursor/User"
+
+    log_debug "基础路径: $BASE_PATH"
+
+    local files_to_delete=(
+        "$BASE_PATH/globalStorage/state.vscdb"
+        "$BASE_PATH/globalStorage/state.vscdb.backup"
+    )
+    
+    local folder_to_clean_contents="$BASE_PATH/History"
+    local folder_to_delete_completely="$BASE_PATH/workspaceStorage"
+
+    # 删除指定文件
+    for file_path in "${files_to_delete[@]}"; do
+        log_debug "检查文件: $file_path"
+        if [ -f "$file_path" ]; then
+            if rm -f "$file_path"; then
+                log_info "已删除文件: $file_path"
+            else
+                log_error "删除文件 $file_path 失败"
+            fi
+        else
+            log_warn "文件不存在，跳过删除: $file_path"
+        fi
+    done
+
+    # 清空指定文件夹内容
+    log_debug "检查待清空文件夹: $folder_to_clean_contents"
+    if [ -d "$folder_to_clean_contents" ]; then
+        if find "$folder_to_clean_contents" -mindepth 1 -delete; then
+            log_info "已清空文件夹内容: $folder_to_clean_contents"
+        else
+            if [ -z "$(ls -A "$folder_to_clean_contents")" ]; then
+                 log_info "文件夹 $folder_to_clean_contents 现在为空。" # 通常find成功即代表操作完成
+            else
+                 log_error "清空文件夹 $folder_to_clean_contents 内容失败 (部分或全部)。请检查权限或手动删除。"
+            fi
+        fi
+    else
+        log_warn "文件夹不存在，跳过清空: $folder_to_clean_contents"
+    fi
+
+    # 删除指定文件夹及其内容
+    log_debug "检查待删除文件夹: $folder_to_delete_completely"
+    if [ -d "$folder_to_delete_completely" ]; then
+        if rm -rf "$folder_to_delete_completely"; then
+            log_info "已删除文件夹: $folder_to_delete_completely"
+        else
+            log_error "删除文件夹 $folder_to_delete_completely 失败"
+        fi
+    else
+        log_warn "文件夹不存在，跳过删除: $folder_to_delete_completely"
+    fi
+
+    log_info "Cursor 初始化清理完成。"
+}
+
 # 获取当前用户
 get_current_user() {
     if [ "$EUID" -eq 0 ]; then
@@ -1238,6 +1298,10 @@ main() {
     # 执行主要功能
     check_permissions
     check_and_kill_cursor
+    
+    # 执行 Cursor 初始化清理
+    cursor_initialize_cleanup
+
     backup_config
 
     # 新增：默认执行系统 MAC 地址修改
