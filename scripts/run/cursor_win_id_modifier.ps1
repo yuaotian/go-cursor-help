@@ -13,6 +13,70 @@ $NC = "`e[0m"
 $STORAGE_FILE = "$env:APPDATA\Cursor\User\globalStorage\storage.json"
 $BACKUP_DIR = "$env:APPDATA\Cursor\User\globalStorage\backups"
 
+# 新增 Cursor 初始化函数
+function Cursor-初始化 {
+    Write-Host "$GREEN[信息]$NC 正在执行 Cursor 初始化清理..."
+    $BASE_PATH = "$env:APPDATA\Cursor\User"
+
+    $filesToDelete = @(
+        (Join-Path -Path $BASE_PATH -ChildPath "globalStorage\\state.vscdb"),
+        (Join-Path -Path $BASE_PATH -ChildPath "globalStorage\\state.vscdb.backup")
+    )
+    
+    $folderToCleanContents = Join-Path -Path $BASE_PATH -ChildPath "History"
+    $folderToDeleteCompletely = Join-Path -Path $BASE_PATH -ChildPath "workspaceStorage"
+
+    Write-Host "$BLUE[调试]$NC 基础路径: $BASE_PATH"
+
+    # 删除指定文件
+    foreach ($file in $filesToDelete) {
+        Write-Host "$BLUE[调试]$NC 检查文件: $file"
+        if (Test-Path $file) {
+            try {
+                Remove-Item -Path $file -Force -ErrorAction Stop
+                Write-Host "$GREEN[成功]$NC 已删除文件: $file"
+            }
+            catch {
+                Write-Host "$RED[错误]$NC 删除文件 $file 失败: $($_.Exception.Message)"
+            }
+        } else {
+            Write-Host "$YELLOW[警告]$NC 文件不存在，跳过删除: $file"
+        }
+    }
+
+    # 清空指定文件夹内容
+    Write-Host "$BLUE[调试]$NC 检查待清空文件夹: $folderToCleanContents"
+    if (Test-Path $folderToCleanContents) {
+        try {
+            # 获取子项进行删除，以避免删除 History 文件夹本身
+            Get-ChildItem -Path $folderToCleanContents -Recurse | Remove-Item -Recurse -Force -ErrorAction Stop
+            Write-Host "$GREEN[成功]$NC 已清空文件夹内容: $folderToCleanContents"
+        }
+        catch {
+            Write-Host "$RED[错误]$NC 清空文件夹 $folderToCleanContents 内容失败: $($_.Exception.Message)"
+        }
+    } else {
+        Write-Host "$YELLOW[警告]$NC 文件夹不存在，跳过清空: $folderToCleanContents"
+    }
+
+    # 删除指定文件夹及其内容
+    Write-Host "$BLUE[调试]$NC 检查待删除文件夹: $folderToDeleteCompletely"
+    if (Test-Path $folderToDeleteCompletely) {
+        try {
+            Remove-Item -Path $folderToDeleteCompletely -Recurse -Force -ErrorAction Stop
+            Write-Host "$GREEN[成功]$NC 已删除文件夹: $folderToDeleteCompletely"
+        }
+        catch {
+            Write-Host "$RED[错误]$NC 删除文件夹 $folderToDeleteCompletely 失败: $($_.Exception.Message)"
+        }
+    } else {
+        Write-Host "$YELLOW[警告]$NC 文件夹不存在，跳过删除: $folderToDeleteCompletely"
+    }
+
+    Write-Host "$GREEN[信息]$NC Cursor 初始化清理完成。"
+    Write-Host "" # 添加空行以改善输出格式
+}
+
 # 检查管理员权限
 function Test-Administrator {
     $user = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -51,7 +115,7 @@ Write-Host ""
 function Get-CursorVersion {
     try {
         # 主要检测路径
-        $packagePath = "$env:LOCALAPPDATA\Programs\cursor\resources\app\package.json"
+        $packagePath = "$env:LOCALAPPDATA\\Programs\\cursor\\resources\\app\\package.json"
         
         if (Test-Path $packagePath) {
             $packageJson = Get-Content $packagePath -Raw | ConvertFrom-Json
@@ -62,7 +126,7 @@ function Get-CursorVersion {
         }
 
         # 备用路径检测
-        $altPath = "$env:LOCALAPPDATA\cursor\resources\app\package.json"
+        $altPath = "$env:LOCALAPPDATA\\cursor\\resources\\app\\package.json"
         if (Test-Path $altPath) {
             $packageJson = Get-Content $altPath -Raw | ConvertFrom-Json
             if ($packageJson.version) {
@@ -138,6 +202,9 @@ function Close-CursorProcess {
 # 关闭所有 Cursor 进程
 Close-CursorProcess "Cursor"
 Close-CursorProcess "cursor"
+
+# 执行 Cursor 初始化清理
+Cursor-初始化
 
 # 创建备份目录
 if (-not (Test-Path $BACKUP_DIR)) {
@@ -536,13 +603,4 @@ function Write-ConfigFile {
     catch {
         throw "写入配置文件失败: $_"
     }
-}
-
-# 获取并显示版本信息
-$cursorVersion = Get-CursorVersion
-Write-Host ""
-if ($cursorVersion) {
-    Write-Host "$GREEN[信息]$NC 检测到 Cursor 版本: $cursorVersion，继续执行..."
-} else {
-    Write-Host "$YELLOW[警告]$NC 无法检测版本，将继续执行..."
 } 
