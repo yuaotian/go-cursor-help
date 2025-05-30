@@ -1218,7 +1218,7 @@ main() {
     fi
     
     # 执行 Cursor 初始化清理
-    cursor_initialize_cleanup
+    # cursor_initialize_cleanup
 
     # 备份并处理配置文件 (机器码重置选项)
     if ! generate_new_config; then

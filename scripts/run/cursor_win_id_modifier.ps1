@@ -204,7 +204,7 @@ Close-CursorProcess "Cursor"
 Close-CursorProcess "cursor"
 
 # 执行 Cursor 初始化清理
-Cursor-初始化
+# Cursor-初始化
 
 # 创建备份目录
 if (-not (Test-Path $BACKUP_DIR)) {

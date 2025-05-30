@@ -1300,7 +1300,7 @@ main() {
     check_and_kill_cursor
     
     # 执行 Cursor 初始化清理
-    cursor_initialize_cleanup
+    # cursor_initialize_cleanup
 
     backup_config
 
