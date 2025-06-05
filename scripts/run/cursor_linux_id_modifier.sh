@@ -1170,8 +1170,12 @@ main() {
     ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═╝  ╚═╝
     "
     echo -e "${BLUE}=====================================================${NC}"
-    echo -e "${GREEN}         Cursor Linux 启动与修改工具            ${NC}"
+    echo -e "${GREEN}         Cursor Linux 启动与修改工具（免费）            ${NC}"
+    echo -e "${YELLOW}        关注公众号【煎饼果子卷AI】     ${NC}"
+    echo -e "${YELLOW}  一起交流更多Cursor技巧和AI知识(脚本免费、关注公众号加群有更多技巧和大佬)  ${NC}"
     echo -e "${BLUE}=====================================================${NC}"
+    echo
+    echo -e "${GREEN}  [小小广告]  出售CursorPro教育号一年质保三个月，有需要找我(86)，WeChat：JavaRookie666            ${NC}"
     echo
     echo -e "${YELLOW}[提示]${NC} 本工具旨在修改 Cursor 以解决可能的启动问题或设备限制。"
     echo -e "${YELLOW}[提示]${NC} 它将优先修改 JS 文件，并可选择重置设备ID和禁用自动更新。"

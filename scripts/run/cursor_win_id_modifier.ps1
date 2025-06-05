@@ -108,8 +108,9 @@ Write-Host "$GREEN   Cursor 设备ID 修改工具          $NC"
 Write-Host "$YELLOW  关注公众号【煎饼果子卷AI】 $NC"
 Write-Host "$YELLOW  一起交流更多Cursor技巧和AI知识(脚本免费、关注公众号加群有更多技巧和大佬)  $NC"
 Write-Host "$YELLOW  [重要提示] 本工具免费，如果对您有帮助，请关注公众号【煎饼果子卷AI】  $NC"
-Write-Host "$BLUE================================$NC"
 Write-Host ""
+Write-Host "$GREEN   [小小广告]  出售CursorPro教育号一年质保三个月，有需要找我(86)，WeChat：JavaRookie666  $NC"
+Write-Host "$BLUE================================$NC"
 
 # 获取并显示 Cursor 版本
 function Get-CursorVersion {
