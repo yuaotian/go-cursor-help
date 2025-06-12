@@ -10,13 +10,21 @@
 
 <img src="https://ai-cursor.com/wp-content/uploads/2024/09/logo-cursor-ai-png.webp" alt="Cursor Logo" width="120"/>
 
+<!-- Sponsor Ad - Expires: 2025-06-29 -->
+<div style="margin: 15px 0; padding: 8px 15px; background: #f8f9fa; border-radius: 20px; border: 1px solid #e9ecef;">
+<span style="color: #6c757d; font-size: 12px; margin-right: 10px;">🎯 Sponsored</span>
+<a href="https://www.twillot.com/?utm_source=go-cursor-help" target="_blank" style="text-decoration: none; color: #495057; font-size: 14px;">
+<img src="img/zanzhu/twillot.png" alt="Twillot" width="20" style="vertical-align: middle; margin-right: 8px;"/> Never Lose a Tweet, Always Stay Organized
+</a>
+</div>
+
 </div>
 
 > ⚠️ **IMPORTANT NOTICE**
 > 
 > This tool currently supports:
-> - ✅ Windows: Latest 0.50.x versions (Supported)
-> - ✅ Mac/Linux: Latest 0.50.x versions (Supported, feedback welcome)
+> - ✅ Windows: Latest 1.0.x versions (Supported)
+> - ✅ Mac/Linux: Latest 1.0.x versions (Supported, feedback welcome)
 >
 > Please check your Cursor version before using this tool.
 
@@ -236,6 +244,8 @@ If you see the "High Load" message for Claude 3.7 Sonnet, this indicates Cursor 
 </td>
 </tr>
 </table>
+
+
 
 ### 🚀 One-Click Solution
 

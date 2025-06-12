@@ -10,13 +10,21 @@
 
 <img src="https://ai-cursor.com/wp-content/uploads/2024/09/logo-cursor-ai-png.webp" alt="Cursor Logo" width="120"/>
 
+<!-- スポンサー広告 - 有効期限: 2025-06-29 -->
+<div style="margin: 15px 0; padding: 8px 15px; background: #f8f9fa; border-radius: 20px; border: 1px solid #e9ecef;">
+<span style="color: #6c757d; font-size: 12px; margin-right: 10px;">🎯 <a href="https://www.twillot.com/?utm_source=go-cursor-help" target="_blank" style="text-decoration: none; color: #495057; font-size: 14px;">Twillot</a>スポンサー</span>
+<a href="https://www.twillot.com/?utm_source=go-cursor-help" target="_blank" style="text-decoration: none; color: #495057; font-size: 14px;">
+<img src="img/zanzhu/twillot.png" alt="Twillot" width="20" style="vertical-align: middle; margin-right: 8px;"/> ツイートを失わず、常に整理された状態を保つ
+</a>
+</div>
+
 </div>
 
 > ⚠️ **重要なお知らせ**
 > 
 > このツールは現在以下のバージョンをサポートしています：
-> - ✅ Windows: 最新の0.50.xバージョン（サポート済み）
-> - ✅ Mac/Linux: 最新の0.50.xバージョン（サポート済み、フィードバック歓迎）
+> - ✅ Windows: 最新の1.0.xバージョン（サポート済み）
+> - ✅ Mac/Linux: 最新の1.0.xバージョン（サポート済み、フィードバック歓迎）
 >
 > このツールを使用する前に、Cursorのバージョンを確認してください。
 
@@ -233,6 +241,8 @@ Claude 3.7 Sonnetの"High Load"メッセージが表示された場合、これ�
 </td>
 </tr>
 </table>
+
+
 
 ### 🚀 ワンクリックソリューション
 
