@@ -50,64 +50,69 @@ log_cmd_output() {
     echo "" >> "$LOG_FILE"
 }
 
-# 新增 Cursor 初始化清理函数
-cursor_initialize_cleanup() {
-    log_info "正在执行 Cursor 初始化清理..."
-    local BASE_PATH="$HOME/Library/Application Support/Cursor/User"
+# 🚀 新增 Cursor 防掉试用Pro删除文件夹功能
+remove_cursor_trial_folders() {
+    echo
+    log_info "🎯 [核心功能] 正在执行 Cursor 防掉试用Pro删除文件夹..."
+    log_info "📋 [说明] 此功能将删除指定的Cursor相关文件夹以重置试用状态"
+    echo
 
-    log_debug "基础路径: $BASE_PATH"
-
-    local files_to_delete=(
-        "$BASE_PATH/globalStorage/state.vscdb"
-        "$BASE_PATH/globalStorage/state.vscdb.backup"
+    # 定义需要删除的文件夹路径
+    local folders_to_delete=(
+        "$HOME/Library/Application Support/Cursor"
+        "$HOME/.cursor"
     )
-    
-    local folder_to_clean_contents="$BASE_PATH/History"
-    local folder_to_delete_completely="$BASE_PATH/workspaceStorage"
 
-    # 删除指定文件
-    for file_path in "${files_to_delete[@]}"; do
-        log_debug "检查文件: $file_path"
-        if [ -f "$file_path" ]; then
-            if rm -f "$file_path"; then
-                log_info "已删除文件: $file_path"
+    log_info "📂 [检测] 将检查以下文件夹："
+    for folder in "${folders_to_delete[@]}"; do
+        echo "   📁 $folder"
+    done
+    echo
+
+    local deleted_count=0
+    local skipped_count=0
+    local error_count=0
+
+    # 删除指定文件夹
+    for folder in "${folders_to_delete[@]}"; do
+        log_debug "🔍 [检查] 检查文件夹: $folder"
+
+        if [ -d "$folder" ]; then
+            log_warn "⚠️  [警告] 发现文件夹存在，正在删除..."
+            if rm -rf "$folder"; then
+                log_info "✅ [成功] 已删除文件夹: $folder"
+                ((deleted_count++))
             else
-                log_error "删除文件 $file_path 失败"
+                log_error "❌ [错误] 删除文件夹失败: $folder"
+                ((error_count++))
             fi
         else
-            log_warn "文件不存在，跳过删除: $file_path"
+            log_warn "⏭️  [跳过] 文件夹不存在: $folder"
+            ((skipped_count++))
         fi
+        echo
     done
 
-    # 清空指定文件夹内容
-    log_debug "检查待清空文件夹: $folder_to_clean_contents"
-    if [ -d "$folder_to_clean_contents" ]; then
-        if find "$folder_to_clean_contents" -mindepth 1 -delete; then
-            log_info "已清空文件夹内容: $folder_to_clean_contents"
-        else
-            if [ -z "$(ls -A "$folder_to_clean_contents")" ]; then
-                 log_info "文件夹 $folder_to_clean_contents 现在为空。" # 通常find成功即代表操作完成
-            else
-                 log_error "清空文件夹 $folder_to_clean_contents 内容失败 (部分或全部)。请检查权限或手动删除。"
-            fi
-        fi
-    else
-        log_warn "文件夹不存在，跳过清空: $folder_to_clean_contents"
-    fi
+    # 显示操作统计
+    log_info "📊 [统计] 操作完成统计："
+    echo "   ✅ 成功删除: $deleted_count 个文件夹"
+    echo "   ⏭️  跳过处理: $skipped_count 个文件夹"
+    echo "   ❌ 删除失败: $error_count 个文件夹"
+    echo
 
-    # 删除指定文件夹及其内容
-    log_debug "检查待删除文件夹: $folder_to_delete_completely"
-    if [ -d "$folder_to_delete_completely" ]; then
-        if rm -rf "$folder_to_delete_completely"; then
-            log_info "已删除文件夹: $folder_to_delete_completely"
-        else
-            log_error "删除文件夹 $folder_to_delete_completely 失败"
-        fi
+    if [ $deleted_count -gt 0 ]; then
+        log_info "🎉 [完成] Cursor 防掉试用Pro文件夹删除完成！"
     else
-        log_warn "文件夹不存在，跳过删除: $folder_to_delete_completely"
+        log_warn "🤔 [提示] 未找到需要删除的文件夹，可能已经清理过了"
     fi
+    echo
+}
 
-    log_info "Cursor 初始化清理完成。"
+# 📝 原有的 Cursor 初始化函数（已暂时禁用）
+cursor_initialize_cleanup_disabled() {
+    log_warn "⚠️  [提示] 原有的机器码修改功能已暂时禁用"
+    log_info "📋 [说明] 当前版本专注于删除文件夹功能，机器码修改功能已屏蔽"
+    echo
 }
 
 # 获取当前用户
@@ -1286,127 +1291,71 @@ main() {
     ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═╝  ╚═╝
     "
     echo -e "${BLUE}================================${NC}"
-    echo -e "${GREEN}   Cursor 启动工具          ${NC}"
-    echo -e "${YELLOW}  关注公众号【煎饼果子卷AI】     ${NC}"
-    echo -e "${YELLOW}  一起交流更多Cursor技巧和AI知识(脚本免费、关注公众号加群有更多技巧和大佬)  ${NC}"
+    echo -e "${GREEN}🚀   Cursor 防掉试用Pro删除工具          ${NC}"
+    echo -e "${YELLOW}📱  关注公众号【煎饼果子卷AI】     ${NC}"
+    echo -e "${YELLOW}🤝  一起交流更多Cursor技巧和AI知识(脚本免费、关注公众号加群有更多技巧和大佬)  ${NC}"
     echo -e "${BLUE}================================${NC}"
     echo
-    echo -e "${YELLOW}  [小小广告]  出售CursorPro教育号一年质保三个月，有需要找我(86)，WeChat：JavaRookie666  ${NC}"
+    echo -e "${YELLOW}💰  [小小广告]  出售CursorPro教育号一年质保三个月，有需要找我(86)，WeChat：JavaRookie666  ${NC}"
     echo
-    echo -e "${YELLOW}[重要提示]${NC} 本工具默认会修改系统 MAC 地址 (临时) 并修改 JS 文件以重置设备标识。"
-    echo -e "${YELLOW}[重要提示]${NC} 本工具免费，如果对您有帮助，请关注公众号【煎饼果子卷AI】"
+    echo -e "${YELLOW}💡 [重要提示]${NC} 本工具专注于删除Cursor试用相关文件夹，暂时屏蔽机器码修改功能。"
+    echo -e "${YELLOW}💡 [重要提示]${NC} 本工具免费，如果对您有帮助，请关注公众号【煎饼果子卷AI】"
     echo
 
-    # 执行主要功能
+    # 🚀 执行主要功能
     check_permissions
     check_and_kill_cursor
-    
-    # 执行 Cursor 初始化清理
-    # cursor_initialize_cleanup
 
-    backup_config
+    # 🎯 执行 Cursor 防掉试用Pro删除文件夹功能
+    log_info "🚀 [开始] 开始执行核心功能..."
+    remove_cursor_trial_folders
 
-    # 新增：默认执行系统 MAC 地址修改
-    change_system_mac_address || true
-
-    # 执行主程序文件修改
-    log_info "正在执行主程序文件修改..."
-
-    # 使用子shell执行修改，避免错误导致整个脚本退出
-    (
-        if modify_cursor_app_files; then
-            log_info "主程序文件修改成功！"
-        else
-            log_warn "主程序文件修改失败，但配置文件修改可能已成功"
-            log_warn "如果重启后 Cursor 仍然提示设备被禁用，请重新运行此脚本"
-        fi
-    )
-
-    # 恢复错误处理
-    set -e
-
-    show_file_tree
-    show_follow_info
-
-    # 直接执行禁用自动更新
-    disable_auto_update
-
-    log_info "请重启 Cursor 以应用新的配置"
-
-    # 显示最后的提示信息
-    show_follow_info
-
-    # 提供修复选项（移到最后）
+    # 🚫 以下功能已暂时屏蔽
+    log_warn "⚠️  [提示] 以下功能已暂时屏蔽："
+    log_info "📋 [说明] - 配置文件备份和修改"
+    log_info "📋 [说明] - 系统MAC地址修改"
+    log_info "📋 [说明] - 主程序文件修改"
+    log_info "📋 [说明] 当前版本专注于删除文件夹功能"
     echo
-    log_warn "Cursor 修复选项"
 
-    # 使用新的菜单选择函数
-    select_menu_option "请使用上下箭头选择，按Enter确认:" "忽略 - 不执行修复操作|修复模式 - 恢复原始的 Cursor 安装" 0
-    fix_choice=$?
+    # 🎉 显示操作完成信息
+    echo
+    log_info "🎉 [完成] Cursor 防掉试用Pro删除操作已完成！"
+    echo
 
-    # 记录日志以便调试
-    echo "[INPUT_DEBUG] 修复选项选择: $fix_choice" >> "$LOG_FILE"
+    # 📱 显示公众号信息
+    echo -e "${GREEN}================================${NC}"
+    echo -e "${YELLOW}📱  关注公众号【煎饼果子卷AI】一起交流更多Cursor技巧和AI知识(脚本免费、关注公众号加群有更多技巧和大佬)  ${NC}"
+    echo -e "${GREEN}================================${NC}"
+    echo
+    log_info "🚀 [提示] 现在可以重新启动 Cursor 尝试使用了！"
+    echo
 
-    # 确保脚本不会因为输入问题而终止
-    set +e
+    # 🚫 以下功能已暂时屏蔽
+    log_warn "⚠️  [提示] 以下功能已暂时屏蔽："
+    log_info "📋 [说明] - 自动更新禁用功能"
+    log_info "📋 [说明] - 应用修复功能"
+    log_info "📋 [说明] 如需恢复这些功能，请联系开发者"
+    echo
 
-    # 处理用户选择 - 索引1对应"修复模式"选项
-    if [ "$fix_choice" = "1" ]; then
-        log_info "您选择了修复模式"
-        # 使用子shell执行清理，避免错误导致整个脚本退出
-        (
-            if clean_cursor_app; then
-                log_info "Cursor 已恢复到原始状态"
-                log_info "如果您需要应用ID修改，请重新运行此脚本"
-            else
-                log_warn "未能找到备份，无法自动恢复"
-                log_warn "建议重新安装 Cursor"
-            fi
-        )
-    else
-        log_info "已跳过修复操作"
-    fi
-
-    # 恢复错误处理
-    set -e
+    # 🎉 脚本执行完成
+    log_info "🎉 [完成] 所有操作已完成！"
+    echo
+    log_info "💡 [提示] 如果需要恢复机器码修改功能，请联系开发者"
+    log_warn "⚠️  [注意] 重启 Cursor 后生效"
+    echo
+    log_info "🚀 [下一步] 现在可以启动 Cursor 尝试使用了！"
+    echo
 
     # 记录脚本完成信息
-    log_info "脚本执行完成"
-    echo "========== Cursor ID 修改工具日志结束 $(date) ==========" >> "$LOG_FILE"
+    log_info "📝 [日志] 脚本执行完成"
+    echo "========== Cursor 防掉试用Pro删除工具日志结束 $(date) ==========" >> "$LOG_FILE"
 
     # 显示日志文件位置
     echo
-    log_info "详细日志已保存到: $LOG_FILE"
+    log_info "📄 [日志] 详细日志已保存到: $LOG_FILE"
     echo "如遇问题请将此日志文件提供给开发者以协助排查"
     echo
-
-    # 添加修复"应用已损坏"选项
-    echo
-    log_warn "应用修复选项"
-
-    # 使用新的菜单选择函数
-    select_menu_option "请使用上下箭头选择，按Enter确认:" "忽略 - 不执行修复操作|修复"应用已损坏"问题 - 解决macOS提示应用已损坏无法打开的问题" 0
-    damaged_choice=$?
-
-    echo "[INPUT_DEBUG] 应用修复选项选择: $damaged_choice" >> "$LOG_FILE"
-
-    set +e
-
-    # 处理用户选择 - 索引1对应"修复应用已损坏"选项
-    if [ "$damaged_choice" = "1" ]; then
-        log_info "您选择了修复"应用已损坏"问题"
-        (
-            if fix_damaged_app; then
-                log_info "修复"应用已损坏"问题完成"
-            else
-                log_warn "修复"应用已损坏"问题失败"
-            fi
-        )
-    else
-        log_info "已跳过应用修复操作"
-    fi
-
-    set -e
 }
 
 # 执行主函数

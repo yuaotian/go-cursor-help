@@ -40,3 +40,5 @@ coverage.txt
 *~
 *.bak
 *.log
+
+.cunzhi*/
