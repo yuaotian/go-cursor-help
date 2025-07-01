@@ -1587,27 +1587,81 @@ main() {
     echo -e "${YELLOW}💡 [重要提示]${NC} 本工具免费，如果对您有帮助，请关注公众号【煎饼果子卷AI】"
     echo
 
-    # 📋 执行流程说明
+    # 🎯 用户选择菜单
     echo
-    echo -e "${GREEN}📋 [执行流程]${NC} 本脚本将按以下步骤执行："
-    echo -e "${BLUE}  1️⃣  检测并关闭Cursor进程${NC}"
-    echo -e "${BLUE}  2️⃣  保存Cursor程序路径信息${NC}"
-    echo -e "${BLUE}  3️⃣  删除指定的Cursor试用相关文件夹${NC}"
-    echo -e "${BLUE}      📁 ~/Library/Application Support/Cursor${NC}"
-    echo -e "${BLUE}      📁 ~/.cursor${NC}"
-    echo -e "${BLUE}  3.5️⃣ 预创建必要目录结构，避免权限问题${NC}"
-    echo -e "${BLUE}  4️⃣  重新启动Cursor让其生成新的配置文件${NC}"
-    echo -e "${BLUE}  5️⃣  等待配置文件生成完成（最多45秒）${NC}"
-    echo -e "${BLUE}  6️⃣  关闭Cursor进程${NC}"
-    echo -e "${BLUE}  7️⃣  修改新生成的机器码配置文件${NC}"
-    echo -e "${BLUE}  8️⃣  显示操作完成统计信息${NC}"
+    echo -e "${GREEN}🎯 [选择模式]${NC} 请选择您要执行的操作："
     echo
-    echo -e "${YELLOW}⚠️  [注意事项]${NC}"
-    echo -e "${YELLOW}  • 脚本执行过程中请勿手动操作Cursor${NC}"
-    echo -e "${YELLOW}  • 建议在执行前关闭所有Cursor窗口${NC}"
-    echo -e "${YELLOW}  • 执行完成后需要重新启动Cursor${NC}"
-    echo -e "${YELLOW}  • 原配置文件会自动备份到backups文件夹${NC}"
-    echo -e "${YELLOW}  • 需要Python3环境来处理JSON配置文件${NC}"
+    echo -e "${BLUE}  1️⃣  仅修改机器码${NC}"
+    echo -e "${YELLOW}      • 仅执行机器码修改功能${NC}"
+    echo -e "${YELLOW}      • 跳过文件夹删除/环境重置步骤${NC}"
+    echo -e "${YELLOW}      • 保留现有Cursor配置和数据${NC}"
+    echo
+    echo -e "${BLUE}  2️⃣  重置环境+修改机器码${NC}"
+    echo -e "${RED}      • 执行完全环境重置（删除Cursor文件夹）${NC}"
+    echo -e "${RED}      • ⚠️  配置将丢失，请注意备份${NC}"
+    echo -e "${YELLOW}      • 按照机器代码修改${NC}"
+    echo -e "${YELLOW}      • 这相当于当前的完整脚本行为${NC}"
+    echo
+
+    # 获取用户选择
+    while true; do
+        read -p "请输入选择 (1 或 2): " user_choice
+        if [ "$user_choice" = "1" ]; then
+            echo -e "${GREEN}✅ [选择]${NC} 您选择了：仅修改机器码"
+            execute_mode="MODIFY_ONLY"
+            break
+        elif [ "$user_choice" = "2" ]; then
+            echo -e "${GREEN}✅ [选择]${NC} 您选择了：重置环境+修改机器码"
+            echo -e "${RED}⚠️  [重要警告]${NC} 此操作将删除所有Cursor配置文件！"
+            read -p "确认执行完全重置？(输入 yes 确认，其他任意键取消): " confirm_reset
+            if [ "$confirm_reset" = "yes" ]; then
+                execute_mode="RESET_AND_MODIFY"
+                break
+            else
+                echo -e "${YELLOW}👋 [取消]${NC} 用户取消重置操作"
+                continue
+            fi
+        else
+            echo -e "${RED}❌ [错误]${NC} 无效选择，请输入 1 或 2"
+        fi
+    done
+
+    echo
+
+    # 📋 根据选择显示执行流程说明
+    if [ "$execute_mode" = "MODIFY_ONLY" ]; then
+        echo -e "${GREEN}📋 [执行流程]${NC} 仅修改机器码模式将按以下步骤执行："
+        echo -e "${BLUE}  1️⃣  检测Cursor配置文件${NC}"
+        echo -e "${BLUE}  2️⃣  备份现有配置文件${NC}"
+        echo -e "${BLUE}  3️⃣  修改机器码配置${NC}"
+        echo -e "${BLUE}  4️⃣  显示操作完成信息${NC}"
+        echo
+        echo -e "${YELLOW}⚠️  [注意事项]${NC}"
+        echo -e "${YELLOW}  • 不会删除任何文件夹或重置环境${NC}"
+        echo -e "${YELLOW}  • 保留所有现有配置和数据${NC}"
+        echo -e "${YELLOW}  • 原配置文件会自动备份${NC}"
+        echo -e "${YELLOW}  • 需要Python3环境来处理JSON配置文件${NC}"
+    else
+        echo -e "${GREEN}📋 [执行流程]${NC} 重置环境+修改机器码模式将按以下步骤执行："
+        echo -e "${BLUE}  1️⃣  检测并关闭Cursor进程${NC}"
+        echo -e "${BLUE}  2️⃣  保存Cursor程序路径信息${NC}"
+        echo -e "${BLUE}  3️⃣  删除指定的Cursor试用相关文件夹${NC}"
+        echo -e "${BLUE}      📁 ~/Library/Application Support/Cursor${NC}"
+        echo -e "${BLUE}      📁 ~/.cursor${NC}"
+        echo -e "${BLUE}  3.5️⃣ 预创建必要目录结构，避免权限问题${NC}"
+        echo -e "${BLUE}  4️⃣  重新启动Cursor让其生成新的配置文件${NC}"
+        echo -e "${BLUE}  5️⃣  等待配置文件生成完成（最多45秒）${NC}"
+        echo -e "${BLUE}  6️⃣  关闭Cursor进程${NC}"
+        echo -e "${BLUE}  7️⃣  修改新生成的机器码配置文件${NC}"
+        echo -e "${BLUE}  8️⃣  显示操作完成统计信息${NC}"
+        echo
+        echo -e "${YELLOW}⚠️  [注意事项]${NC}"
+        echo -e "${YELLOW}  • 脚本执行过程中请勿手动操作Cursor${NC}"
+        echo -e "${YELLOW}  • 建议在执行前关闭所有Cursor窗口${NC}"
+        echo -e "${YELLOW}  • 执行完成后需要重新启动Cursor${NC}"
+        echo -e "${YELLOW}  • 原配置文件会自动备份到backups文件夹${NC}"
+        echo -e "${YELLOW}  • 需要Python3环境来处理JSON配置文件${NC}"
+    fi
     echo
 
     # 🤔 用户确认
@@ -1620,28 +1674,43 @@ main() {
     echo -e "${GREEN}✅ [确认]${NC} 用户确认继续执行"
     echo
 
-    # 🚀 执行主要功能
-    check_permissions
-    check_and_kill_cursor
+    # 🚀 根据用户选择执行相应功能
+    if [ "$execute_mode" = "MODIFY_ONLY" ]; then
+        log_info "🚀 [开始] 开始执行仅修改机器码功能..."
 
-    # 🚨 重要警告提示
-    echo
-    echo -e "${RED}🚨 [重要警告]${NC} ============================================"
-    log_warn "⚠️  [风控提醒] Cursor 风控机制非常严格！"
-    log_warn "⚠️  [必须删除] 必须完全删除指定文件夹，不能有任何残留设置"
-    log_warn "⚠️  [防掉试用] 只有彻底清理才能有效防止掉试用Pro状态"
-    echo -e "${RED}🚨 [重要警告]${NC} ============================================"
-    echo
+        # 直接修改机器码配置，不进行文件夹删除和重启
+        if modify_machine_code_config; then
+            log_info "🎉 [完成] 机器码修改完成！"
+        else
+            log_error "❌ [失败] 机器码修改失败！"
+        fi
+    else
+        # 完整的重置环境+修改机器码流程
+        log_info "🚀 [开始] 开始执行重置环境+修改机器码功能..."
 
-    # 🎯 执行 Cursor 防掉试用Pro删除文件夹功能
-    log_info "🚀 [开始] 开始执行核心功能..."
-    remove_cursor_trial_folders
+        # 🚀 执行主要功能
+        check_permissions
+        check_and_kill_cursor
 
-    # 🔄 重启Cursor让其重新生成配置文件
-    restart_cursor_and_wait
+        # 🚨 重要警告提示
+        echo
+        echo -e "${RED}🚨 [重要警告]${NC} ============================================"
+        log_warn "⚠️  [风控提醒] Cursor 风控机制非常严格！"
+        log_warn "⚠️  [必须删除] 必须完全删除指定文件夹，不能有任何残留设置"
+        log_warn "⚠️  [防掉试用] 只有彻底清理才能有效防止掉试用Pro状态"
+        echo -e "${RED}🚨 [重要警告]${NC} ============================================"
+        echo
 
-    # 🛠️ 修改机器码配置
-    modify_machine_code_config
+        # 🎯 执行 Cursor 防掉试用Pro删除文件夹功能
+        log_info "🚀 [开始] 开始执行核心功能..."
+        remove_cursor_trial_folders
+
+        # 🔄 重启Cursor让其重新生成配置文件
+        restart_cursor_and_wait
+
+        # 🛠️ 修改机器码配置
+        modify_machine_code_config
+    fi
 
 
 

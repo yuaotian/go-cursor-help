@@ -312,28 +312,81 @@ Write-Host ""
 Write-Host "$YELLOW💰   [小小广告]  出售CursorPro教育号一年质保三个月，有需要找我(86)，WeChat：JavaRookie666  $NC"
 Write-Host "$BLUE================================$NC"
 
-# 📋 执行流程说明
+# 🎯 用户选择菜单
 Write-Host ""
-Write-Host "$GREEN📋 [执行流程]$NC 本脚本将按以下步骤执行："
-Write-Host "$BLUE  1️⃣  检测并关闭Cursor进程$NC"
-Write-Host "$BLUE  2️⃣  保存Cursor程序路径信息$NC"
-Write-Host "$BLUE  3️⃣  删除指定的Cursor试用相关文件夹$NC"
-Write-Host "$BLUE      📁 C:\Users\Administrator\.cursor$NC"
-Write-Host "$BLUE      📁 C:\Users\Administrator\AppData\Roaming\Cursor$NC"
-Write-Host "$BLUE      📁 C:\Users\%USERNAME%\.cursor$NC"
-Write-Host "$BLUE      📁 C:\Users\%USERNAME%\AppData\Roaming\Cursor$NC"
-Write-Host "$BLUE  3.5️⃣ 预创建必要目录结构，避免权限问题$NC"
-Write-Host "$BLUE  4️⃣  重新启动Cursor让其生成新的配置文件$NC"
-Write-Host "$BLUE  5️⃣  等待配置文件生成完成（最多45秒）$NC"
-Write-Host "$BLUE  6️⃣  关闭Cursor进程$NC"
-Write-Host "$BLUE  7️⃣  修改新生成的机器码配置文件$NC"
-Write-Host "$BLUE  8️⃣  显示操作完成统计信息$NC"
+Write-Host "$GREEN🎯 [选择模式]$NC 请选择您要执行的操作："
 Write-Host ""
-Write-Host "$YELLOW⚠️  [注意事项]$NC"
-Write-Host "$YELLOW  • 脚本执行过程中请勿手动操作Cursor$NC"
-Write-Host "$YELLOW  • 建议在执行前关闭所有Cursor窗口$NC"
-Write-Host "$YELLOW  • 执行完成后需要重新启动Cursor$NC"
-Write-Host "$YELLOW  • 原配置文件会自动备份到backups文件夹$NC"
+Write-Host "$BLUE  1️⃣  仅修改机器码$NC"
+Write-Host "$YELLOW      • 仅执行机器码修改功能$NC"
+Write-Host "$YELLOW      • 跳过文件夹删除/环境重置步骤$NC"
+Write-Host "$YELLOW      • 保留现有Cursor配置和数据$NC"
+Write-Host ""
+Write-Host "$BLUE  2️⃣  重置环境+修改机器码$NC"
+Write-Host "$RED      • 执行完全环境重置（删除Cursor文件夹）$NC"
+Write-Host "$RED      • ⚠️  配置将丢失，请注意备份$NC"
+Write-Host "$YELLOW      • 按照机器代码修改$NC"
+Write-Host "$YELLOW      • 这相当于当前的完整脚本行为$NC"
+Write-Host ""
+
+# 获取用户选择
+do {
+    $userChoice = Read-Host "请输入选择 (1 或 2)"
+    if ($userChoice -eq "1") {
+        Write-Host "$GREEN✅ [选择]$NC 您选择了：仅修改机器码"
+        $executeMode = "MODIFY_ONLY"
+        break
+    } elseif ($userChoice -eq "2") {
+        Write-Host "$GREEN✅ [选择]$NC 您选择了：重置环境+修改机器码"
+        Write-Host "$RED⚠️  [重要警告]$NC 此操作将删除所有Cursor配置文件！"
+        $confirmReset = Read-Host "确认执行完全重置？(输入 yes 确认，其他任意键取消)"
+        if ($confirmReset -eq "yes") {
+            $executeMode = "RESET_AND_MODIFY"
+            break
+        } else {
+            Write-Host "$YELLOW👋 [取消]$NC 用户取消重置操作"
+            continue
+        }
+    } else {
+        Write-Host "$RED❌ [错误]$NC 无效选择，请输入 1 或 2"
+    }
+} while ($true)
+
+Write-Host ""
+
+# 📋 根据选择显示执行流程说明
+if ($executeMode -eq "MODIFY_ONLY") {
+    Write-Host "$GREEN📋 [执行流程]$NC 仅修改机器码模式将按以下步骤执行："
+    Write-Host "$BLUE  1️⃣  检测Cursor配置文件$NC"
+    Write-Host "$BLUE  2️⃣  备份现有配置文件$NC"
+    Write-Host "$BLUE  3️⃣  修改机器码配置$NC"
+    Write-Host "$BLUE  4️⃣  显示操作完成信息$NC"
+    Write-Host ""
+    Write-Host "$YELLOW⚠️  [注意事项]$NC"
+    Write-Host "$YELLOW  • 不会删除任何文件夹或重置环境$NC"
+    Write-Host "$YELLOW  • 保留所有现有配置和数据$NC"
+    Write-Host "$YELLOW  • 原配置文件会自动备份$NC"
+} else {
+    Write-Host "$GREEN📋 [执行流程]$NC 重置环境+修改机器码模式将按以下步骤执行："
+    Write-Host "$BLUE  1️⃣  检测并关闭Cursor进程$NC"
+    Write-Host "$BLUE  2️⃣  保存Cursor程序路径信息$NC"
+    Write-Host "$BLUE  3️⃣  删除指定的Cursor试用相关文件夹$NC"
+    Write-Host "$BLUE      📁 C:\Users\Administrator\.cursor$NC"
+    Write-Host "$BLUE      📁 C:\Users\Administrator\AppData\Roaming\Cursor$NC"
+    Write-Host "$BLUE      📁 C:\Users\%USERNAME%\.cursor$NC"
+    Write-Host "$BLUE      📁 C:\Users\%USERNAME%\AppData\Roaming\Cursor$NC"
+    Write-Host "$BLUE  3.5️⃣ 预创建必要目录结构，避免权限问题$NC"
+    Write-Host "$BLUE  4️⃣  重新启动Cursor让其生成新的配置文件$NC"
+    Write-Host "$BLUE  5️⃣  等待配置文件生成完成（最多45秒）$NC"
+    Write-Host "$BLUE  6️⃣  关闭Cursor进程$NC"
+    Write-Host "$BLUE  7️⃣  修改新生成的机器码配置文件$NC"
+    Write-Host "$BLUE  8️⃣  显示操作完成统计信息$NC"
+    Write-Host ""
+    Write-Host "$YELLOW⚠️  [注意事项]$NC"
+    Write-Host "$YELLOW  • 脚本执行过程中请勿手动操作Cursor$NC"
+    Write-Host "$YELLOW  • 建议在执行前关闭所有Cursor窗口$NC"
+    Write-Host "$YELLOW  • 执行完成后需要重新启动Cursor$NC"
+    Write-Host "$YELLOW  • 原配置文件会自动备份到backups文件夹$NC"
+}
 Write-Host ""
 
 # 🤔 用户确认
@@ -484,30 +537,45 @@ function Close-CursorProcessAndSaveInfo {
     }
 }
 
-# 🚀 关闭所有 Cursor 进程并保存信息
-Close-CursorProcessAndSaveInfo "Cursor"
-if (-not $global:CursorProcessInfo) {
-    Close-CursorProcessAndSaveInfo "cursor"
+# 🚀 根据用户选择执行相应功能
+if ($executeMode -eq "MODIFY_ONLY") {
+    Write-Host "$GREEN🚀 [开始]$NC 开始执行仅修改机器码功能..."
+
+    # 直接修改机器码配置，不进行文件夹删除和重启
+    if (Modify-MachineCodeConfig) {
+        Write-Host "$GREEN🎉 [完成]$NC 机器码修改完成！"
+    } else {
+        Write-Host "$RED❌ [失败]$NC 机器码修改失败！"
+    }
+} else {
+    # 完整的重置环境+修改机器码流程
+    Write-Host "$GREEN🚀 [开始]$NC 开始执行重置环境+修改机器码功能..."
+
+    # 🚀 关闭所有 Cursor 进程并保存信息
+    Close-CursorProcessAndSaveInfo "Cursor"
+    if (-not $global:CursorProcessInfo) {
+        Close-CursorProcessAndSaveInfo "cursor"
+    }
+
+    # 🚨 重要警告提示
+    Write-Host ""
+    Write-Host "$RED🚨 [重要警告]$NC ============================================"
+    Write-Host "$YELLOW⚠️  [风控提醒]$NC Cursor 风控机制非常严格！"
+    Write-Host "$YELLOW⚠️  [必须删除]$NC 必须完全删除指定文件夹，不能有任何残留设置"
+    Write-Host "$YELLOW⚠️  [防掉试用]$NC 只有彻底清理才能有效防止掉试用Pro状态"
+    Write-Host "$RED🚨 [重要警告]$NC ============================================"
+    Write-Host ""
+
+    # 🎯 执行 Cursor 防掉试用Pro删除文件夹功能
+    Write-Host "$GREEN🚀 [开始]$NC 开始执行核心功能..."
+    Remove-CursorTrialFolders
+
+    # 🔄 重启Cursor让其重新生成配置文件
+    Restart-CursorAndWait
+
+    # 🛠️ 修改机器码配置
+    Modify-MachineCodeConfig
 }
-
-# 🚨 重要警告提示
-Write-Host ""
-Write-Host "$RED🚨 [重要警告]$NC ============================================"
-Write-Host "$YELLOW⚠️  [风控提醒]$NC Cursor 风控机制非常严格！"
-Write-Host "$YELLOW⚠️  [必须删除]$NC 必须完全删除指定文件夹，不能有任何残留设置"
-Write-Host "$YELLOW⚠️  [防掉试用]$NC 只有彻底清理才能有效防止掉试用Pro状态"
-Write-Host "$RED🚨 [重要警告]$NC ============================================"
-Write-Host ""
-
-# 🎯 执行 Cursor 防掉试用Pro删除文件夹功能
-Write-Host "$GREEN🚀 [开始]$NC 开始执行核心功能..."
-Remove-CursorTrialFolders
-
-# 🔄 重启Cursor让其重新生成配置文件
-Restart-CursorAndWait
-
-# 🛠️ 修改机器码配置
-Modify-MachineCodeConfig
 
 <#
 # 🚫 已屏蔽：创建备份目录
