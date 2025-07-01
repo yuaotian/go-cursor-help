@@ -140,6 +140,18 @@ remove_cursor_trial_folders() {
         log_warn "⚠️  [警告] 权限验证失败，可能仍存在问题"
     fi
 
+    # 🔍 权限诊断
+    log_info "🔍 [诊断] 执行权限诊断..."
+    echo "   📁 目录权限检查："
+    for dir in "${directories[@]}"; do
+        if [ -d "$dir" ]; then
+            local perms=$(ls -ld "$dir" | awk '{print $1, $3, $4}')
+            echo "     ✅ $dir: $perms"
+        else
+            echo "     ❌ $dir: 不存在"
+        fi
+    done
+
     log_info "✅ [完成] 深度权限修复完成"
     echo
 
@@ -175,19 +187,31 @@ restart_cursor_and_wait() {
         return 1
     fi
 
-    # 🔧 确保目录权限正确
-    log_info "🔧 [权限] 确保目录权限正确..."
+    # 🔧 启动前最后一次权限确认
+    log_info "🔧 [最终权限] 启动前最后一次权限确认..."
     local cursor_support_dir="$HOME/Library/Application Support/Cursor"
     local cursor_home_dir="$HOME/.cursor"
 
-    # 再次确认目录存在并设置权限
-    mkdir -p "$cursor_support_dir" 2>/dev/null || true
-    mkdir -p "$cursor_home_dir" 2>/dev/null || true
-    mkdir -p "$cursor_home_dir/extensions" 2>/dev/null || true
+    # 再次确认完整目录结构存在
+    local directories=(
+        "$cursor_support_dir"
+        "$cursor_support_dir/User"
+        "$cursor_support_dir/User/globalStorage"
+        "$cursor_support_dir/logs"
+        "$cursor_support_dir/CachedData"
+        "$cursor_home_dir"
+        "$cursor_home_dir/extensions"
+    )
 
-    chmod 755 "$cursor_support_dir" 2>/dev/null || true
-    chmod 755 "$cursor_home_dir" 2>/dev/null || true
-    chmod 755 "$cursor_home_dir/extensions" 2>/dev/null || true
+    for dir in "${directories[@]}"; do
+        mkdir -p "$dir" 2>/dev/null || true
+    done
+
+    # 设置强制权限
+    chmod -R 755 "$cursor_support_dir" 2>/dev/null || true
+    chmod -R 755 "$cursor_home_dir" 2>/dev/null || true
+    chown -R "$(whoami)" "$cursor_support_dir" 2>/dev/null || true
+    chown -R "$(whoami)" "$cursor_home_dir" 2>/dev/null || true
 
     # 启动Cursor
     log_info "🚀 [启动] 正在启动Cursor..."
