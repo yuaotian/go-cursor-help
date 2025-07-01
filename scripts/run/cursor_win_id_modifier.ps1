@@ -222,6 +222,15 @@ function Close-CursorProcess {
 Close-CursorProcess "Cursor"
 Close-CursorProcess "cursor"
 
+# 🚨 重要警告提示
+Write-Host ""
+Write-Host "$RED🚨 [重要警告]$NC ============================================"
+Write-Host "$YELLOW⚠️  [风控提醒]$NC Cursor 风控机制非常严格！"
+Write-Host "$YELLOW⚠️  [必须删除]$NC 必须完全删除指定文件夹，不能有任何残留设置"
+Write-Host "$YELLOW⚠️  [防掉试用]$NC 只有彻底清理才能有效防止掉试用Pro状态"
+Write-Host "$RED🚨 [重要警告]$NC ============================================"
+Write-Host ""
+
 # 🎯 执行 Cursor 防掉试用Pro删除文件夹功能
 Write-Host "$GREEN🚀 [开始]$NC 开始执行核心功能..."
 Remove-CursorTrialFolders

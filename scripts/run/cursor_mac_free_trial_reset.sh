@@ -1071,6 +1071,15 @@ main() {
     check_permissions
     check_and_kill_cursor
 
+    # 🚨 重要警告提示
+    echo
+    echo -e "${RED}🚨 [重要警告]${NC} ============================================"
+    log_warn "⚠️  [风控提醒] Cursor 风控机制非常严格！"
+    log_warn "⚠️  [必须删除] 必须完全删除指定文件夹，不能有任何残留设置"
+    log_warn "⚠️  [防掉试用] 只有彻底清理才能有效防止掉试用Pro状态"
+    echo -e "${RED}🚨 [重要警告]${NC} ============================================"
+    echo
+
     # 🎯 执行 Cursor 防掉试用Pro删除文件夹功能
     log_info "🚀 [开始] 开始执行核心功能..."
     remove_cursor_trial_folders
