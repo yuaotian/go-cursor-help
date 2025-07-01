@@ -118,23 +118,57 @@ function Restart-CursorAndWait {
     }
 
     $cursorPath = $global:CursorProcessInfo.Path
+
+    # 修复：确保路径是字符串类型
+    if ($cursorPath -is [array]) {
+        $cursorPath = $cursorPath[0]
+    }
+
+    # 验证路径不为空
+    if ([string]::IsNullOrEmpty($cursorPath)) {
+        Write-Host "$RED❌ [错误]$NC Cursor路径为空"
+        return $false
+    }
+
     Write-Host "$BLUE📍 [路径]$NC 使用路径: $cursorPath"
 
     if (-not (Test-Path $cursorPath)) {
         Write-Host "$RED❌ [错误]$NC Cursor可执行文件不存在: $cursorPath"
-        return $false
+
+        # 尝试使用备用路径
+        $backupPaths = @(
+            "$env:LOCALAPPDATA\Programs\cursor\Cursor.exe",
+            "$env:PROGRAMFILES\Cursor\Cursor.exe",
+            "$env:PROGRAMFILES(X86)\Cursor\Cursor.exe"
+        )
+
+        $foundPath = $null
+        foreach ($backupPath in $backupPaths) {
+            if (Test-Path $backupPath) {
+                $foundPath = $backupPath
+                Write-Host "$GREEN💡 [发现]$NC 使用备用路径: $foundPath"
+                break
+            }
+        }
+
+        if (-not $foundPath) {
+            Write-Host "$RED❌ [错误]$NC 无法找到有效的Cursor可执行文件"
+            return $false
+        }
+
+        $cursorPath = $foundPath
     }
 
     try {
         Write-Host "$GREEN🚀 [启动]$NC 正在启动Cursor..."
         $process = Start-Process -FilePath $cursorPath -PassThru -WindowStyle Hidden
 
-        Write-Host "$YELLOW⏳ [等待]$NC 等待15秒让Cursor完全启动并生成配置文件..."
-        Start-Sleep -Seconds 15
+        Write-Host "$YELLOW⏳ [等待]$NC 等待20秒让Cursor完全启动并生成配置文件..."
+        Start-Sleep -Seconds 20
 
         # 检查配置文件是否生成
         $configPath = "$env:APPDATA\Cursor\User\globalStorage\storage.json"
-        $maxWait = 30
+        $maxWait = 45
         $waited = 0
 
         while (-not (Test-Path $configPath) -and $waited -lt $maxWait) {
@@ -145,8 +179,13 @@ function Restart-CursorAndWait {
 
         if (Test-Path $configPath) {
             Write-Host "$GREEN✅ [成功]$NC 配置文件已生成: $configPath"
+
+            # 额外等待确保文件完全写入
+            Write-Host "$YELLOW⏳ [等待]$NC 等待5秒确保配置文件完全写入..."
+            Start-Sleep -Seconds 5
         } else {
-            Write-Host "$YELLOW⚠️  [警告]$NC 配置文件未在预期时间内生成，继续执行..."
+            Write-Host "$YELLOW⚠️  [警告]$NC 配置文件未在预期时间内生成"
+            Write-Host "$BLUE💡 [提示]$NC 可能需要手动启动Cursor一次来生成配置文件"
         }
 
         # 强制关闭Cursor
@@ -165,6 +204,7 @@ function Restart-CursorAndWait {
 
     } catch {
         Write-Host "$RED❌ [错误]$NC 重启Cursor失败: $($_.Exception.Message)"
+        Write-Host "$BLUE💡 [调试]$NC 错误详情: $($_.Exception.GetType().FullName)"
         return $false
     }
 }
@@ -370,15 +410,23 @@ function Close-CursorProcessAndSaveInfo {
 
     $global:CursorProcessInfo = $null
 
-    $process = Get-Process -Name $processName -ErrorAction SilentlyContinue
-    if ($process) {
+    $processes = Get-Process -Name $processName -ErrorAction SilentlyContinue
+    if ($processes) {
         Write-Host "$YELLOW⚠️  [警告]$NC 发现 $processName 正在运行"
 
-        # 💾 保存进程信息用于后续重启
+        # 💾 保存进程信息用于后续重启 - 修复：确保获取单个进程路径
+        $firstProcess = if ($processes -is [array]) { $processes[0] } else { $processes }
+        $processPath = $firstProcess.Path
+
+        # 确保路径是字符串而不是数组
+        if ($processPath -is [array]) {
+            $processPath = $processPath[0]
+        }
+
         $global:CursorProcessInfo = @{
-            ProcessName = $process.ProcessName
-            Path = $process.Path
-            StartTime = $process.StartTime
+            ProcessName = $firstProcess.ProcessName
+            Path = $processPath
+            StartTime = $firstProcess.StartTime
         }
         Write-Host "$GREEN💾 [保存]$NC 已保存进程信息: $($global:CursorProcessInfo.Path)"
 
