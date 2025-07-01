@@ -93,40 +93,54 @@ remove_cursor_trial_folders() {
         echo
     done
 
-    # 🔧 重要：预创建必要的目录结构，避免权限问题
-    log_info "🔧 [修复] 预创建必要的目录结构以避免权限问题..."
+    # 🔧 重要：深度修复权限问题
+    log_info "🔧 [深度修复] 正在进行全面的权限修复..."
     local cursor_support_dir="$HOME/Library/Application Support/Cursor"
     local cursor_home_dir="$HOME/.cursor"
 
-    # 创建主要目录
-    mkdir -p "$cursor_support_dir" 2>/dev/null || true
-    mkdir -p "$cursor_home_dir" 2>/dev/null || true
-    mkdir -p "$cursor_home_dir/extensions" 2>/dev/null || true
+    # 创建完整的目录结构（包括Cursor可能需要的所有子目录）
+    local directories=(
+        "$cursor_support_dir"
+        "$cursor_support_dir/User"
+        "$cursor_support_dir/User/globalStorage"
+        "$cursor_support_dir/User/workspaceStorage"
+        "$cursor_support_dir/User/History"
+        "$cursor_support_dir/logs"
+        "$cursor_support_dir/CachedData"
+        "$cursor_support_dir/CachedExtensions"
+        "$cursor_support_dir/CachedExtensionVSIXs"
+        "$cursor_home_dir"
+        "$cursor_home_dir/extensions"
+    )
 
-    # 设置正确的权限
-    chmod 755 "$cursor_support_dir" 2>/dev/null || true
-    chmod 755 "$cursor_home_dir" 2>/dev/null || true
-    chmod 755 "$cursor_home_dir/extensions" 2>/dev/null || true
+    log_info "[创建] 创建完整的目录结构..."
+    for dir in "${directories[@]}"; do
+        if mkdir -p "$dir" 2>/dev/null; then
+            log_debug "✅ 创建目录: $dir"
+        else
+            log_warn "⚠️  创建目录失败: $dir"
+        fi
+    done
 
-    log_info "✅ [完成] 目录结构预创建完成"
-    echo
+    # 设置递归权限（确保所有子目录都有正确权限）
+    log_info "🔐 [权限] 设置递归权限..."
+    chmod -R 755 "$cursor_support_dir" 2>/dev/null || true
+    chmod -R 755 "$cursor_home_dir" 2>/dev/null || true
 
-    # 🔧 重要：预创建必要的目录结构，避免权限问题
-    log_info "🔧 [修复] 预创建必要的目录结构以避免权限问题..."
-    local cursor_support_dir="$HOME/Library/Application Support/Cursor"
-    local cursor_home_dir="$HOME/.cursor"
+    # 特别处理：确保当前用户拥有这些目录
+    log_info "👤 [所有权] 确保目录所有权正确..."
+    chown -R "$(whoami)" "$cursor_support_dir" 2>/dev/null || true
+    chown -R "$(whoami)" "$cursor_home_dir" 2>/dev/null || true
 
-    # 创建主要目录
-    mkdir -p "$cursor_support_dir" 2>/dev/null || true
-    mkdir -p "$cursor_home_dir" 2>/dev/null || true
-    mkdir -p "$cursor_home_dir/extensions" 2>/dev/null || true
+    # 验证权限设置
+    log_info "🔍 [验证] 验证权限设置..."
+    if [ -w "$cursor_support_dir" ] && [ -w "$cursor_home_dir" ]; then
+        log_info "✅ [成功] 权限验证通过"
+    else
+        log_warn "⚠️  [警告] 权限验证失败，可能仍存在问题"
+    fi
 
-    # 设置正确的权限
-    chmod 755 "$cursor_support_dir" 2>/dev/null || true
-    chmod 755 "$cursor_home_dir" 2>/dev/null || true
-    chmod 755 "$cursor_home_dir/extensions" 2>/dev/null || true
-
-    log_info "✅ [完成] 目录结构预创建完成"
+    log_info "✅ [完成] 深度权限修复完成"
     echo
 
     # 显示操作统计
