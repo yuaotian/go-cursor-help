@@ -132,12 +132,70 @@ remove_cursor_trial_folders() {
     chown -R "$(whoami)" "$cursor_support_dir" 2>/dev/null || true
     chown -R "$(whoami)" "$cursor_home_dir" 2>/dev/null || true
 
+    # 🔑 关键修复：使用sudo确保目录所有权（解决EACCES错误）
+    log_info "🔑 [关键修复] 使用sudo确保目录所有权正确..."
+    if sudo chown -R "$(whoami)" "$HOME/Library/Application Support/Cursor" 2>/dev/null; then
+        log_info "✅ [成功] sudo设置Application Support/Cursor目录所有权成功"
+    else
+        log_warn "⚠️  [警告] sudo设置Application Support/Cursor目录所有权失败"
+    fi
+
+    if sudo chown -R "$(whoami)" "$HOME/.cursor" 2>/dev/null; then
+        log_info "✅ [成功] sudo设置.cursor目录所有权成功"
+    else
+        log_warn "⚠️  [警告] sudo设置.cursor目录所有权失败"
+    fi
+
+    # 🔓 关键修复：设置用户写入权限
+    log_info "🔓 [关键修复] 设置用户写入权限..."
+    if chmod -R u+w "$HOME/Library/Application Support/Cursor" 2>/dev/null; then
+        log_info "✅ [成功] 设置Application Support/Cursor写入权限成功"
+    else
+        log_warn "⚠️  [警告] 设置Application Support/Cursor写入权限失败"
+    fi
+
+    if chmod -R u+w "$HOME/.cursor/extensions" 2>/dev/null; then
+        log_info "✅ [成功] 设置.cursor/extensions写入权限成功"
+    else
+        log_warn "⚠️  [警告] 设置.cursor/extensions写入权限失败"
+    fi
+
     # 验证权限设置
     log_info "🔍 [验证] 验证权限设置..."
-    if [ -w "$cursor_support_dir" ] && [ -w "$cursor_home_dir" ]; then
+    local permission_ok=true
+
+    # 检查目录是否可写
+    if [ -w "$cursor_support_dir" ]; then
+        log_info "✅ [验证] Application Support/Cursor目录可写"
+    else
+        log_warn "⚠️  [验证] Application Support/Cursor目录不可写"
+        permission_ok=false
+    fi
+
+    if [ -w "$cursor_home_dir" ]; then
+        log_info "✅ [验证] .cursor目录可写"
+    else
+        log_warn "⚠️  [验证] .cursor目录不可写"
+        permission_ok=false
+    fi
+
+    # 检查关键子目录是否可写
+    if [ -w "$cursor_support_dir/logs" ] || [ ! -d "$cursor_support_dir/logs" ]; then
+        log_info "✅ [验证] logs目录权限正常"
+    else
+        log_warn "⚠️  [验证] logs目录权限异常"
+        permission_ok=false
+    fi
+
+    if $permission_ok; then
         log_info "✅ [成功] 权限验证通过"
     else
         log_warn "⚠️  [警告] 权限验证失败，可能仍存在问题"
+        log_info "💡 [提示] 如果Cursor启动时仍有权限错误，请手动执行："
+        echo "   sudo chown -R \$(whoami) \"$HOME/Library/Application Support/Cursor\""
+        echo "   sudo chown -R \$(whoami) \"$HOME/.cursor\""
+        echo "   chmod -R u+w \"$HOME/Library/Application Support/Cursor\""
+        echo "   chmod -R u+w \"$HOME/.cursor\""
     fi
 
     # 🔍 权限诊断
@@ -212,6 +270,13 @@ restart_cursor_and_wait() {
     chmod -R 755 "$cursor_home_dir" 2>/dev/null || true
     chown -R "$(whoami)" "$cursor_support_dir" 2>/dev/null || true
     chown -R "$(whoami)" "$cursor_home_dir" 2>/dev/null || true
+
+    # 🔑 最终权限修复：使用sudo确保权限正确
+    log_info "🔑 [最终修复] 使用sudo确保启动前权限正确..."
+    sudo chown -R "$(whoami)" "$HOME/Library/Application Support/Cursor" 2>/dev/null || true
+    sudo chown -R "$(whoami)" "$HOME/.cursor" 2>/dev/null || true
+    chmod -R u+w "$HOME/Library/Application Support/Cursor" 2>/dev/null || true
+    chmod -R u+w "$HOME/.cursor" 2>/dev/null || true
 
     # 启动Cursor
     log_info "🚀 [启动] 正在启动Cursor..."
