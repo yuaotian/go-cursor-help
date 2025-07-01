@@ -1430,8 +1430,40 @@ main() {
     echo
     echo -e "${YELLOW}💰  [小小广告]  出售CursorPro教育号一年质保三个月，有需要找我(86)，WeChat：JavaRookie666  ${NC}"
     echo
-    echo -e "${YELLOW}💡 [重要提示]${NC} 本工具专注于删除Cursor试用相关文件夹，暂时屏蔽机器码修改功能。"
+    echo -e "${YELLOW}💡 [重要提示]${NC} 本工具采用分阶段执行策略，既能彻底清理又能修改机器码。"
     echo -e "${YELLOW}💡 [重要提示]${NC} 本工具免费，如果对您有帮助，请关注公众号【煎饼果子卷AI】"
+    echo
+
+    # 📋 执行流程说明
+    echo
+    echo -e "${GREEN}📋 [执行流程]${NC} 本脚本将按以下步骤执行："
+    echo -e "${BLUE}  1️⃣  检测并关闭Cursor进程${NC}"
+    echo -e "${BLUE}  2️⃣  保存Cursor程序路径信息${NC}"
+    echo -e "${BLUE}  3️⃣  删除指定的Cursor试用相关文件夹${NC}"
+    echo -e "${BLUE}      📁 ~/Library/Application Support/Cursor${NC}"
+    echo -e "${BLUE}      📁 ~/.cursor${NC}"
+    echo -e "${BLUE}  4️⃣  重新启动Cursor让其生成新的配置文件${NC}"
+    echo -e "${BLUE}  5️⃣  等待配置文件生成完成（最多45秒）${NC}"
+    echo -e "${BLUE}  6️⃣  关闭Cursor进程${NC}"
+    echo -e "${BLUE}  7️⃣  修改新生成的机器码配置文件${NC}"
+    echo -e "${BLUE}  8️⃣  显示操作完成统计信息${NC}"
+    echo
+    echo -e "${YELLOW}⚠️  [注意事项]${NC}"
+    echo -e "${YELLOW}  • 脚本执行过程中请勿手动操作Cursor${NC}"
+    echo -e "${YELLOW}  • 建议在执行前关闭所有Cursor窗口${NC}"
+    echo -e "${YELLOW}  • 执行完成后需要重新启动Cursor${NC}"
+    echo -e "${YELLOW}  • 原配置文件会自动备份到backups文件夹${NC}"
+    echo -e "${YELLOW}  • 需要Python3环境来处理JSON配置文件${NC}"
+    echo
+
+    # 🤔 用户确认
+    echo -e "${GREEN}🤔 [确认]${NC} 请确认您已了解上述执行流程"
+    read -p "是否继续执行？(输入 y 或 yes 继续，其他任意键退出): " confirmation
+    if [[ ! "$confirmation" =~ ^(y|yes)$ ]]; then
+        echo -e "${YELLOW}👋 [退出]${NC} 用户取消执行，脚本退出"
+        exit 0
+    fi
+    echo -e "${GREEN}✅ [确认]${NC} 用户确认继续执行"
     echo
 
     # 🚀 执行主要功能

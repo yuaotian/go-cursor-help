@@ -252,6 +252,40 @@ Write-Host ""
 Write-Host "$YELLOW💰   [小小广告]  出售CursorPro教育号一年质保三个月，有需要找我(86)，WeChat：JavaRookie666  $NC"
 Write-Host "$BLUE================================$NC"
 
+# 📋 执行流程说明
+Write-Host ""
+Write-Host "$GREEN📋 [执行流程]$NC 本脚本将按以下步骤执行："
+Write-Host "$BLUE  1️⃣  检测并关闭Cursor进程$NC"
+Write-Host "$BLUE  2️⃣  保存Cursor程序路径信息$NC"
+Write-Host "$BLUE  3️⃣  删除指定的Cursor试用相关文件夹$NC"
+Write-Host "$BLUE      📁 C:\Users\Administrator\.cursor$NC"
+Write-Host "$BLUE      📁 C:\Users\Administrator\AppData\Roaming\Cursor$NC"
+Write-Host "$BLUE      📁 C:\Users\%USERNAME%\.cursor$NC"
+Write-Host "$BLUE      📁 C:\Users\%USERNAME%\AppData\Roaming\Cursor$NC"
+Write-Host "$BLUE  4️⃣  重新启动Cursor让其生成新的配置文件$NC"
+Write-Host "$BLUE  5️⃣  等待配置文件生成完成（最多45秒）$NC"
+Write-Host "$BLUE  6️⃣  关闭Cursor进程$NC"
+Write-Host "$BLUE  7️⃣  修改新生成的机器码配置文件$NC"
+Write-Host "$BLUE  8️⃣  显示操作完成统计信息$NC"
+Write-Host ""
+Write-Host "$YELLOW⚠️  [注意事项]$NC"
+Write-Host "$YELLOW  • 脚本执行过程中请勿手动操作Cursor$NC"
+Write-Host "$YELLOW  • 建议在执行前关闭所有Cursor窗口$NC"
+Write-Host "$YELLOW  • 执行完成后需要重新启动Cursor$NC"
+Write-Host "$YELLOW  • 原配置文件会自动备份到backups文件夹$NC"
+Write-Host ""
+
+# 🤔 用户确认
+Write-Host "$GREEN🤔 [确认]$NC 请确认您已了解上述执行流程"
+$confirmation = Read-Host "是否继续执行？(输入 y 或 yes 继续，其他任意键退出)"
+if ($confirmation -notmatch "^(y|yes)$") {
+    Write-Host "$YELLOW👋 [退出]$NC 用户取消执行，脚本退出"
+    Read-Host "按回车键退出"
+    exit 0
+}
+Write-Host "$GREEN✅ [确认]$NC 用户确认继续执行"
+Write-Host ""
+
 # 获取并显示 Cursor 版本
 function Get-CursorVersion {
     try {
