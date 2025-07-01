@@ -93,6 +93,42 @@ remove_cursor_trial_folders() {
         echo
     done
 
+    # 🔧 重要：预创建必要的目录结构，避免权限问题
+    log_info "🔧 [修复] 预创建必要的目录结构以避免权限问题..."
+    local cursor_support_dir="$HOME/Library/Application Support/Cursor"
+    local cursor_home_dir="$HOME/.cursor"
+
+    # 创建主要目录
+    mkdir -p "$cursor_support_dir" 2>/dev/null || true
+    mkdir -p "$cursor_home_dir" 2>/dev/null || true
+    mkdir -p "$cursor_home_dir/extensions" 2>/dev/null || true
+
+    # 设置正确的权限
+    chmod 755 "$cursor_support_dir" 2>/dev/null || true
+    chmod 755 "$cursor_home_dir" 2>/dev/null || true
+    chmod 755 "$cursor_home_dir/extensions" 2>/dev/null || true
+
+    log_info "✅ [完成] 目录结构预创建完成"
+    echo
+
+    # 🔧 重要：预创建必要的目录结构，避免权限问题
+    log_info "🔧 [修复] 预创建必要的目录结构以避免权限问题..."
+    local cursor_support_dir="$HOME/Library/Application Support/Cursor"
+    local cursor_home_dir="$HOME/.cursor"
+
+    # 创建主要目录
+    mkdir -p "$cursor_support_dir" 2>/dev/null || true
+    mkdir -p "$cursor_home_dir" 2>/dev/null || true
+    mkdir -p "$cursor_home_dir/extensions" 2>/dev/null || true
+
+    # 设置正确的权限
+    chmod 755 "$cursor_support_dir" 2>/dev/null || true
+    chmod 755 "$cursor_home_dir" 2>/dev/null || true
+    chmod 755 "$cursor_home_dir/extensions" 2>/dev/null || true
+
+    log_info "✅ [完成] 目录结构预创建完成"
+    echo
+
     # 显示操作统计
     log_info "📊 [统计] 操作完成统计："
     echo "   ✅ 成功删除: $deleted_count 个文件夹"
@@ -124,6 +160,20 @@ restart_cursor_and_wait() {
         log_error "❌ [错误] Cursor可执行文件不存在: $CURSOR_PROCESS_PATH"
         return 1
     fi
+
+    # 🔧 确保目录权限正确
+    log_info "🔧 [权限] 确保目录权限正确..."
+    local cursor_support_dir="$HOME/Library/Application Support/Cursor"
+    local cursor_home_dir="$HOME/.cursor"
+
+    # 再次确认目录存在并设置权限
+    mkdir -p "$cursor_support_dir" 2>/dev/null || true
+    mkdir -p "$cursor_home_dir" 2>/dev/null || true
+    mkdir -p "$cursor_home_dir/extensions" 2>/dev/null || true
+
+    chmod 755 "$cursor_support_dir" 2>/dev/null || true
+    chmod 755 "$cursor_home_dir" 2>/dev/null || true
+    chmod 755 "$cursor_home_dir/extensions" 2>/dev/null || true
 
     # 启动Cursor
     log_info "🚀 [启动] 正在启动Cursor..."
@@ -1442,6 +1492,7 @@ main() {
     echo -e "${BLUE}  3️⃣  删除指定的Cursor试用相关文件夹${NC}"
     echo -e "${BLUE}      📁 ~/Library/Application Support/Cursor${NC}"
     echo -e "${BLUE}      📁 ~/.cursor${NC}"
+    echo -e "${BLUE}  3.5️⃣ 预创建必要目录结构，避免权限问题${NC}"
     echo -e "${BLUE}  4️⃣  重新启动Cursor让其生成新的配置文件${NC}"
     echo -e "${BLUE}  5️⃣  等待配置文件生成完成（最多45秒）${NC}"
     echo -e "${BLUE}  6️⃣  关闭Cursor进程${NC}"
@@ -1483,7 +1534,7 @@ main() {
     log_info "🚀 [开始] 开始执行核心功能..."
     remove_cursor_trial_folders
 
-    # � 重启Cursor让其重新生成配置文件
+    # 🔄 重启Cursor让其重新生成配置文件
     restart_cursor_and_wait
 
     # 🛠️ 修改机器码配置

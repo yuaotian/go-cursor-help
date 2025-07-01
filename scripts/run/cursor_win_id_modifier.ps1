@@ -81,6 +81,26 @@ function Remove-CursorTrialFolders {
 
     if ($deletedCount -gt 0) {
         Write-Host "$GREEN🎉 [完成]$NC Cursor 防掉试用Pro文件夹删除完成！"
+
+        # 🔧 预创建必要的目录结构，避免权限问题
+        Write-Host "$BLUE🔧 [修复]$NC 预创建必要的目录结构以避免权限问题..."
+
+        $cursorAppData = "$env:APPDATA\Cursor"
+        $cursorLocalAppData = "$env:LOCALAPPDATA\cursor"
+        $cursorUserProfile = "$env:USERPROFILE\.cursor"
+
+        # 创建主要目录
+        try {
+            if (-not (Test-Path $cursorAppData)) {
+                New-Item -ItemType Directory -Path $cursorAppData -Force | Out-Null
+            }
+            if (-not (Test-Path $cursorUserProfile)) {
+                New-Item -ItemType Directory -Path $cursorUserProfile -Force | Out-Null
+            }
+            Write-Host "$GREEN✅ [完成]$NC 目录结构预创建完成"
+        } catch {
+            Write-Host "$YELLOW⚠️  [警告]$NC 预创建目录时出现问题: $($_.Exception.Message)"
+        }
     } else {
         Write-Host "$YELLOW🤔 [提示]$NC 未找到需要删除的文件夹，可能已经清理过了"
     }
@@ -262,6 +282,7 @@ Write-Host "$BLUE      📁 C:\Users\Administrator\.cursor$NC"
 Write-Host "$BLUE      📁 C:\Users\Administrator\AppData\Roaming\Cursor$NC"
 Write-Host "$BLUE      📁 C:\Users\%USERNAME%\.cursor$NC"
 Write-Host "$BLUE      📁 C:\Users\%USERNAME%\AppData\Roaming\Cursor$NC"
+Write-Host "$BLUE  3.5️⃣ 预创建必要目录结构，避免权限问题$NC"
 Write-Host "$BLUE  4️⃣  重新启动Cursor让其生成新的配置文件$NC"
 Write-Host "$BLUE  5️⃣  等待配置文件生成完成（最多45秒）$NC"
 Write-Host "$BLUE  6️⃣  关闭Cursor进程$NC"
