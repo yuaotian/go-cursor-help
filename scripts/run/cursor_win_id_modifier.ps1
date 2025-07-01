@@ -87,11 +87,134 @@ function Remove-CursorTrialFolders {
     Write-Host ""
 }
 
-# 📝 原有的 Cursor 初始化函数（已暂时禁用）
-function Cursor-初始化-已禁用 {
-    Write-Host "$YELLOW⚠️  [提示]$NC 原有的机器码修改功能已暂时禁用"
-    Write-Host "$BLUE📋 [说明]$NC 当前版本专注于删除文件夹功能，机器码修改功能已屏蔽"
+# 🔄 重启Cursor并等待配置文件生成
+function Restart-CursorAndWait {
     Write-Host ""
+    Write-Host "$GREEN🔄 [重启]$NC 正在重启Cursor以重新生成配置文件..."
+
+    if (-not $global:CursorProcessInfo) {
+        Write-Host "$RED❌ [错误]$NC 未找到Cursor进程信息，无法重启"
+        return $false
+    }
+
+    $cursorPath = $global:CursorProcessInfo.Path
+    Write-Host "$BLUE📍 [路径]$NC 使用路径: $cursorPath"
+
+    if (-not (Test-Path $cursorPath)) {
+        Write-Host "$RED❌ [错误]$NC Cursor可执行文件不存在: $cursorPath"
+        return $false
+    }
+
+    try {
+        Write-Host "$GREEN🚀 [启动]$NC 正在启动Cursor..."
+        $process = Start-Process -FilePath $cursorPath -PassThru -WindowStyle Hidden
+
+        Write-Host "$YELLOW⏳ [等待]$NC 等待15秒让Cursor完全启动并生成配置文件..."
+        Start-Sleep -Seconds 15
+
+        # 检查配置文件是否生成
+        $configPath = "$env:APPDATA\Cursor\User\globalStorage\storage.json"
+        $maxWait = 30
+        $waited = 0
+
+        while (-not (Test-Path $configPath) -and $waited -lt $maxWait) {
+            Write-Host "$YELLOW⏳ [等待]$NC 等待配置文件生成... ($waited/$maxWait 秒)"
+            Start-Sleep -Seconds 1
+            $waited++
+        }
+
+        if (Test-Path $configPath) {
+            Write-Host "$GREEN✅ [成功]$NC 配置文件已生成: $configPath"
+        } else {
+            Write-Host "$YELLOW⚠️  [警告]$NC 配置文件未在预期时间内生成，继续执行..."
+        }
+
+        # 强制关闭Cursor
+        Write-Host "$YELLOW🔄 [关闭]$NC 正在关闭Cursor以进行配置修改..."
+        if ($process -and -not $process.HasExited) {
+            $process.Kill()
+            $process.WaitForExit(5000)
+        }
+
+        # 确保所有Cursor进程都关闭
+        Get-Process -Name "Cursor" -ErrorAction SilentlyContinue | Stop-Process -Force
+        Get-Process -Name "cursor" -ErrorAction SilentlyContinue | Stop-Process -Force
+
+        Write-Host "$GREEN✅ [完成]$NC Cursor重启流程完成"
+        return $true
+
+    } catch {
+        Write-Host "$RED❌ [错误]$NC 重启Cursor失败: $($_.Exception.Message)"
+        return $false
+    }
+}
+
+# 🛠️ 修改机器码配置
+function Modify-MachineCodeConfig {
+    Write-Host ""
+    Write-Host "$GREEN🛠️  [配置]$NC 正在修改机器码配置..."
+
+    $configPath = "$env:APPDATA\Cursor\User\globalStorage\storage.json"
+
+    if (-not (Test-Path $configPath)) {
+        Write-Host "$RED❌ [错误]$NC 配置文件不存在: $configPath"
+        Write-Host "$YELLOW💡 [提示]$NC 请手动启动Cursor一次，然后重新运行此脚本"
+        return $false
+    }
+
+    try {
+        # 生成新的ID
+        $MAC_MACHINE_ID = [System.Guid]::NewGuid().ToString()
+        $UUID = [System.Guid]::NewGuid().ToString()
+        $prefixBytes = [System.Text.Encoding]::UTF8.GetBytes("auth0|user_")
+        $prefixHex = -join ($prefixBytes | ForEach-Object { '{0:x2}' -f $_ })
+        $randomBytes = New-Object byte[] 32
+        $rng = [System.Security.Cryptography.RNGCryptoServiceProvider]::new()
+        $rng.GetBytes($randomBytes)
+        $randomPart = [System.BitConverter]::ToString($randomBytes) -replace '-',''
+        $rng.Dispose()
+        $MACHINE_ID = "$prefixHex$randomPart"
+        $SQM_ID = "{$([System.Guid]::NewGuid().ToString().ToUpper())}"
+
+        Write-Host "$BLUE🔧 [生成]$NC 已生成新的设备标识符"
+
+        # 读取并修改配置文件
+        $originalContent = Get-Content $configPath -Raw -Encoding UTF8
+        $config = $originalContent | ConvertFrom-Json
+
+        # 备份原始值
+        $backupDir = "$env:APPDATA\Cursor\User\globalStorage\backups"
+        if (-not (Test-Path $backupDir)) {
+            New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
+        }
+
+        $backupName = "storage.json.backup_$(Get-Date -Format 'yyyyMMdd_HHmmss')"
+        Copy-Item $configPath "$backupDir\$backupName"
+        Write-Host "$GREEN💾 [备份]$NC 已备份原配置: $backupName"
+
+        # 更新配置值
+        $config.'telemetry.machineId' = $MACHINE_ID
+        $config.'telemetry.macMachineId' = $MAC_MACHINE_ID
+        $config.'telemetry.devDeviceId' = $UUID
+        $config.'telemetry.sqmId' = $SQM_ID
+
+        # 保存修改后的配置
+        $updatedJson = $config | ConvertTo-Json -Depth 10
+        [System.IO.File]::WriteAllText($configPath, $updatedJson, [System.Text.Encoding]::UTF8)
+
+        Write-Host "$GREEN✅ [成功]$NC 机器码配置修改完成"
+        Write-Host "$BLUE📋 [详情]$NC 已更新以下标识符："
+        Write-Host "   🔹 machineId: $($MACHINE_ID.Substring(0,20))..."
+        Write-Host "   🔹 macMachineId: $MAC_MACHINE_ID"
+        Write-Host "   🔹 devDeviceId: $UUID"
+        Write-Host "   🔹 sqmId: $SQM_ID"
+
+        return $true
+
+    } catch {
+        Write-Host "$RED❌ [错误]$NC 修改配置失败: $($_.Exception.Message)"
+        return $false
+    }
 }
 
 # 检查管理员权限
@@ -186,13 +309,24 @@ function Get-ProcessDetails {
 $MAX_RETRIES = 5
 $WAIT_TIME = 1
 
-# 🔄 处理进程关闭
-function Close-CursorProcess {
+# 🔄 处理进程关闭并保存进程信息
+function Close-CursorProcessAndSaveInfo {
     param($processName)
+
+    $global:CursorProcessInfo = $null
 
     $process = Get-Process -Name $processName -ErrorAction SilentlyContinue
     if ($process) {
         Write-Host "$YELLOW⚠️  [警告]$NC 发现 $processName 正在运行"
+
+        # 💾 保存进程信息用于后续重启
+        $global:CursorProcessInfo = @{
+            ProcessName = $process.ProcessName
+            Path = $process.Path
+            StartTime = $process.StartTime
+        }
+        Write-Host "$GREEN💾 [保存]$NC 已保存进程信息: $($global:CursorProcessInfo.Path)"
+
         Get-ProcessDetails $processName
 
         Write-Host "$YELLOW🔄 [操作]$NC 尝试关闭 $processName..."
@@ -215,12 +349,43 @@ function Close-CursorProcess {
             Start-Sleep -Seconds $WAIT_TIME
         }
         Write-Host "$GREEN✅ [成功]$NC $processName 已成功关闭"
+    } else {
+        Write-Host "$BLUE💡 [提示]$NC 未发现 $processName 进程运行"
+        # 尝试找到Cursor的安装路径
+        $cursorPaths = @(
+            "$env:LOCALAPPDATA\Programs\cursor\Cursor.exe",
+            "$env:PROGRAMFILES\Cursor\Cursor.exe",
+            "$env:PROGRAMFILES(X86)\Cursor\Cursor.exe"
+        )
+
+        foreach ($path in $cursorPaths) {
+            if (Test-Path $path) {
+                $global:CursorProcessInfo = @{
+                    ProcessName = "Cursor"
+                    Path = $path
+                    StartTime = $null
+                }
+                Write-Host "$GREEN💾 [发现]$NC 找到Cursor安装路径: $path"
+                break
+            }
+        }
+
+        if (-not $global:CursorProcessInfo) {
+            Write-Host "$YELLOW⚠️  [警告]$NC 未找到Cursor安装路径，将使用默认路径"
+            $global:CursorProcessInfo = @{
+                ProcessName = "Cursor"
+                Path = "$env:LOCALAPPDATA\Programs\cursor\Cursor.exe"
+                StartTime = $null
+            }
+        }
     }
 }
 
-# 🚀 关闭所有 Cursor 进程
-Close-CursorProcess "Cursor"
-Close-CursorProcess "cursor"
+# 🚀 关闭所有 Cursor 进程并保存信息
+Close-CursorProcessAndSaveInfo "Cursor"
+if (-not $global:CursorProcessInfo) {
+    Close-CursorProcessAndSaveInfo "cursor"
+}
 
 # 🚨 重要警告提示
 Write-Host ""
@@ -235,10 +400,11 @@ Write-Host ""
 Write-Host "$GREEN🚀 [开始]$NC 开始执行核心功能..."
 Remove-CursorTrialFolders
 
-# 📝 以下机器码修改相关功能已暂时屏蔽
-Write-Host "$YELLOW⚠️  [提示]$NC 机器码修改功能已暂时屏蔽，专注于文件夹删除功能"
-Write-Host "$BLUE📋 [说明]$NC 如需恢复机器码修改功能，请联系开发者"
-Write-Host ""
+# 🔄 重启Cursor让其重新生成配置文件
+Restart-CursorAndWait
+
+# 🛠️ 修改机器码配置
+Modify-MachineCodeConfig
 
 <#
 # 🚫 已屏蔽：创建备份目录

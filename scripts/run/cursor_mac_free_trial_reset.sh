@@ -130,6 +130,127 @@ remove_cursor_trial_folders() {
     echo
 }
 
+# 🔄 重启Cursor并等待配置文件生成
+restart_cursor_and_wait() {
+    echo
+    log_info "🔄 [重启] 正在重启Cursor以重新生成配置文件..."
+
+    if [ -z "$CURSOR_PROCESS_PATH" ]; then
+        log_error "❌ [错误] 未找到Cursor进程信息，无法重启"
+        return 1
+    fi
+
+    log_info "📍 [路径] 使用路径: $CURSOR_PROCESS_PATH"
+
+    if [ ! -f "$CURSOR_PROCESS_PATH" ]; then
+        log_error "❌ [错误] Cursor可执行文件不存在: $CURSOR_PROCESS_PATH"
+        return 1
+    fi
+
+    # 启动Cursor
+    log_info "🚀 [启动] 正在启动Cursor..."
+    "$CURSOR_PROCESS_PATH" > /dev/null 2>&1 &
+    CURSOR_PID=$!
+
+    log_info "⏳ [等待] 等待15秒让Cursor完全启动并生成配置文件..."
+    sleep 15
+
+    # 检查配置文件是否生成
+    local config_path="$HOME/Library/Application Support/Cursor/User/globalStorage/storage.json"
+    local max_wait=30
+    local waited=0
+
+    while [ ! -f "$config_path" ] && [ $waited -lt $max_wait ]; do
+        log_info "⏳ [等待] 等待配置文件生成... ($waited/$max_wait 秒)"
+        sleep 1
+        waited=$((waited + 1))
+    done
+
+    if [ -f "$config_path" ]; then
+        log_info "✅ [成功] 配置文件已生成: $config_path"
+    else
+        log_warn "⚠️  [警告] 配置文件未在预期时间内生成，继续执行..."
+    fi
+
+    # 强制关闭Cursor
+    log_info "🔄 [关闭] 正在关闭Cursor以进行配置修改..."
+    if [ ! -z "$CURSOR_PID" ]; then
+        kill $CURSOR_PID 2>/dev/null || true
+    fi
+
+    # 确保所有Cursor进程都关闭
+    pkill -f "Cursor" 2>/dev/null || true
+
+    log_info "✅ [完成] Cursor重启流程完成"
+    return 0
+}
+
+# 🛠️ 修改机器码配置
+modify_machine_code_config() {
+    echo
+    log_info "🛠️  [配置] 正在修改机器码配置..."
+
+    local config_path="$HOME/Library/Application Support/Cursor/User/globalStorage/storage.json"
+
+    if [ ! -f "$config_path" ]; then
+        log_error "❌ [错误] 配置文件不存在: $config_path"
+        log_info "💡 [提示] 请手动启动Cursor一次，然后重新运行此脚本"
+        return 1
+    fi
+
+    # 生成新的ID
+    local MAC_MACHINE_ID=$(uuidgen | tr '[:upper:]' '[:lower:]')
+    local UUID=$(uuidgen | tr '[:upper:]' '[:lower:]')
+    local MACHINE_ID="auth0|user_$(openssl rand -hex 32)"
+    local SQM_ID="{$(uuidgen | tr '[:lower:]' '[:upper:]')}"
+
+    log_info "🔧 [生成] 已生成新的设备标识符"
+
+    # 备份原始配置
+    local backup_dir="$HOME/Library/Application Support/Cursor/User/globalStorage/backups"
+    mkdir -p "$backup_dir"
+
+    local backup_name="storage.json.backup_$(date +%Y%m%d_%H%M%S)"
+    cp "$config_path" "$backup_dir/$backup_name"
+    log_info "💾 [备份] 已备份原配置: $backup_name"
+
+    # 使用Python修改JSON配置（更可靠）
+    python3 -c "
+import json
+import sys
+
+try:
+    with open('$config_path', 'r', encoding='utf-8') as f:
+        config = json.load(f)
+
+    config['telemetry.machineId'] = '$MACHINE_ID'
+    config['telemetry.macMachineId'] = '$MAC_MACHINE_ID'
+    config['telemetry.devDeviceId'] = '$UUID'
+    config['telemetry.sqmId'] = '$SQM_ID'
+
+    with open('$config_path', 'w', encoding='utf-8') as f:
+        json.dump(config, f, indent=2, ensure_ascii=False)
+
+    print('SUCCESS')
+except Exception as e:
+    print(f'ERROR: {e}')
+    sys.exit(1)
+" 2>/dev/null
+
+    if [ $? -eq 0 ]; then
+        log_info "✅ [成功] 机器码配置修改完成"
+        log_info "📋 [详情] 已更新以下标识符："
+        echo "   🔹 machineId: ${MACHINE_ID:0:20}..."
+        echo "   🔹 macMachineId: $MAC_MACHINE_ID"
+        echo "   🔹 devDeviceId: $UUID"
+        echo "   🔹 sqmId: $SQM_ID"
+        return 0
+    else
+        log_error "❌ [错误] 修改配置失败"
+        return 1
+    fi
+}
+
 # 检查权限
 check_permissions() {
     if [ "$EUID" -ne 0 ]; then
@@ -139,56 +260,67 @@ check_permissions() {
     fi
 }
 
-# 检查并关闭 Cursor 进程
+# 检查并关闭 Cursor 进程（保存进程信息）
 check_and_kill_cursor() {
-    log_info "检查 Cursor 进程..."
-    
+    log_info "🔍 [检查] 检查 Cursor 进程..."
+
     local attempt=1
     local max_attempts=5
-    
+
+    # 💾 保存Cursor进程路径
+    CURSOR_PROCESS_PATH="/Applications/Cursor.app/Contents/MacOS/Cursor"
+
     # 函数：获取进程详细信息
     get_process_details() {
         local process_name="$1"
         log_debug "正在获取 $process_name 进程详细信息："
         ps aux | grep -i "/Applications/Cursor.app" | grep -v grep
     }
-    
+
     while [ $attempt -le $max_attempts ]; do
         # 使用更精确的匹配来获取 Cursor 进程
         CURSOR_PIDS=$(ps aux | grep -i "/Applications/Cursor.app" | grep -v grep | awk '{print $2}')
-        
+
         if [ -z "$CURSOR_PIDS" ]; then
-            log_info "未发现运行中的 Cursor 进程"
+            log_info "💡 [提示] 未发现运行中的 Cursor 进程"
+            # 确认Cursor应用路径存在
+            if [ -f "$CURSOR_PROCESS_PATH" ]; then
+                log_info "💾 [保存] 已保存Cursor路径: $CURSOR_PROCESS_PATH"
+            else
+                log_warn "⚠️  [警告] 未找到Cursor应用，请确认已安装"
+            fi
             return 0
         fi
-        
-        log_warn "发现 Cursor 进程正在运行"
+
+        log_warn "⚠️  [警告] 发现 Cursor 进程正在运行"
+        # 💾 保存进程信息
+        log_info "💾 [保存] 已保存Cursor路径: $CURSOR_PROCESS_PATH"
         get_process_details "cursor"
-        
-        log_warn "尝试关闭 Cursor 进程..."
-        
+
+        log_warn "🔄 [操作] 尝试关闭 Cursor 进程..."
+
         if [ $attempt -eq $max_attempts ]; then
-            log_warn "尝试强制终止进程..."
+            log_warn "💥 [强制] 尝试强制终止进程..."
             kill -9 $CURSOR_PIDS 2>/dev/null || true
         else
             kill $CURSOR_PIDS 2>/dev/null || true
         fi
-        
+
         sleep 1
-        
+
         # 同样使用更精确的匹配来检查进程是否还在运行
         if ! ps aux | grep -i "/Applications/Cursor.app" | grep -v grep > /dev/null; then
-            log_info "Cursor 进程已成功关闭"
+            log_info "✅ [成功] Cursor 进程已成功关闭"
             return 0
         fi
-        
-        log_warn "等待进程关闭，尝试 $attempt/$max_attempts..."
+
+        log_warn "⏳ [等待] 等待进程关闭，尝试 $attempt/$max_attempts..."
         ((attempt++))
     done
-    
-    log_error "在 $max_attempts 次尝试后仍无法关闭 Cursor 进程"
+
+    log_error "❌ [错误] 在 $max_attempts 次尝试后仍无法关闭 Cursor 进程"
     get_process_details "cursor"
-    log_error "请手动关闭进程后重试"
+    log_error "💥 [错误] 请手动关闭进程后重试"
     exit 1
 }
 
@@ -1084,12 +1216,11 @@ main() {
     log_info "🚀 [开始] 开始执行核心功能..."
     remove_cursor_trial_folders
 
-    # 🚫 以下功能已暂时屏蔽
-    log_warn "⚠️  [提示] 以下功能已暂时屏蔽："
-    log_info "📋 [说明] - 配置文件备份和修改"
-    log_info "📋 [说明] - 主程序文件修改"
-    log_info "📋 [说明] 当前版本专注于删除文件夹功能"
-    echo
+    # 🔄 重启Cursor让其重新生成配置文件
+    restart_cursor_and_wait
+
+    # 🛠️ 修改机器码配置
+    modify_machine_code_config
     
     # 🎉 显示操作完成信息
     echo
