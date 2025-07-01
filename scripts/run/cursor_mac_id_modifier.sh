@@ -316,18 +316,161 @@ restart_cursor_and_wait() {
     return 0
 }
 
-# 🛠️ 修改机器码配置
+# 🔍 检查Cursor环境
+test_cursor_environment() {
+    local mode=${1:-"FULL"}
+
+    echo
+    log_info "🔍 [环境检查] 正在检查Cursor环境..."
+
+    local config_path="$HOME/Library/Application Support/Cursor/User/globalStorage/storage.json"
+    local cursor_app_data="$HOME/Library/Application Support/Cursor"
+    local cursor_app_path="/Applications/Cursor.app"
+    local issues=()
+
+    # 检查Python3环境（macOS版本需要）
+    if ! command -v python3 >/dev/null 2>&1; then
+        issues+=("Python3环境不可用，macOS版本需要Python3来处理JSON配置文件")
+        log_warn "⚠️  [警告] 未找到Python3，请安装Python3: brew install python3"
+    else
+        log_info "✅ [检查] Python3环境可用: $(python3 --version)"
+    fi
+
+    # 检查配置文件
+    if [ ! -f "$config_path" ]; then
+        issues+=("配置文件不存在: $config_path")
+    else
+        # 验证JSON格式
+        if python3 -c "import json; json.load(open('$config_path'))" 2>/dev/null; then
+            log_info "✅ [检查] 配置文件格式正确"
+        else
+            issues+=("配置文件格式错误或损坏")
+        fi
+    fi
+
+    # 检查Cursor目录结构
+    if [ ! -d "$cursor_app_data" ]; then
+        issues+=("Cursor应用数据目录不存在: $cursor_app_data")
+    fi
+
+    # 检查Cursor应用安装
+    if [ ! -d "$cursor_app_path" ]; then
+        issues+=("未找到Cursor应用安装: $cursor_app_path")
+    else
+        log_info "✅ [检查] 找到Cursor应用: $cursor_app_path"
+    fi
+
+    # 检查目录权限
+    if [ -d "$cursor_app_data" ] && [ ! -w "$cursor_app_data" ]; then
+        issues+=("Cursor应用数据目录无写入权限: $cursor_app_data")
+    fi
+
+    # 返回检查结果
+    if [ ${#issues[@]} -eq 0 ]; then
+        log_info "✅ [环境检查] 所有检查通过"
+        return 0
+    else
+        log_error "❌ [环境检查] 发现 ${#issues[@]} 个问题："
+        for issue in "${issues[@]}"; do
+            echo -e "${RED}  • $issue${NC}"
+        done
+        return 1
+    fi
+}
+
+# 🚀 启动Cursor生成配置文件
+start_cursor_to_generate_config() {
+    log_info "🚀 [启动] 正在尝试启动Cursor生成配置文件..."
+
+    local cursor_app_path="/Applications/Cursor.app"
+    local cursor_executable="$cursor_app_path/Contents/MacOS/Cursor"
+
+    if [ ! -f "$cursor_executable" ]; then
+        log_error "❌ [错误] 未找到Cursor可执行文件: $cursor_executable"
+        return 1
+    fi
+
+    log_info "📍 [路径] 使用Cursor路径: $cursor_executable"
+
+    # 启动Cursor
+    "$cursor_executable" > /dev/null 2>&1 &
+    local cursor_pid=$!
+    log_info "🚀 [启动] Cursor已启动，PID: $cursor_pid"
+
+    log_info "⏳ [等待] 请等待Cursor完全加载（约30秒）..."
+    log_info "💡 [提示] 您可以在Cursor完全加载后手动关闭它"
+
+    # 等待配置文件生成
+    local config_path="$HOME/Library/Application Support/Cursor/User/globalStorage/storage.json"
+    local max_wait=60
+    local waited=0
+
+    while [ ! -f "$config_path" ] && [ $waited -lt $max_wait ]; do
+        sleep 2
+        waited=$((waited + 2))
+        if [ $((waited % 10)) -eq 0 ]; then
+            log_info "⏳ [等待] 等待配置文件生成... ($waited/$max_wait 秒)"
+        fi
+    done
+
+    if [ -f "$config_path" ]; then
+        log_info "✅ [成功] 配置文件已生成！"
+        log_info "💡 [提示] 现在可以关闭Cursor并重新运行脚本"
+        return 0
+    else
+        log_warn "⚠️  [超时] 配置文件未在预期时间内生成"
+        log_info "💡 [建议] 请手动操作Cursor（如创建新文件）以触发配置生成"
+        return 1
+    fi
+}
+
+# 🛠️ 修改机器码配置（增强版）
 modify_machine_code_config() {
+    local mode=${1:-"FULL"}
+
     echo
     log_info "🛠️  [配置] 正在修改机器码配置..."
 
     local config_path="$HOME/Library/Application Support/Cursor/User/globalStorage/storage.json"
 
+    # 增强的配置文件检查
     if [ ! -f "$config_path" ]; then
         log_error "❌ [错误] 配置文件不存在: $config_path"
-        log_info "💡 [提示] 请手动启动Cursor一次，然后重新运行此脚本"
+        echo
+        log_info "💡 [解决方案] 请尝试以下步骤："
+        echo -e "${BLUE}  1️⃣  手动启动Cursor应用程序${NC}"
+        echo -e "${BLUE}  2️⃣  等待Cursor完全加载（约30秒）${NC}"
+        echo -e "${BLUE}  3️⃣  关闭Cursor应用程序${NC}"
+        echo -e "${BLUE}  4️⃣  重新运行此脚本${NC}"
+        echo
+        log_warn "⚠️  [备选方案] 如果问题持续："
+        echo -e "${BLUE}  • 选择脚本的'重置环境+修改机器码'选项${NC}"
+        echo -e "${BLUE}  • 该选项会自动生成配置文件${NC}"
+        echo
+
+        # 提供用户选择
+        read -p "是否现在尝试启动Cursor生成配置文件？(y/n): " user_choice
+        if [[ "$user_choice" =~ ^(y|yes)$ ]]; then
+            log_info "🚀 [尝试] 正在尝试启动Cursor..."
+            if start_cursor_to_generate_config; then
+                return 0
+            fi
+        fi
+
         return 1
     fi
+
+    # 验证配置文件格式
+    log_info "🔍 [验证] 检查配置文件格式..."
+    if ! python3 -c "import json; json.load(open('$config_path'))" 2>/dev/null; then
+        log_error "❌ [错误] 配置文件格式错误或损坏"
+        log_info "💡 [建议] 配置文件可能已损坏，建议选择'重置环境+修改机器码'选项"
+        return 1
+    fi
+    log_info "✅ [验证] 配置文件格式正确"
+
+    # 显示操作进度
+    log_info "⏳ [进度] 1/5 - 生成新的设备标识符..."
 
     # 生成新的ID
     local MAC_MACHINE_ID=$(uuidgen | tr '[:upper:]' '[:lower:]')
@@ -335,18 +478,44 @@ modify_machine_code_config() {
     local MACHINE_ID="auth0|user_$(openssl rand -hex 32)"
     local SQM_ID="{$(uuidgen | tr '[:lower:]' '[:upper:]')}"
 
-    log_info "🔧 [生成] 已生成新的设备标识符"
+    log_info "✅ [进度] 1/5 - 设备标识符生成完成"
 
-    # 备份原始配置
+    log_info "⏳ [进度] 2/5 - 创建备份目录..."
+
+    # 备份原始配置（增强版）
     local backup_dir="$HOME/Library/Application Support/Cursor/User/globalStorage/backups"
-    mkdir -p "$backup_dir"
+    if ! mkdir -p "$backup_dir"; then
+        log_error "❌ [错误] 无法创建备份目录: $backup_dir"
+        return 1
+    fi
 
     local backup_name="storage.json.backup_$(date +%Y%m%d_%H%M%S)"
-    cp "$config_path" "$backup_dir/$backup_name"
-    log_info "💾 [备份] 已备份原配置: $backup_name"
+    local backup_path="$backup_dir/$backup_name"
+
+    log_info "⏳ [进度] 3/5 - 备份原始配置..."
+    if ! cp "$config_path" "$backup_path"; then
+        log_error "❌ [错误] 备份配置文件失败"
+        return 1
+    fi
+
+    # 验证备份是否成功
+    if [ -f "$backup_path" ]; then
+        local backup_size=$(wc -c < "$backup_path")
+        local original_size=$(wc -c < "$config_path")
+        if [ "$backup_size" -eq "$original_size" ]; then
+            log_info "✅ [进度] 3/5 - 配置备份成功: $backup_name"
+        else
+            log_warn "⚠️  [警告] 备份文件大小不匹配，但继续执行"
+        fi
+    else
+        log_error "❌ [错误] 备份文件创建失败"
+        return 1
+    fi
+
+    log_info "⏳ [进度] 4/5 - 更新配置文件..."
 
     # 使用Python修改JSON配置（更可靠）
-    python3 -c "
+    local python_result=$(python3 -c "
 import json
 import sys
 
@@ -366,18 +535,65 @@ try:
 except Exception as e:
     print(f'ERROR: {e}')
     sys.exit(1)
-" 2>/dev/null
+" 2>&1)
 
-    if [ $? -eq 0 ]; then
-        log_info "✅ [成功] 机器码配置修改完成"
-        log_info "📋 [详情] 已更新以下标识符："
-        echo "   🔹 machineId: ${MACHINE_ID:0:20}..."
-        echo "   🔹 macMachineId: $MAC_MACHINE_ID"
-        echo "   🔹 devDeviceId: $UUID"
-        echo "   🔹 sqmId: $SQM_ID"
-        return 0
+    if [ $? -eq 0 ] && [[ "$python_result" == "SUCCESS" ]]; then
+        log_info "⏳ [进度] 5/5 - 验证修改结果..."
+
+        # 验证修改是否成功
+        local verification_result=$(python3 -c "
+import json
+try:
+    with open('$config_path', 'r', encoding='utf-8') as f:
+        config = json.load(f)
+
+    checks = [
+        config.get('telemetry.machineId') == '$MACHINE_ID',
+        config.get('telemetry.macMachineId') == '$MAC_MACHINE_ID',
+        config.get('telemetry.devDeviceId') == '$UUID',
+        config.get('telemetry.sqmId') == '$SQM_ID'
+    ]
+
+    if all(checks):
+        print('VERIFICATION_SUCCESS')
+    else:
+        print('VERIFICATION_FAILED')
+except Exception as e:
+    print(f'VERIFICATION_ERROR: {e}')
+" 2>&1)
+
+        if [[ "$verification_result" == "VERIFICATION_SUCCESS" ]]; then
+            log_info "✅ [进度] 5/5 - 修改验证成功"
+            echo
+            log_info "🎉 [成功] 机器码配置修改完成！"
+            log_info "📋 [详情] 已更新以下标识符："
+            echo "   🔹 machineId: ${MACHINE_ID:0:20}..."
+            echo "   🔹 macMachineId: $MAC_MACHINE_ID"
+            echo "   🔹 devDeviceId: $UUID"
+            echo "   🔹 sqmId: $SQM_ID"
+            echo
+            log_info "💾 [备份] 原配置已备份至: $backup_name"
+            return 0
+        else
+            log_error "❌ [错误] 修改验证失败: $verification_result"
+            log_info "🔄 [恢复] 正在恢复备份..."
+            cp "$backup_path" "$config_path"
+            return 1
+        fi
     else
-        log_error "❌ [错误] 修改配置失败"
+        log_error "❌ [错误] 修改配置失败: $python_result"
+        log_info "💡 [调试信息] Python执行结果: $python_result"
+
+        # 尝试恢复备份
+        if [ -f "$backup_path" ]; then
+            log_info "🔄 [恢复] 正在恢复备份配置..."
+            if cp "$backup_path" "$config_path"; then
+                log_info "✅ [恢复] 已恢复原始配置"
+            else
+                log_error "❌ [错误] 恢复备份失败"
+            fi
+        fi
+
         return 1
     fi
 }
@@ -1678,11 +1894,30 @@ main() {
     if [ "$execute_mode" = "MODIFY_ONLY" ]; then
         log_info "🚀 [开始] 开始执行仅修改机器码功能..."
 
-        # 直接修改机器码配置，不进行文件夹删除和重启
-        if modify_machine_code_config; then
+        # 先进行环境检查
+        if ! test_cursor_environment "MODIFY_ONLY"; then
+            echo
+            log_error "❌ [环境检查失败] 无法继续执行"
+            echo
+            log_info "💡 [建议] 请选择以下操作："
+            echo -e "${BLUE}  1️⃣  选择'重置环境+修改机器码'选项（推荐）${NC}"
+            echo -e "${BLUE}  2️⃣  手动启动Cursor一次，然后重新运行脚本${NC}"
+            echo -e "${BLUE}  3️⃣  检查Cursor是否正确安装${NC}"
+            echo -e "${BLUE}  4️⃣  安装Python3: brew install python3${NC}"
+            echo
+            read -p "按回车键退出..."
+            exit 1
+        fi
+
+        # 执行机器码修改
+        if modify_machine_code_config "MODIFY_ONLY"; then
+            echo
             log_info "🎉 [完成] 机器码修改完成！"
+            log_info "💡 [提示] 现在可以启动Cursor使用新的机器码配置"
         else
+            echo
             log_error "❌ [失败] 机器码修改失败！"
+            log_info "💡 [建议] 请尝试'重置环境+修改机器码'选项"
         fi
     else
         # 完整的重置环境+修改机器码流程

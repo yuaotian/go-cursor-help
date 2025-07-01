@@ -209,20 +209,122 @@ function Restart-CursorAndWait {
     }
 }
 
-# 🛠️ 修改机器码配置
+# � 检查配置文件和环境
+function Test-CursorEnvironment {
+    param(
+        [string]$Mode = "FULL"
+    )
+
+    Write-Host ""
+    Write-Host "$BLUE🔍 [环境检查]$NC 正在检查Cursor环境..."
+
+    $configPath = "$env:APPDATA\Cursor\User\globalStorage\storage.json"
+    $cursorAppData = "$env:APPDATA\Cursor"
+    $issues = @()
+
+    # 检查配置文件
+    if (-not (Test-Path $configPath)) {
+        $issues += "配置文件不存在: $configPath"
+    } else {
+        try {
+            $content = Get-Content $configPath -Raw -Encoding UTF8 -ErrorAction Stop
+            $config = $content | ConvertFrom-Json -ErrorAction Stop
+            Write-Host "$GREEN✅ [检查]$NC 配置文件格式正确"
+        } catch {
+            $issues += "配置文件格式错误: $($_.Exception.Message)"
+        }
+    }
+
+    # 检查Cursor目录结构
+    if (-not (Test-Path $cursorAppData)) {
+        $issues += "Cursor应用数据目录不存在: $cursorAppData"
+    }
+
+    # 检查Cursor安装
+    $cursorPaths = @(
+        "$env:LOCALAPPDATA\Programs\cursor\Cursor.exe",
+        "$env:PROGRAMFILES\Cursor\Cursor.exe",
+        "$env:PROGRAMFILES(X86)\Cursor\Cursor.exe"
+    )
+
+    $cursorFound = $false
+    foreach ($path in $cursorPaths) {
+        if (Test-Path $path) {
+            Write-Host "$GREEN✅ [检查]$NC 找到Cursor安装: $path"
+            $cursorFound = $true
+            break
+        }
+    }
+
+    if (-not $cursorFound) {
+        $issues += "未找到Cursor安装，请确认Cursor已正确安装"
+    }
+
+    # 返回检查结果
+    if ($issues.Count -eq 0) {
+        Write-Host "$GREEN✅ [环境检查]$NC 所有检查通过"
+        return @{ Success = $true; Issues = @() }
+    } else {
+        Write-Host "$RED❌ [环境检查]$NC 发现 $($issues.Count) 个问题："
+        foreach ($issue in $issues) {
+            Write-Host "$RED  • $issue$NC"
+        }
+        return @{ Success = $false; Issues = $issues }
+    }
+}
+
+# �🛠️ 修改机器码配置（增强版）
 function Modify-MachineCodeConfig {
+    param(
+        [string]$Mode = "FULL"
+    )
+
     Write-Host ""
     Write-Host "$GREEN🛠️  [配置]$NC 正在修改机器码配置..."
 
     $configPath = "$env:APPDATA\Cursor\User\globalStorage\storage.json"
 
+    # 增强的配置文件检查
     if (-not (Test-Path $configPath)) {
         Write-Host "$RED❌ [错误]$NC 配置文件不存在: $configPath"
-        Write-Host "$YELLOW💡 [提示]$NC 请手动启动Cursor一次，然后重新运行此脚本"
+        Write-Host ""
+        Write-Host "$YELLOW💡 [解决方案]$NC 请尝试以下步骤："
+        Write-Host "$BLUE  1️⃣  手动启动Cursor应用程序$NC"
+        Write-Host "$BLUE  2️⃣  等待Cursor完全加载（约30秒）$NC"
+        Write-Host "$BLUE  3️⃣  关闭Cursor应用程序$NC"
+        Write-Host "$BLUE  4️⃣  重新运行此脚本$NC"
+        Write-Host ""
+        Write-Host "$YELLOW⚠️  [备选方案]$NC 如果问题持续："
+        Write-Host "$BLUE  • 选择脚本的'重置环境+修改机器码'选项$NC"
+        Write-Host "$BLUE  • 该选项会自动生成配置文件$NC"
+        Write-Host ""
+
+        # 提供用户选择
+        $userChoice = Read-Host "是否现在尝试启动Cursor生成配置文件？(y/n)"
+        if ($userChoice -match "^(y|yes)$") {
+            Write-Host "$BLUE🚀 [尝试]$NC 正在尝试启动Cursor..."
+            return Start-CursorToGenerateConfig
+        }
+
+        return $false
+    }
+
+    # 验证配置文件格式
+    try {
+        Write-Host "$BLUE🔍 [验证]$NC 检查配置文件格式..."
+        $originalContent = Get-Content $configPath -Raw -Encoding UTF8 -ErrorAction Stop
+        $config = $originalContent | ConvertFrom-Json -ErrorAction Stop
+        Write-Host "$GREEN✅ [验证]$NC 配置文件格式正确"
+    } catch {
+        Write-Host "$RED❌ [错误]$NC 配置文件格式错误: $($_.Exception.Message)"
+        Write-Host "$YELLOW💡 [建议]$NC 配置文件可能已损坏，建议选择'重置环境+修改机器码'选项"
         return $false
     }
 
     try {
+        # 显示操作进度
+        Write-Host "$BLUE⏳ [进度]$NC 1/5 - 生成新的设备标识符..."
+
         # 生成新的ID
         $MAC_MACHINE_ID = [System.Guid]::NewGuid().ToString()
         $UUID = [System.Guid]::NewGuid().ToString()
@@ -236,21 +338,36 @@ function Modify-MachineCodeConfig {
         $MACHINE_ID = "$prefixHex$randomPart"
         $SQM_ID = "{$([System.Guid]::NewGuid().ToString().ToUpper())}"
 
-        Write-Host "$BLUE🔧 [生成]$NC 已生成新的设备标识符"
+        Write-Host "$GREEN✅ [进度]$NC 1/5 - 设备标识符生成完成"
 
-        # 读取并修改配置文件
-        $originalContent = Get-Content $configPath -Raw -Encoding UTF8
-        $config = $originalContent | ConvertFrom-Json
+        Write-Host "$BLUE⏳ [进度]$NC 2/5 - 创建备份目录..."
 
-        # 备份原始值
+        # 备份原始值（增强版）
         $backupDir = "$env:APPDATA\Cursor\User\globalStorage\backups"
         if (-not (Test-Path $backupDir)) {
-            New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
+            New-Item -ItemType Directory -Path $backupDir -Force -ErrorAction Stop | Out-Null
         }
 
         $backupName = "storage.json.backup_$(Get-Date -Format 'yyyyMMdd_HHmmss')"
-        Copy-Item $configPath "$backupDir\$backupName"
-        Write-Host "$GREEN💾 [备份]$NC 已备份原配置: $backupName"
+        $backupPath = "$backupDir\$backupName"
+
+        Write-Host "$BLUE⏳ [进度]$NC 3/5 - 备份原始配置..."
+        Copy-Item $configPath $backupPath -ErrorAction Stop
+
+        # 验证备份是否成功
+        if (Test-Path $backupPath) {
+            $backupSize = (Get-Item $backupPath).Length
+            $originalSize = (Get-Item $configPath).Length
+            if ($backupSize -eq $originalSize) {
+                Write-Host "$GREEN✅ [进度]$NC 3/5 - 配置备份成功: $backupName"
+            } else {
+                Write-Host "$YELLOW⚠️  [警告]$NC 备份文件大小不匹配，但继续执行"
+            }
+        } else {
+            throw "备份文件创建失败"
+        }
+
+        Write-Host "$BLUE⏳ [进度]$NC 4/5 - 更新配置文件..."
 
         # 更新配置值
         $config.'telemetry.machineId' = $MACHINE_ID
@@ -262,17 +379,121 @@ function Modify-MachineCodeConfig {
         $updatedJson = $config | ConvertTo-Json -Depth 10
         [System.IO.File]::WriteAllText($configPath, $updatedJson, [System.Text.Encoding]::UTF8)
 
-        Write-Host "$GREEN✅ [成功]$NC 机器码配置修改完成"
-        Write-Host "$BLUE📋 [详情]$NC 已更新以下标识符："
-        Write-Host "   🔹 machineId: $($MACHINE_ID.Substring(0,20))..."
-        Write-Host "   🔹 macMachineId: $MAC_MACHINE_ID"
-        Write-Host "   🔹 devDeviceId: $UUID"
-        Write-Host "   🔹 sqmId: $SQM_ID"
+        Write-Host "$BLUE⏳ [进度]$NC 5/5 - 验证修改结果..."
 
-        return $true
+        # 验证修改是否成功
+        try {
+            $verifyContent = Get-Content $configPath -Raw -Encoding UTF8
+            $verifyConfig = $verifyContent | ConvertFrom-Json
+
+            $verificationPassed = $true
+            if ($verifyConfig.'telemetry.machineId' -ne $MACHINE_ID) { $verificationPassed = $false }
+            if ($verifyConfig.'telemetry.macMachineId' -ne $MAC_MACHINE_ID) { $verificationPassed = $false }
+            if ($verifyConfig.'telemetry.devDeviceId' -ne $UUID) { $verificationPassed = $false }
+            if ($verifyConfig.'telemetry.sqmId' -ne $SQM_ID) { $verificationPassed = $false }
+
+            if ($verificationPassed) {
+                Write-Host "$GREEN✅ [进度]$NC 5/5 - 修改验证成功"
+                Write-Host ""
+                Write-Host "$GREEN🎉 [成功]$NC 机器码配置修改完成！"
+                Write-Host "$BLUE📋 [详情]$NC 已更新以下标识符："
+                Write-Host "   🔹 machineId: $($MACHINE_ID.Substring(0,20))..."
+                Write-Host "   🔹 macMachineId: $MAC_MACHINE_ID"
+                Write-Host "   🔹 devDeviceId: $UUID"
+                Write-Host "   🔹 sqmId: $SQM_ID"
+                Write-Host ""
+                Write-Host "$GREEN💾 [备份]$NC 原配置已备份至: $backupName"
+                return $true
+            } else {
+                Write-Host "$RED❌ [错误]$NC 修改验证失败，正在恢复备份..."
+                Copy-Item $backupPath $configPath -Force
+                return $false
+            }
+        } catch {
+            Write-Host "$RED❌ [错误]$NC 验证过程出错: $($_.Exception.Message)"
+            Write-Host "$BLUE🔄 [恢复]$NC 正在恢复备份..."
+            Copy-Item $backupPath $configPath -Force
+            return $false
+        }
 
     } catch {
         Write-Host "$RED❌ [错误]$NC 修改配置失败: $($_.Exception.Message)"
+        Write-Host "$BLUE💡 [调试信息]$NC 错误类型: $($_.Exception.GetType().FullName)"
+
+        # 尝试恢复备份（如果存在）
+        if ($backupPath -and (Test-Path $backupPath)) {
+            Write-Host "$BLUE🔄 [恢复]$NC 正在恢复备份配置..."
+            try {
+                Copy-Item $backupPath $configPath -Force
+                Write-Host "$GREEN✅ [恢复]$NC 已恢复原始配置"
+            } catch {
+                Write-Host "$RED❌ [错误]$NC 恢复备份失败: $($_.Exception.Message)"
+            }
+        }
+
+        return $false
+    }
+}
+
+# 🚀 启动Cursor生成配置文件
+function Start-CursorToGenerateConfig {
+    Write-Host "$BLUE🚀 [启动]$NC 正在尝试启动Cursor生成配置文件..."
+
+    # 查找Cursor可执行文件
+    $cursorPaths = @(
+        "$env:LOCALAPPDATA\Programs\cursor\Cursor.exe",
+        "$env:PROGRAMFILES\Cursor\Cursor.exe",
+        "$env:PROGRAMFILES(X86)\Cursor\Cursor.exe"
+    )
+
+    $cursorPath = $null
+    foreach ($path in $cursorPaths) {
+        if (Test-Path $path) {
+            $cursorPath = $path
+            break
+        }
+    }
+
+    if (-not $cursorPath) {
+        Write-Host "$RED❌ [错误]$NC 未找到Cursor安装，请确认Cursor已正确安装"
+        return $false
+    }
+
+    try {
+        Write-Host "$BLUE📍 [路径]$NC 使用Cursor路径: $cursorPath"
+
+        # 启动Cursor
+        $process = Start-Process -FilePath $cursorPath -PassThru -WindowStyle Normal
+        Write-Host "$GREEN🚀 [启动]$NC Cursor已启动，PID: $($process.Id)"
+
+        Write-Host "$YELLOW⏳ [等待]$NC 请等待Cursor完全加载（约30秒）..."
+        Write-Host "$BLUE💡 [提示]$NC 您可以在Cursor完全加载后手动关闭它"
+
+        # 等待配置文件生成
+        $configPath = "$env:APPDATA\Cursor\User\globalStorage\storage.json"
+        $maxWait = 60
+        $waited = 0
+
+        while (-not (Test-Path $configPath) -and $waited -lt $maxWait) {
+            Start-Sleep -Seconds 2
+            $waited += 2
+            if ($waited % 10 -eq 0) {
+                Write-Host "$YELLOW⏳ [等待]$NC 等待配置文件生成... ($waited/$maxWait 秒)"
+            }
+        }
+
+        if (Test-Path $configPath) {
+            Write-Host "$GREEN✅ [成功]$NC 配置文件已生成！"
+            Write-Host "$BLUE💡 [提示]$NC 现在可以关闭Cursor并重新运行脚本"
+            return $true
+        } else {
+            Write-Host "$YELLOW⚠️  [超时]$NC 配置文件未在预期时间内生成"
+            Write-Host "$BLUE💡 [建议]$NC 请手动操作Cursor（如创建新文件）以触发配置生成"
+            return $false
+        }
+
+    } catch {
+        Write-Host "$RED❌ [错误]$NC 启动Cursor失败: $($_.Exception.Message)"
         return $false
     }
 }
@@ -541,11 +762,33 @@ function Close-CursorProcessAndSaveInfo {
 if ($executeMode -eq "MODIFY_ONLY") {
     Write-Host "$GREEN🚀 [开始]$NC 开始执行仅修改机器码功能..."
 
-    # 直接修改机器码配置，不进行文件夹删除和重启
-    if (Modify-MachineCodeConfig) {
+    # 先进行环境检查
+    $envCheck = Test-CursorEnvironment -Mode "MODIFY_ONLY"
+    if (-not $envCheck.Success) {
+        Write-Host ""
+        Write-Host "$RED❌ [环境检查失败]$NC 无法继续执行，发现以下问题："
+        foreach ($issue in $envCheck.Issues) {
+            Write-Host "$RED  • $issue$NC"
+        }
+        Write-Host ""
+        Write-Host "$YELLOW💡 [建议]$NC 请选择以下操作："
+        Write-Host "$BLUE  1️⃣  选择'重置环境+修改机器码'选项（推荐）$NC"
+        Write-Host "$BLUE  2️⃣  手动启动Cursor一次，然后重新运行脚本$NC"
+        Write-Host "$BLUE  3️⃣  检查Cursor是否正确安装$NC"
+        Write-Host ""
+        Read-Host "按回车键退出"
+        exit 1
+    }
+
+    # 执行机器码修改
+    if (Modify-MachineCodeConfig -Mode "MODIFY_ONLY") {
+        Write-Host ""
         Write-Host "$GREEN🎉 [完成]$NC 机器码修改完成！"
+        Write-Host "$BLUE💡 [提示]$NC 现在可以启动Cursor使用新的机器码配置"
     } else {
+        Write-Host ""
         Write-Host "$RED❌ [失败]$NC 机器码修改失败！"
+        Write-Host "$YELLOW💡 [建议]$NC 请尝试'重置环境+修改机器码'选项"
     }
 } else {
     # 完整的重置环境+修改机器码流程
