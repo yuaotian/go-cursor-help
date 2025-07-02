@@ -309,12 +309,26 @@ function Modify-MachineCodeConfig {
         return $false
     }
 
-    # 验证配置文件格式
+    # 验证配置文件格式并显示结构
     try {
         Write-Host "$BLUE🔍 [验证]$NC 检查配置文件格式..."
         $originalContent = Get-Content $configPath -Raw -Encoding UTF8 -ErrorAction Stop
         $config = $originalContent | ConvertFrom-Json -ErrorAction Stop
         Write-Host "$GREEN✅ [验证]$NC 配置文件格式正确"
+
+        # 显示当前配置文件中的相关属性
+        Write-Host "$BLUE📋 [当前配置]$NC 检查现有的遥测属性："
+        $telemetryProperties = @('telemetry.machineId', 'telemetry.macMachineId', 'telemetry.devDeviceId', 'telemetry.sqmId')
+        foreach ($prop in $telemetryProperties) {
+            if ($config.PSObject.Properties[$prop]) {
+                $value = $config.$prop
+                $displayValue = if ($value.Length -gt 20) { "$($value.Substring(0,20))..." } else { $value }
+                Write-Host "$GREEN  ✓ $prop$NC = $displayValue"
+            } else {
+                Write-Host "$YELLOW  - $prop$NC (不存在，将创建)"
+            }
+        }
+        Write-Host ""
     } catch {
         Write-Host "$RED❌ [错误]$NC 配置文件格式错误: $($_.Exception.Message)"
         Write-Host "$YELLOW💡 [建议]$NC 配置文件可能已损坏，建议选择'重置环境+修改机器码'选项"
@@ -369,11 +383,30 @@ function Modify-MachineCodeConfig {
 
         Write-Host "$BLUE⏳ [进度]$NC 4/5 - 更新配置文件..."
 
-        # 更新配置值
-        $config.'telemetry.machineId' = $MACHINE_ID
-        $config.'telemetry.macMachineId' = $MAC_MACHINE_ID
-        $config.'telemetry.devDeviceId' = $UUID
-        $config.'telemetry.sqmId' = $SQM_ID
+        # 更新配置值（安全方式，确保属性存在）
+        # 检查并创建属性（如果不存在）
+        $propertiesToUpdate = @{
+            'telemetry.machineId' = $MACHINE_ID
+            'telemetry.macMachineId' = $MAC_MACHINE_ID
+            'telemetry.devDeviceId' = $UUID
+            'telemetry.sqmId' = $SQM_ID
+        }
+
+        foreach ($property in $propertiesToUpdate.GetEnumerator()) {
+            $key = $property.Key
+            $value = $property.Value
+
+            # 使用 Add-Member 或直接赋值的安全方式
+            if ($config.PSObject.Properties[$key]) {
+                # 属性存在，直接更新
+                $config.$key = $value
+                Write-Host "$BLUE  ✓ 更新属性: $key$NC"
+            } else {
+                # 属性不存在，添加新属性
+                $config | Add-Member -MemberType NoteProperty -Name $key -Value $value -Force
+                Write-Host "$BLUE  + 添加属性: $key$NC"
+            }
+        }
 
         # 保存修改后的配置
         $updatedJson = $config | ConvertTo-Json -Depth 10
@@ -387,10 +420,27 @@ function Modify-MachineCodeConfig {
             $verifyConfig = $verifyContent | ConvertFrom-Json
 
             $verificationPassed = $true
-            if ($verifyConfig.'telemetry.machineId' -ne $MACHINE_ID) { $verificationPassed = $false }
-            if ($verifyConfig.'telemetry.macMachineId' -ne $MAC_MACHINE_ID) { $verificationPassed = $false }
-            if ($verifyConfig.'telemetry.devDeviceId' -ne $UUID) { $verificationPassed = $false }
-            if ($verifyConfig.'telemetry.sqmId' -ne $SQM_ID) { $verificationPassed = $false }
+            $verificationResults = @()
+
+            # 安全验证每个属性
+            foreach ($property in $propertiesToUpdate.GetEnumerator()) {
+                $key = $property.Key
+                $expectedValue = $property.Value
+                $actualValue = $verifyConfig.$key
+
+                if ($actualValue -eq $expectedValue) {
+                    $verificationResults += "✓ $key: 验证通过"
+                } else {
+                    $verificationResults += "✗ $key: 验证失败 (期望: $expectedValue, 实际: $actualValue)"
+                    $verificationPassed = $false
+                }
+            }
+
+            # 显示验证结果
+            Write-Host "$BLUE📋 [验证详情]$NC"
+            foreach ($result in $verificationResults) {
+                Write-Host "   $result"
+            }
 
             if ($verificationPassed) {
                 Write-Host "$GREEN✅ [进度]$NC 5/5 - 修改验证成功"
@@ -660,7 +710,7 @@ $cursorVersion = Get-CursorVersion
 Write-Host ""
 
 Write-Host "$YELLOW💡 [重要提示]$NC 最新的 1.0.x 版本已支持"
-Write-Host "$BLUE📋 [功能说明]$NC 本工具专注于删除Cursor试用相关文件夹，暂时屏蔽机器码修改功能"
+
 Write-Host ""
 
 # 🔍 检查并关闭 Cursor 进程

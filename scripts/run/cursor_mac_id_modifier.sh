@@ -460,7 +460,7 @@ modify_machine_code_config() {
         return 1
     fi
 
-    # 验证配置文件格式
+    # 验证配置文件格式并显示结构
     log_info "🔍 [验证] 检查配置文件格式..."
     if ! python3 -c "import json; json.load(open('$config_path'))" 2>/dev/null; then
         log_error "❌ [错误] 配置文件格式错误或损坏"
@@ -468,6 +468,27 @@ modify_machine_code_config() {
         return 1
     fi
     log_info "✅ [验证] 配置文件格式正确"
+
+    # 显示当前配置文件中的相关属性
+    log_info "📋 [当前配置] 检查现有的遥测属性："
+    python3 -c "
+import json
+try:
+    with open('$config_path', 'r', encoding='utf-8') as f:
+        config = json.load(f)
+
+    properties = ['telemetry.machineId', 'telemetry.macMachineId', 'telemetry.devDeviceId', 'telemetry.sqmId']
+    for prop in properties:
+        if prop in config:
+            value = config[prop]
+            display_value = value[:20] + '...' if len(value) > 20 else value
+            print(f'  ✓ {prop} = {display_value}')
+        else:
+            print(f'  - {prop} (不存在，将创建)')
+except Exception as e:
+    print(f'Error reading config: {e}')
+"
+    echo
 
     # 显示操作进度
     log_info "⏳ [进度] 1/5 - 生成新的设备标识符..."
@@ -514,7 +535,7 @@ modify_machine_code_config() {
 
     log_info "⏳ [进度] 4/5 - 更新配置文件..."
 
-    # 使用Python修改JSON配置（更可靠）
+    # 使用Python修改JSON配置（更可靠，安全方式）
     local python_result=$(python3 -c "
 import json
 import sys
@@ -523,10 +544,20 @@ try:
     with open('$config_path', 'r', encoding='utf-8') as f:
         config = json.load(f)
 
-    config['telemetry.machineId'] = '$MACHINE_ID'
-    config['telemetry.macMachineId'] = '$MAC_MACHINE_ID'
-    config['telemetry.devDeviceId'] = '$UUID'
-    config['telemetry.sqmId'] = '$SQM_ID'
+    # 安全更新配置，确保属性存在
+    properties_to_update = {
+        'telemetry.machineId': '$MACHINE_ID',
+        'telemetry.macMachineId': '$MAC_MACHINE_ID',
+        'telemetry.devDeviceId': '$UUID',
+        'telemetry.sqmId': '$SQM_ID'
+    }
+
+    for key, value in properties_to_update.items():
+        if key in config:
+            print(f'  ✓ 更新属性: {key}')
+        else:
+            print(f'  + 添加属性: {key}')
+        config[key] = value
 
     with open('$config_path', 'w', encoding='utf-8') as f:
         json.dump(config, f, indent=2, ensure_ascii=False)
@@ -547,14 +578,23 @@ try:
     with open('$config_path', 'r', encoding='utf-8') as f:
         config = json.load(f)
 
-    checks = [
-        config.get('telemetry.machineId') == '$MACHINE_ID',
-        config.get('telemetry.macMachineId') == '$MAC_MACHINE_ID',
-        config.get('telemetry.devDeviceId') == '$UUID',
-        config.get('telemetry.sqmId') == '$SQM_ID'
-    ]
+    properties_to_check = {
+        'telemetry.machineId': '$MACHINE_ID',
+        'telemetry.macMachineId': '$MAC_MACHINE_ID',
+        'telemetry.devDeviceId': '$UUID',
+        'telemetry.sqmId': '$SQM_ID'
+    }
 
-    if all(checks):
+    verification_passed = True
+    for key, expected_value in properties_to_check.items():
+        actual_value = config.get(key)
+        if actual_value == expected_value:
+            print(f'✓ {key}: 验证通过')
+        else:
+            print(f'✗ {key}: 验证失败 (期望: {expected_value}, 实际: {actual_value})')
+            verification_passed = False
+
+    if verification_passed:
         print('VERIFICATION_SUCCESS')
     else:
         print('VERIFICATION_FAILED')
@@ -598,12 +638,7 @@ except Exception as e:
     fi
 }
 
-# 📝 原有的 Cursor 初始化函数（已暂时禁用）
-cursor_initialize_cleanup_disabled() {
-    log_warn "⚠️  [提示] 原有的机器码修改功能已暂时禁用"
-    log_info "📋 [说明] 当前版本专注于删除文件夹功能，机器码修改功能已屏蔽"
-    echo
-}
+
 
 # 获取当前用户
 get_current_user() {
