@@ -209,7 +209,131 @@ function Restart-CursorAndWait {
     }
 }
 
-# � 检查配置文件和环境
+# 🔒 强制关闭所有Cursor进程（增强版）
+function Stop-AllCursorProcesses {
+    param(
+        [int]$MaxRetries = 3,
+        [int]$WaitSeconds = 5
+    )
+
+    Write-Host "$BLUE🔒 [进程检查]$NC 正在检查并关闭所有Cursor相关进程..."
+
+    # 定义所有可能的Cursor进程名称
+    $cursorProcessNames = @(
+        "Cursor",
+        "cursor",
+        "Cursor Helper",
+        "Cursor Helper (GPU)",
+        "Cursor Helper (Plugin)",
+        "Cursor Helper (Renderer)",
+        "CursorUpdater"
+    )
+
+    for ($retry = 1; $retry -le $MaxRetries; $retry++) {
+        Write-Host "$BLUE🔍 [检查]$NC 第 $retry/$MaxRetries 次进程检查..."
+
+        $foundProcesses = @()
+        foreach ($processName in $cursorProcessNames) {
+            $processes = Get-Process -Name $processName -ErrorAction SilentlyContinue
+            if ($processes) {
+                $foundProcesses += $processes
+                Write-Host "$YELLOW⚠️  [发现]$NC 进程: $processName (PID: $($processes.Id -join ', '))"
+            }
+        }
+
+        if ($foundProcesses.Count -eq 0) {
+            Write-Host "$GREEN✅ [成功]$NC 所有Cursor进程已关闭"
+            return $true
+        }
+
+        Write-Host "$YELLOW🔄 [关闭]$NC 正在关闭 $($foundProcesses.Count) 个Cursor进程..."
+
+        # 先尝试优雅关闭
+        foreach ($process in $foundProcesses) {
+            try {
+                $process.CloseMainWindow() | Out-Null
+                Write-Host "$BLUE  • 优雅关闭: $($process.ProcessName) (PID: $($process.Id))$NC"
+            } catch {
+                Write-Host "$YELLOW  • 优雅关闭失败: $($process.ProcessName)$NC"
+            }
+        }
+
+        Start-Sleep -Seconds 3
+
+        # 强制终止仍在运行的进程
+        foreach ($processName in $cursorProcessNames) {
+            $processes = Get-Process -Name $processName -ErrorAction SilentlyContinue
+            if ($processes) {
+                foreach ($process in $processes) {
+                    try {
+                        Stop-Process -Id $process.Id -Force
+                        Write-Host "$RED  • 强制终止: $($process.ProcessName) (PID: $($process.Id))$NC"
+                    } catch {
+                        Write-Host "$RED  • 强制终止失败: $($process.ProcessName)$NC"
+                    }
+                }
+            }
+        }
+
+        if ($retry -lt $MaxRetries) {
+            Write-Host "$YELLOW⏳ [等待]$NC 等待 $WaitSeconds 秒后重新检查..."
+            Start-Sleep -Seconds $WaitSeconds
+        }
+    }
+
+    Write-Host "$RED❌ [失败]$NC 经过 $MaxRetries 次尝试仍有Cursor进程在运行"
+    return $false
+}
+
+# 🔐 检查文件权限和锁定状态
+function Test-FileAccessibility {
+    param(
+        [string]$FilePath
+    )
+
+    Write-Host "$BLUE🔐 [权限检查]$NC 检查文件访问权限: $(Split-Path $FilePath -Leaf)"
+
+    if (-not (Test-Path $FilePath)) {
+        Write-Host "$RED❌ [错误]$NC 文件不存在"
+        return $false
+    }
+
+    # 检查文件是否被锁定
+    try {
+        $fileStream = [System.IO.File]::Open($FilePath, 'Open', 'ReadWrite', 'None')
+        $fileStream.Close()
+        Write-Host "$GREEN✅ [权限]$NC 文件可读写，无锁定"
+        return $true
+    } catch [System.IO.IOException] {
+        Write-Host "$RED❌ [锁定]$NC 文件被其他进程锁定: $($_.Exception.Message)"
+        return $false
+    } catch [System.UnauthorizedAccessException] {
+        Write-Host "$YELLOW⚠️  [权限]$NC 文件权限受限，尝试修改权限..."
+
+        # 尝试修改文件权限
+        try {
+            $file = Get-Item $FilePath
+            if ($file.IsReadOnly) {
+                $file.IsReadOnly = $false
+                Write-Host "$GREEN✅ [修复]$NC 已移除只读属性"
+            }
+
+            # 再次测试
+            $fileStream = [System.IO.File]::Open($FilePath, 'Open', 'ReadWrite', 'None')
+            $fileStream.Close()
+            Write-Host "$GREEN✅ [权限]$NC 权限修复成功"
+            return $true
+        } catch {
+            Write-Host "$RED❌ [权限]$NC 无法修复权限: $($_.Exception.Message)"
+            return $false
+        }
+    } catch {
+        Write-Host "$RED❌ [错误]$NC 未知错误: $($_.Exception.Message)"
+        return $false
+    }
+}
+
+# 检查配置文件和环境
 function Test-CursorEnvironment {
     param(
         [string]$Mode = "FULL"
@@ -309,6 +433,24 @@ function Modify-MachineCodeConfig {
         return $false
     }
 
+    # 在仅修改机器码模式下也要确保进程完全关闭
+    if ($Mode -eq "MODIFY_ONLY") {
+        Write-Host "$BLUE🔒 [安全检查]$NC 即使在仅修改模式下，也需要确保Cursor进程完全关闭"
+        if (-not (Stop-AllCursorProcesses -MaxRetries 3 -WaitSeconds 3)) {
+            Write-Host "$RED❌ [错误]$NC 无法关闭所有Cursor进程，修改可能失败"
+            $userChoice = Read-Host "是否强制继续？(y/n)"
+            if ($userChoice -notmatch "^(y|yes)$") {
+                return $false
+            }
+        }
+    }
+
+    # 检查文件权限和锁定状态
+    if (-not (Test-FileAccessibility -FilePath $configPath)) {
+        Write-Host "$RED❌ [错误]$NC 无法访问配置文件，可能被锁定或权限不足"
+        return $false
+    }
+
     # 验证配置文件格式并显示结构
     try {
         Write-Host "$BLUE🔍 [验证]$NC 检查配置文件格式..."
@@ -335,87 +477,136 @@ function Modify-MachineCodeConfig {
         return $false
     }
 
-    try {
-        # 显示操作进度
-        Write-Host "$BLUE⏳ [进度]$NC 1/5 - 生成新的设备标识符..."
+    # 实现原子性文件操作和重试机制
+    $maxRetries = 3
+    $retryCount = 0
 
-        # 生成新的ID
-        $MAC_MACHINE_ID = [System.Guid]::NewGuid().ToString()
-        $UUID = [System.Guid]::NewGuid().ToString()
-        $prefixBytes = [System.Text.Encoding]::UTF8.GetBytes("auth0|user_")
-        $prefixHex = -join ($prefixBytes | ForEach-Object { '{0:x2}' -f $_ })
-        $randomBytes = New-Object byte[] 32
-        $rng = [System.Security.Cryptography.RNGCryptoServiceProvider]::new()
-        $rng.GetBytes($randomBytes)
-        $randomPart = [System.BitConverter]::ToString($randomBytes) -replace '-',''
-        $rng.Dispose()
-        $MACHINE_ID = "$prefixHex$randomPart"
-        $SQM_ID = "{$([System.Guid]::NewGuid().ToString().ToUpper())}"
+    while ($retryCount -lt $maxRetries) {
+        $retryCount++
+        Write-Host ""
+        Write-Host "$BLUE🔄 [尝试]$NC 第 $retryCount/$maxRetries 次修改尝试..."
 
-        Write-Host "$GREEN✅ [进度]$NC 1/5 - 设备标识符生成完成"
-
-        Write-Host "$BLUE⏳ [进度]$NC 2/5 - 创建备份目录..."
-
-        # 备份原始值（增强版）
-        $backupDir = "$env:APPDATA\Cursor\User\globalStorage\backups"
-        if (-not (Test-Path $backupDir)) {
-            New-Item -ItemType Directory -Path $backupDir -Force -ErrorAction Stop | Out-Null
-        }
-
-        $backupName = "storage.json.backup_$(Get-Date -Format 'yyyyMMdd_HHmmss')"
-        $backupPath = "$backupDir\$backupName"
-
-        Write-Host "$BLUE⏳ [进度]$NC 3/5 - 备份原始配置..."
-        Copy-Item $configPath $backupPath -ErrorAction Stop
-
-        # 验证备份是否成功
-        if (Test-Path $backupPath) {
-            $backupSize = (Get-Item $backupPath).Length
-            $originalSize = (Get-Item $configPath).Length
-            if ($backupSize -eq $originalSize) {
-                Write-Host "$GREEN✅ [进度]$NC 3/5 - 配置备份成功: $backupName"
-            } else {
-                Write-Host "$YELLOW⚠️  [警告]$NC 备份文件大小不匹配，但继续执行"
-            }
-        } else {
-            throw "备份文件创建失败"
-        }
-
-        Write-Host "$BLUE⏳ [进度]$NC 4/5 - 更新配置文件..."
-
-        # 更新配置值（安全方式，确保属性存在）
-        # 检查并创建属性（如果不存在）
-        $propertiesToUpdate = @{
-            'telemetry.machineId' = $MACHINE_ID
-            'telemetry.macMachineId' = $MAC_MACHINE_ID
-            'telemetry.devDeviceId' = $UUID
-            'telemetry.sqmId' = $SQM_ID
-        }
-
-        foreach ($property in $propertiesToUpdate.GetEnumerator()) {
-            $key = $property.Key
-            $value = $property.Value
-
-            # 使用 Add-Member 或直接赋值的安全方式
-            if ($config.PSObject.Properties[$key]) {
-                # 属性存在，直接更新
-                $config.$key = $value
-                Write-Host "$BLUE  ✓ 更新属性: $key$NC"
-            } else {
-                # 属性不存在，添加新属性
-                $config | Add-Member -MemberType NoteProperty -Name $key -Value $value -Force
-                Write-Host "$BLUE  + 添加属性: $key$NC"
-            }
-        }
-
-        # 保存修改后的配置
-        $updatedJson = $config | ConvertTo-Json -Depth 10
-        [System.IO.File]::WriteAllText($configPath, $updatedJson, [System.Text.Encoding]::UTF8)
-
-        Write-Host "$BLUE⏳ [进度]$NC 5/5 - 验证修改结果..."
-
-        # 验证修改是否成功
         try {
+            # 显示操作进度
+            Write-Host "$BLUE⏳ [进度]$NC 1/6 - 生成新的设备标识符..."
+
+            # 生成新的ID
+            $MAC_MACHINE_ID = [System.Guid]::NewGuid().ToString()
+            $UUID = [System.Guid]::NewGuid().ToString()
+            $prefixBytes = [System.Text.Encoding]::UTF8.GetBytes("auth0|user_")
+            $prefixHex = -join ($prefixBytes | ForEach-Object { '{0:x2}' -f $_ })
+            $randomBytes = New-Object byte[] 32
+            $rng = [System.Security.Cryptography.RNGCryptoServiceProvider]::new()
+            $rng.GetBytes($randomBytes)
+            $randomPart = [System.BitConverter]::ToString($randomBytes) -replace '-',''
+            $rng.Dispose()
+            $MACHINE_ID = "$prefixHex$randomPart"
+            $SQM_ID = "{$([System.Guid]::NewGuid().ToString().ToUpper())}"
+
+            Write-Host "$GREEN✅ [进度]$NC 1/6 - 设备标识符生成完成"
+
+            Write-Host "$BLUE⏳ [进度]$NC 2/6 - 创建备份目录..."
+
+            # 备份原始值（增强版）
+            $backupDir = "$env:APPDATA\Cursor\User\globalStorage\backups"
+            if (-not (Test-Path $backupDir)) {
+                New-Item -ItemType Directory -Path $backupDir -Force -ErrorAction Stop | Out-Null
+            }
+
+            $backupName = "storage.json.backup_$(Get-Date -Format 'yyyyMMdd_HHmmss')_retry$retryCount"
+            $backupPath = "$backupDir\$backupName"
+
+            Write-Host "$BLUE⏳ [进度]$NC 3/6 - 备份原始配置..."
+            Copy-Item $configPath $backupPath -ErrorAction Stop
+
+            # 验证备份是否成功
+            if (Test-Path $backupPath) {
+                $backupSize = (Get-Item $backupPath).Length
+                $originalSize = (Get-Item $configPath).Length
+                if ($backupSize -eq $originalSize) {
+                    Write-Host "$GREEN✅ [进度]$NC 3/6 - 配置备份成功: $backupName"
+                } else {
+                    Write-Host "$YELLOW⚠️  [警告]$NC 备份文件大小不匹配，但继续执行"
+                }
+            } else {
+                throw "备份文件创建失败"
+            }
+
+            Write-Host "$BLUE⏳ [进度]$NC 4/6 - 读取原始配置到内存..."
+
+            # 原子性操作：读取原始内容到内存
+            $originalContent = Get-Content $configPath -Raw -Encoding UTF8 -ErrorAction Stop
+            $config = $originalContent | ConvertFrom-Json -ErrorAction Stop
+
+            Write-Host "$BLUE⏳ [进度]$NC 5/6 - 在内存中更新配置..."
+
+            # 更新配置值（安全方式，确保属性存在）
+            $propertiesToUpdate = @{
+                'telemetry.machineId' = $MACHINE_ID
+                'telemetry.macMachineId' = $MAC_MACHINE_ID
+                'telemetry.devDeviceId' = $UUID
+                'telemetry.sqmId' = $SQM_ID
+            }
+
+            foreach ($property in $propertiesToUpdate.GetEnumerator()) {
+                $key = $property.Key
+                $value = $property.Value
+
+                # 使用 Add-Member 或直接赋值的安全方式
+                if ($config.PSObject.Properties[$key]) {
+                    # 属性存在，直接更新
+                    $config.$key = $value
+                    Write-Host "$BLUE  ✓ 更新属性: $key$NC"
+                } else {
+                    # 属性不存在，添加新属性
+                    $config | Add-Member -MemberType NoteProperty -Name $key -Value $value -Force
+                    Write-Host "$BLUE  + 添加属性: $key$NC"
+                }
+            }
+
+            Write-Host "$BLUE⏳ [进度]$NC 6/6 - 原子性写入新配置文件..."
+
+            # 原子性操作：删除原文件，写入新文件
+            $tempPath = "$configPath.tmp"
+            $updatedJson = $config | ConvertTo-Json -Depth 10
+
+            # 写入临时文件
+            [System.IO.File]::WriteAllText($tempPath, $updatedJson, [System.Text.Encoding]::UTF8)
+
+            # 验证临时文件
+            $tempContent = Get-Content $tempPath -Raw -Encoding UTF8
+            $tempConfig = $tempContent | ConvertFrom-Json
+
+            # 验证所有属性是否正确写入
+            $tempVerificationPassed = $true
+            foreach ($property in $propertiesToUpdate.GetEnumerator()) {
+                $key = $property.Key
+                $expectedValue = $property.Value
+                $actualValue = $tempConfig.$key
+
+                if ($actualValue -ne $expectedValue) {
+                    $tempVerificationPassed = $false
+                    Write-Host "$RED  ✗ 临时文件验证失败: $key$NC"
+                    break
+                }
+            }
+
+            if (-not $tempVerificationPassed) {
+                Remove-Item $tempPath -Force -ErrorAction SilentlyContinue
+                throw "临时文件验证失败"
+            }
+
+            # 原子性替换：删除原文件，重命名临时文件
+            Remove-Item $configPath -Force
+            Move-Item $tempPath $configPath
+
+            # 设置文件为只读（可选）
+            $file = Get-Item $configPath
+            $file.IsReadOnly = $false  # 保持可写，便于后续修改
+
+            # 最终验证修改结果
+            Write-Host "$BLUE🔍 [最终验证]$NC 验证新配置文件..."
+
             $verifyContent = Get-Content $configPath -Raw -Encoding UTF8
             $verifyConfig = $verifyContent | ConvertFrom-Json
 
@@ -443,46 +634,69 @@ function Modify-MachineCodeConfig {
             }
 
             if ($verificationPassed) {
-                Write-Host "$GREEN✅ [进度]$NC 5/5 - 修改验证成功"
+                Write-Host "$GREEN✅ [成功]$NC 第 $retryCount 次尝试修改成功！"
                 Write-Host ""
-                Write-Host "$GREEN🎉 [成功]$NC 机器码配置修改完成！"
+                Write-Host "$GREEN🎉 [完成]$NC 机器码配置修改完成！"
                 Write-Host "$BLUE📋 [详情]$NC 已更新以下标识符："
-                Write-Host "   🔹 machineId: $($MACHINE_ID.Substring(0,20))..."
+                Write-Host "   🔹 machineId: $($MACHINE_ID.Substring(0,100))..."
                 Write-Host "   🔹 macMachineId: $MAC_MACHINE_ID"
                 Write-Host "   🔹 devDeviceId: $UUID"
                 Write-Host "   🔹 sqmId: $SQM_ID"
                 Write-Host ""
                 Write-Host "$GREEN💾 [备份]$NC 原配置已备份至: $backupName"
+                Write-Host "$BLUE🔒 [安全]$NC 建议重启Cursor以确保配置生效"
                 return $true
             } else {
-                Write-Host "$RED❌ [错误]$NC 修改验证失败，正在恢复备份..."
-                Copy-Item $backupPath $configPath -Force
+                Write-Host "$RED❌ [失败]$NC 第 $retryCount 次尝试验证失败"
+                if ($retryCount -lt $maxRetries) {
+                    Write-Host "$BLUE🔄 [恢复]$NC 恢复备份，准备重试..."
+                    Copy-Item $backupPath $configPath -Force
+                    Start-Sleep -Seconds 2
+                    continue  # 继续下一次重试
+                } else {
+                    Write-Host "$RED❌ [最终失败]$NC 所有重试都失败，恢复原始配置"
+                    Copy-Item $backupPath $configPath -Force
+                    return $false
+                }
+            }
+
+        } catch {
+            Write-Host "$RED❌ [异常]$NC 第 $retryCount 次尝试出现异常: $($_.Exception.Message)"
+            Write-Host "$BLUE💡 [调试信息]$NC 错误类型: $($_.Exception.GetType().FullName)"
+
+            # 清理临时文件
+            if (Test-Path "$configPath.tmp") {
+                Remove-Item "$configPath.tmp" -Force -ErrorAction SilentlyContinue
+            }
+
+            if ($retryCount -lt $maxRetries) {
+                Write-Host "$BLUE🔄 [恢复]$NC 恢复备份，准备重试..."
+                if (Test-Path $backupPath) {
+                    Copy-Item $backupPath $configPath -Force
+                }
+                Start-Sleep -Seconds 3
+                continue  # 继续下一次重试
+            } else {
+                Write-Host "$RED❌ [最终失败]$NC 所有重试都失败"
+                # 尝试恢复备份
+                if (Test-Path $backupPath) {
+                    Write-Host "$BLUE🔄 [恢复]$NC 正在恢复备份配置..."
+                    try {
+                        Copy-Item $backupPath $configPath -Force
+                        Write-Host "$GREEN✅ [恢复]$NC 已恢复原始配置"
+                    } catch {
+                        Write-Host "$RED❌ [错误]$NC 恢复备份失败: $($_.Exception.Message)"
+                    }
+                }
                 return $false
             }
-        } catch {
-            Write-Host "$RED❌ [错误]$NC 验证过程出错: $($_.Exception.Message)"
-            Write-Host "$BLUE🔄 [恢复]$NC 正在恢复备份..."
-            Copy-Item $backupPath $configPath -Force
-            return $false
         }
-
-    } catch {
-        Write-Host "$RED❌ [错误]$NC 修改配置失败: $($_.Exception.Message)"
-        Write-Host "$BLUE💡 [调试信息]$NC 错误类型: $($_.Exception.GetType().FullName)"
-
-        # 尝试恢复备份（如果存在）
-        if ($backupPath -and (Test-Path $backupPath)) {
-            Write-Host "$BLUE🔄 [恢复]$NC 正在恢复备份配置..."
-            try {
-                Copy-Item $backupPath $configPath -Force
-                Write-Host "$GREEN✅ [恢复]$NC 已恢复原始配置"
-            } catch {
-                Write-Host "$RED❌ [错误]$NC 恢复备份失败: $($_.Exception.Message)"
-            }
-        }
-
-        return $false
     }
+
+    # 如果到达这里，说明所有重试都失败了
+    Write-Host "$RED❌ [最终失败]$NC 经过 $maxRetries 次尝试仍无法完成修改"
+    return $false
+
 }
 
 # 🚀 启动Cursor生成配置文件
