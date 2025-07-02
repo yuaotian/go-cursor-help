@@ -333,6 +333,138 @@ function Test-FileAccessibility {
     }
 }
 
+# 🛡️ 配置保护工具（独立功能）
+function Protect-CursorConfig {
+    Write-Host ""
+    Write-Host "$GREEN🛡️  [配置保护]$NC 独立配置保护工具"
+    Write-Host ""
+
+    $configPath = "$env:APPDATA\Cursor\User\globalStorage\storage.json"
+
+    if (-not (Test-Path $configPath)) {
+        Write-Host "$RED❌ [错误]$NC 配置文件不存在: $configPath"
+        return
+    }
+
+    Write-Host "$BLUE🔍 [检查]$NC 当前配置文件状态："
+    $file = Get-Item $configPath
+    Write-Host "  📁 路径: $configPath"
+    Write-Host "  🔒 只读: $($file.IsReadOnly)"
+    Write-Host "  📅 修改时间: $($file.LastWriteTime)"
+
+    Write-Host ""
+    Write-Host "$YELLOW🛠️  [选项]$NC 请选择保护操作："
+    Write-Host "$BLUE  1️⃣  设置/移除只读保护$NC"
+    Write-Host "$BLUE  2️⃣  创建监控和自动恢复$NC"
+    Write-Host "$BLUE  3️⃣  查看当前机器码$NC"
+    Write-Host "$BLUE  4️⃣  手动恢复备份$NC"
+    Write-Host "$BLUE  5️⃣  清理监控机制$NC"
+
+    $choice = Read-Host "请选择操作 (1-5)"
+
+    switch ($choice) {
+        "1" {
+            if ($file.IsReadOnly) {
+                $file.IsReadOnly = $false
+                Write-Host "$GREEN✅ [成功]$NC 已移除只读保护"
+            } else {
+                $file.IsReadOnly = $true
+                Write-Host "$GREEN✅ [成功]$NC 已设置只读保护"
+            }
+        }
+        "2" {
+            Write-Host "$BLUE💡 [说明]$NC 需要先读取当前配置作为目标值"
+            try {
+                $content = Get-Content $configPath -Raw -Encoding UTF8
+                $config = $content | ConvertFrom-Json
+
+                $machineIds = @{
+                    'telemetry.machineId' = $config.'telemetry.machineId'
+                    'telemetry.macMachineId' = $config.'telemetry.macMachineId'
+                    'telemetry.devDeviceId' = $config.'telemetry.devDeviceId'
+                    'telemetry.sqmId' = $config.'telemetry.sqmId'
+                }
+
+                Create-ConfigMonitor -ConfigPath $configPath -BackupPath "$configPath.backup" -MachineIds $machineIds
+            } catch {
+                Write-Host "$RED❌ [错误]$NC 读取配置失败: $($_.Exception.Message)"
+            }
+        }
+        "3" {
+            try {
+                $content = Get-Content $configPath -Raw -Encoding UTF8
+                $config = $content | ConvertFrom-Json
+
+                Write-Host "$BLUE📋 [当前机器码]$NC"
+                Write-Host "  🔹 machineId: $($config.'telemetry.machineId')"
+                Write-Host "  🔹 macMachineId: $($config.'telemetry.macMachineId')"
+                Write-Host "  🔹 devDeviceId: $($config.'telemetry.devDeviceId')"
+                Write-Host "  🔹 sqmId: $($config.'telemetry.sqmId')"
+            } catch {
+                Write-Host "$RED❌ [错误]$NC 读取配置失败: $($_.Exception.Message)"
+            }
+        }
+        "4" {
+            $backupDir = "$env:APPDATA\Cursor\User\globalStorage\backups"
+            if (Test-Path $backupDir) {
+                $backups = Get-ChildItem $backupDir -Filter "storage.json.backup_*" | Sort-Object LastWriteTime -Descending
+                if ($backups) {
+                    Write-Host "$BLUE📋 [可用备份]$NC"
+                    for ($i = 0; $i -lt [Math]::Min(5, $backups.Count); $i++) {
+                        Write-Host "  $($i+1). $($backups[$i].Name) - $($backups[$i].LastWriteTime)"
+                    }
+
+                    $backupChoice = Read-Host "选择要恢复的备份 (1-$([Math]::Min(5, $backups.Count)))"
+                    $backupIndex = [int]$backupChoice - 1
+
+                    if ($backupIndex -ge 0 -and $backupIndex -lt $backups.Count) {
+                        $selectedBackup = $backups[$backupIndex]
+
+                        # 临时移除只读
+                        $wasReadOnly = $file.IsReadOnly
+                        if ($wasReadOnly) { $file.IsReadOnly = $false }
+
+                        Copy-Item $selectedBackup.FullName $configPath -Force
+                        Write-Host "$GREEN✅ [成功]$NC 已恢复备份: $($selectedBackup.Name)"
+
+                        # 恢复只读状态
+                        if ($wasReadOnly) { $file.IsReadOnly = $true }
+                    }
+                } else {
+                    Write-Host "$YELLOW⚠️  [提示]$NC 未找到备份文件"
+                }
+            } else {
+                Write-Host "$YELLOW⚠️  [提示]$NC 备份目录不存在"
+            }
+        }
+        "5" {
+            # 清理监控机制
+            $monitorScript = "$env:APPDATA\Cursor\User\globalStorage\config_monitor.ps1"
+            $startupBat = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup\cursor_config_monitor.bat"
+
+            if (Test-Path $monitorScript) {
+                Remove-Item $monitorScript -Force
+                Write-Host "$GREEN✅ [清理]$NC 已删除监控脚本"
+            }
+
+            if (Test-Path $startupBat) {
+                Remove-Item $startupBat -Force
+                Write-Host "$GREEN✅ [清理]$NC 已删除启动脚本"
+            }
+
+            try {
+                Unregister-ScheduledTask -TaskName "CursorConfigMonitor" -Confirm:$false -ErrorAction SilentlyContinue
+                Write-Host "$GREEN✅ [清理]$NC 已删除定时任务"
+            } catch {
+                # 忽略错误，任务可能不存在
+            }
+        }
+        default {
+            Write-Host "$YELLOW⚠️  [提示]$NC 无效选择"
+        }
+    }
+}
+
 # 检查配置文件和环境
 function Test-CursorEnvironment {
     param(
@@ -600,9 +732,43 @@ function Modify-MachineCodeConfig {
             Remove-Item $configPath -Force
             Move-Item $tempPath $configPath
 
-            # 设置文件为只读（可选）
+            # 设置文件保护策略
+            Write-Host "$BLUE🔒 [保护]$NC 设置配置文件保护..."
             $file = Get-Item $configPath
-            $file.IsReadOnly = $false  # 保持可写，便于后续修改
+
+            # 选择保护策略
+            Write-Host "$YELLOW🤔 [选择]$NC 请选择配置文件保护策略："
+            Write-Host "$BLUE  1️⃣  设置为只读（推荐）$NC"
+            Write-Host "$BLUE  2️⃣  保持可写（便于后续修改）$NC"
+            Write-Host "$BLUE  3️⃣  创建监控和自动恢复机制$NC"
+
+            $protectionChoice = Read-Host "请选择保护策略 (1-3)"
+
+            switch ($protectionChoice) {
+                "1" {
+                    $file.IsReadOnly = $true
+                    Write-Host "$GREEN✅ [保护]$NC 已设置为只读，防止Cursor覆盖"
+                }
+                "2" {
+                    $file.IsReadOnly = $false
+                    Write-Host "$YELLOW⚠️  [保护]$NC 保持可写，Cursor可能会覆盖修改"
+                }
+                "3" {
+                    $file.IsReadOnly = $false
+                    Write-Host "$BLUE🔄 [保护]$NC 将创建监控机制..."
+                    # 创建配置监控和恢复脚本
+                    Create-ConfigMonitor -ConfigPath $configPath -BackupPath $backupPath -MachineIds @{
+                        'telemetry.machineId' = $MACHINE_ID
+                        'telemetry.macMachineId' = $MAC_MACHINE_ID
+                        'telemetry.devDeviceId' = $UUID
+                        'telemetry.sqmId' = $SQM_ID
+                    }
+                }
+                default {
+                    $file.IsReadOnly = $true
+                    Write-Host "$GREEN✅ [保护]$NC 默认设置为只读"
+                }
+            }
 
             # 最终验证修改结果
             Write-Host "$BLUE🔍 [最终验证]$NC 验证新配置文件..."
@@ -644,7 +810,19 @@ function Modify-MachineCodeConfig {
                 Write-Host "   🔹 sqmId: $SQM_ID"
                 Write-Host ""
                 Write-Host "$GREEN💾 [备份]$NC 原配置已备份至: $backupName"
-                Write-Host "$BLUE 🔒 [安全]$NC 建议重启Cursor以确保配置生效"
+
+                # 提供持久性测试选项
+                Write-Host ""
+                Write-Host "$BLUE🔍 [持久性]$NC 是否进行配置持久性测试？"
+                $persistenceChoice = Read-Host "测试修改是否在Cursor重启后保持有效？(y/n)"
+
+                if ($persistenceChoice -match "^(y|yes)$") {
+                    Test-ConfigPersistence -ConfigPath $configPath -ExpectedValues $propertiesToUpdate
+                } else {
+                    Write-Host "$BLUE🔒 [建议]$NC 建议重启Cursor以确保配置生效"
+                    Write-Host "$YELLOW💡 [提示]$NC 如果发现配置被覆盖，可重新运行脚本选择保护策略"
+                }
+
                 return $true
             } else {
                 Write-Host "$RED❌ [失败]$NC 第 $retryCount 次尝试验证失败"
@@ -699,7 +877,190 @@ function Modify-MachineCodeConfig {
 
 }
 
-#  启动Cursor生成配置文件
+# � 创建配置监控和自动恢复机制
+function Create-ConfigMonitor {
+    param(
+        [string]$ConfigPath,
+        [string]$BackupPath,
+        [hashtable]$MachineIds
+    )
+
+    Write-Host "$BLUE🔄 [监控]$NC 创建配置文件监控机制..."
+
+    # 创建监控脚本
+    $monitorScriptPath = "$env:APPDATA\Cursor\User\globalStorage\config_monitor.ps1"
+    $monitorScript = @"
+# Cursor 配置文件监控和自动恢复脚本
+# 自动生成于: $(Get-Date)
+
+`$configPath = "$ConfigPath"
+`$backupPath = "$BackupPath"
+`$targetMachineIds = @{
+    'telemetry.machineId' = '$($MachineIds['telemetry.machineId'])'
+    'telemetry.macMachineId' = '$($MachineIds['telemetry.macMachineId'])'
+    'telemetry.devDeviceId' = '$($MachineIds['telemetry.devDeviceId'])'
+    'telemetry.sqmId' = '$($MachineIds['telemetry.sqmId'])'
+}
+
+function Restore-MachineIds {
+    try {
+        if (-not (Test-Path `$configPath)) {
+            Write-Host "配置文件不存在，跳过检查"
+            return
+        }
+
+        `$content = Get-Content `$configPath -Raw -Encoding UTF8
+        `$config = `$content | ConvertFrom-Json
+
+        `$needsRestore = `$false
+        foreach (`$key in `$targetMachineIds.Keys) {
+            if (`$config.`$key -ne `$targetMachineIds[`$key]) {
+                `$needsRestore = `$true
+                break
+            }
+        }
+
+        if (`$needsRestore) {
+            Write-Host "检测到机器码被修改，正在恢复..."
+
+            # 临时移除只读属性
+            `$file = Get-Item `$configPath
+            `$wasReadOnly = `$file.IsReadOnly
+            if (`$wasReadOnly) {
+                `$file.IsReadOnly = `$false
+            }
+
+            # 恢复机器码
+            foreach (`$key in `$targetMachineIds.Keys) {
+                if (`$config.PSObject.Properties[`$key]) {
+                    `$config.`$key = `$targetMachineIds[`$key]
+                } else {
+                    `$config | Add-Member -MemberType NoteProperty -Name `$key -Value `$targetMachineIds[`$key] -Force
+                }
+            }
+
+            # 保存修改
+            `$updatedJson = `$config | ConvertTo-Json -Depth 10
+            [System.IO.File]::WriteAllText(`$configPath, `$updatedJson, [System.Text.Encoding]::UTF8)
+
+            # 恢复只读属性
+            if (`$wasReadOnly) {
+                `$file.IsReadOnly = `$true
+            }
+
+            Write-Host "机器码已自动恢复"
+        }
+    } catch {
+        Write-Host "恢复过程出错: `$(`$_.Exception.Message)"
+    }
+}
+
+# 执行恢复检查
+Restore-MachineIds
+"@
+
+    # 保存监控脚本
+    [System.IO.File]::WriteAllText($monitorScriptPath, $monitorScript, [System.Text.Encoding]::UTF8)
+    Write-Host "$GREEN✅ [监控]$NC 监控脚本已创建: $monitorScriptPath"
+
+    # 创建启动时自动执行的批处理文件
+    $startupBatPath = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup\cursor_config_monitor.bat"
+    $batContent = @"
+@echo off
+REM Cursor 配置监控启动脚本
+powershell -WindowStyle Hidden -ExecutionPolicy Bypass -File "$monitorScriptPath"
+"@
+
+    [System.IO.File]::WriteAllText($startupBatPath, $batContent, [System.Text.Encoding]::UTF8)
+    Write-Host "$GREEN✅ [监控]$NC 启动监控已设置: $startupBatPath"
+
+    # 创建定时任务（可选）
+    $taskChoice = Read-Host "是否创建定时任务每5分钟检查一次？(y/n)"
+    if ($taskChoice -match "^(y|yes)$") {
+        try {
+            $taskName = "CursorConfigMonitor"
+            $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-WindowStyle Hidden -ExecutionPolicy Bypass -File `"$monitorScriptPath`""
+            $trigger = New-ScheduledTaskTrigger -RepetitionInterval (New-TimeSpan -Minutes 5) -RepetitionDuration (New-TimeSpan -Days 365) -At (Get-Date)
+            $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
+
+            Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Settings $settings -Force | Out-Null
+            Write-Host "$GREEN✅ [监控]$NC 定时任务已创建: $taskName"
+        } catch {
+            Write-Host "$YELLOW⚠️  [监控]$NC 定时任务创建失败: $($_.Exception.Message)"
+        }
+    }
+}
+
+# 🔍 验证修改持久性
+function Test-ConfigPersistence {
+    param(
+        [string]$ConfigPath,
+        [hashtable]$ExpectedValues
+    )
+
+    Write-Host "$BLUE🔍 [验证]$NC 测试配置持久性..."
+
+    # 启动 Cursor 进行测试
+    Write-Host "$YELLOW⚠️  [测试]$NC 即将启动 Cursor 进行持久性测试"
+    Write-Host "$BLUE💡 [说明]$NC 请在 Cursor 完全启动后关闭它，然后按回车继续"
+
+    $testChoice = Read-Host "是否进行持久性测试？(y/n)"
+    if ($testChoice -match "^(y|yes)$") {
+        # 启动 Cursor
+        $cursorPaths = @(
+            "$env:LOCALAPPDATA\Programs\cursor\Cursor.exe",
+            "$env:PROGRAMFILES\Cursor\Cursor.exe",
+            "$env:PROGRAMFILES(X86)\Cursor\Cursor.exe"
+        )
+
+        $cursorPath = $null
+        foreach ($path in $cursorPaths) {
+            if (Test-Path $path) {
+                $cursorPath = $path
+                break
+            }
+        }
+
+        if ($cursorPath) {
+            Write-Host "$BLUE🚀 [测试]$NC 启动 Cursor 进行测试..."
+            Start-Process -FilePath $cursorPath
+
+            Read-Host "请在 Cursor 完全启动并使用一段时间后关闭它，然后按回车继续验证"
+
+            # 验证配置是否被修改
+            if (Test-Path $ConfigPath) {
+                $content = Get-Content $ConfigPath -Raw -Encoding UTF8
+                $config = $content | ConvertFrom-Json
+
+                $allPersistent = $true
+                foreach ($key in $ExpectedValues.Keys) {
+                    $expectedValue = $ExpectedValues[$key]
+                    $actualValue = $config.$key
+
+                    if ($actualValue -eq $expectedValue) {
+                        Write-Host "$GREEN✅ [持久]$NC ${key}: 值保持不变"
+                    } else {
+                        Write-Host "$RED❌ [变更]$NC ${key}: 值已被修改"
+                        Write-Host "$YELLOW    期望: $expectedValue$NC"
+                        Write-Host "$YELLOW    实际: $actualValue$NC"
+                        $allPersistent = $false
+                    }
+                }
+
+                if ($allPersistent) {
+                    Write-Host "$GREEN🎉 [成功]$NC 所有机器码修改都保持持久！"
+                } else {
+                    Write-Host "$RED⚠️  [警告]$NC 部分机器码被 Cursor 重新生成"
+                    Write-Host "$BLUE💡 [建议]$NC 考虑使用只读保护或监控机制"
+                }
+            }
+        } else {
+            Write-Host "$RED❌ [错误]$NC 未找到 Cursor 可执行文件"
+        }
+    }
+}
+
+# �🚀 启动Cursor生成配置文件
 function Start-CursorToGenerateConfig {
     Write-Host "$BLUE🚀 [启动]$NC 正在尝试启动Cursor生成配置文件..."
 
@@ -812,10 +1173,15 @@ Write-Host "$RED      • ⚠️  配置将丢失，请注意备份$NC"
 Write-Host "$YELLOW      • 按照机器代码修改$NC"
 Write-Host "$YELLOW      • 这相当于当前的完整脚本行为$NC"
 Write-Host ""
+Write-Host "$BLUE  3️⃣  配置保护工具$NC"
+Write-Host "$GREEN      • 设置配置文件保护（只读/监控）$NC"
+Write-Host "$GREEN      • 查看和恢复配置备份$NC"
+Write-Host "$GREEN      • 防止Cursor覆盖修改的机器码$NC"
+Write-Host ""
 
 # 获取用户选择
 do {
-    $userChoice = Read-Host "请输入选择 (1 或 2)"
+    $userChoice = Read-Host "请输入选择 (1, 2 或 3)"
     if ($userChoice -eq "1") {
         Write-Host "$GREEN✅ [选择]$NC 您选择了：仅修改机器码"
         $executeMode = "MODIFY_ONLY"
@@ -831,8 +1197,13 @@ do {
             Write-Host "$YELLOW👋 [取消]$NC 用户取消重置操作"
             continue
         }
+    } elseif ($userChoice -eq "3") {
+        Write-Host "$GREEN✅ [选择]$NC 您选择了：配置保护工具"
+        Protect-CursorConfig
+        Read-Host "按回车键退出"
+        exit 0
     } else {
-        Write-Host "$RED❌ [错误]$NC 无效选择，请输入 1 或 2"
+        Write-Host "$RED❌ [错误]$NC 无效选择，请输入 1, 2 或 3"
     }
 } while ($true)
 
