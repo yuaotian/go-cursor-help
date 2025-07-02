@@ -638,7 +638,7 @@ function Modify-MachineCodeConfig {
                 Write-Host ""
                 Write-Host "$GREEN🎉 [完成]$NC 机器码配置修改完成！"
                 Write-Host "$BLUE📋 [详情]$NC 已更新以下标识符："
-                Write-Host "   🔹 machineId: $($MACHINE_ID.Substring(0,100))..."
+                Write-Host "   🔹 machineId: $MACHINE_ID"
                 Write-Host "   🔹 macMachineId: $MAC_MACHINE_ID"
                 Write-Host "   🔹 devDeviceId: $UUID"
                 Write-Host "   🔹 sqmId: $SQM_ID"
