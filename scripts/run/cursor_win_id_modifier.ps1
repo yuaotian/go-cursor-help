@@ -1,4 +1,4 @@
-# 设置输出编码为 UTF-8
+﻿# 设置输出编码为 UTF-8
 $OutputEncoding = [System.Text.Encoding]::UTF8
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
@@ -391,7 +391,7 @@ function Test-CursorEnvironment {
     } else {
         Write-Host "$RED❌ [环境检查]$NC 发现 $($issues.Count) 个问题："
         foreach ($issue in $issues) {
-            Write-Host "$RED  • $issue$NC"
+            Write-Host "$RED  • ${issue}$NC"
         }
         return @{ Success = $false; Issues = $issues }
     }
@@ -465,9 +465,9 @@ function Modify-MachineCodeConfig {
             if ($config.PSObject.Properties[$prop]) {
                 $value = $config.$prop
                 $displayValue = if ($value.Length -gt 20) { "$($value.Substring(0,20))..." } else { $value }
-                Write-Host "$GREEN  ✓ $prop$NC = $displayValue"
+                Write-Host "$GREEN  ✓ ${prop}$NC = $displayValue"
             } else {
-                Write-Host "$YELLOW  - $prop$NC (不存在，将创建)"
+                Write-Host "$YELLOW  - ${prop}$NC (不存在，将创建)"
             }
         }
         Write-Host ""
@@ -500,7 +500,7 @@ function Modify-MachineCodeConfig {
             $rng.GetBytes($randomBytes)
             $randomPart = [System.BitConverter]::ToString($randomBytes) -replace '-',''
             $rng.Dispose()
-            $MACHINE_ID = "$prefixHex$randomPart"
+            $MACHINE_ID = "${prefixHex}${randomPart}"
             $SQM_ID = "{$([System.Guid]::NewGuid().ToString().ToUpper())}"
 
             Write-Host "$GREEN✅ [进度]$NC 1/6 - 设备标识符生成完成"
@@ -556,11 +556,11 @@ function Modify-MachineCodeConfig {
                 if ($config.PSObject.Properties[$key]) {
                     # 属性存在，直接更新
                     $config.$key = $value
-                    Write-Host "$BLUE  ✓ 更新属性: $key$NC"
+                    Write-Host "$BLUE  ✓ 更新属性: ${key}$NC"
                 } else {
                     # 属性不存在，添加新属性
                     $config | Add-Member -MemberType NoteProperty -Name $key -Value $value -Force
-                    Write-Host "$BLUE  + 添加属性: $key$NC"
+                    Write-Host "$BLUE  + 添加属性: ${key}$NC"
                 }
             }
 
@@ -586,7 +586,7 @@ function Modify-MachineCodeConfig {
 
                 if ($actualValue -ne $expectedValue) {
                     $tempVerificationPassed = $false
-                    Write-Host "$RED  ✗ 临时文件验证失败: $key$NC"
+                    Write-Host "$RED  ✗ 临时文件验证失败: ${key}$NC"
                     break
                 }
             }
@@ -620,9 +620,9 @@ function Modify-MachineCodeConfig {
                 $actualValue = $verifyConfig.$key
 
                 if ($actualValue -eq $expectedValue) {
-                    $verificationResults += "✓ $key: 验证通过"
+                    $verificationResults += "✓ ${key}: 验证通过"
                 } else {
-                    $verificationResults += "✗ $key: 验证失败 (期望: $expectedValue, 实际: $actualValue)"
+                    $verificationResults += "✗ ${key}: 验证失败 (期望: ${expectedValue}, 实际: ${actualValue})"
                     $verificationPassed = $false
                 }
             }
@@ -1032,7 +1032,7 @@ if ($executeMode -eq "MODIFY_ONLY") {
         Write-Host ""
         Write-Host "$RED❌ [环境检查失败]$NC 无法继续执行，发现以下问题："
         foreach ($issue in $envCheck.Issues) {
-            Write-Host "$RED  • $issue$NC"
+            Write-Host "$RED  • ${issue}$NC"
         }
         Write-Host ""
         Write-Host "$YELLOW💡 [建议]$NC 请选择以下操作："
@@ -1136,7 +1136,7 @@ $prefixBytes = [System.Text.Encoding]::UTF8.GetBytes("auth0|user_")
 $prefixHex = -join ($prefixBytes | ForEach-Object { '{0:x2}' -f $_ })
 # 生成32字节(64个十六进制字符)的随机数作为 machineId 的随机部分
 $randomPart = Get-RandomHex -length 32
-$MACHINE_ID = "$prefixHex$randomPart"
+$MACHINE_ID = "${prefixHex}${randomPart}"
 $SQM_ID = "{$([System.Guid]::NewGuid().ToString().ToUpper())}"
 #>
 
