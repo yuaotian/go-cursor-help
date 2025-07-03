@@ -333,6 +333,154 @@ function Test-FileAccessibility {
     }
 }
 
+# 🧹 Cursor 初始化清理功能（从旧版本移植）
+function Invoke-CursorInitialization {
+    Write-Host ""
+    Write-Host "$GREEN🧹 [初始化]$NC 正在执行 Cursor 初始化清理..."
+    $BASE_PATH = "$env:APPDATA\Cursor\User"
+
+    $filesToDelete = @(
+        (Join-Path -Path $BASE_PATH -ChildPath "globalStorage\state.vscdb"),
+        (Join-Path -Path $BASE_PATH -ChildPath "globalStorage\state.vscdb.backup")
+    )
+
+    $folderToCleanContents = Join-Path -Path $BASE_PATH -ChildPath "History"
+    $folderToDeleteCompletely = Join-Path -Path $BASE_PATH -ChildPath "workspaceStorage"
+
+    Write-Host "$BLUE🔍 [调试]$NC 基础路径: $BASE_PATH"
+
+    # 删除指定文件
+    foreach ($file in $filesToDelete) {
+        Write-Host "$BLUE🔍 [检查]$NC 检查文件: $file"
+        if (Test-Path $file) {
+            try {
+                Remove-Item -Path $file -Force -ErrorAction Stop
+                Write-Host "$GREEN✅ [成功]$NC 已删除文件: $file"
+            }
+            catch {
+                Write-Host "$RED❌ [错误]$NC 删除文件 $file 失败: $($_.Exception.Message)"
+            }
+        } else {
+            Write-Host "$YELLOW⚠️  [跳过]$NC 文件不存在，跳过删除: $file"
+        }
+    }
+
+    # 清空指定文件夹内容
+    Write-Host "$BLUE🔍 [检查]$NC 检查待清空文件夹: $folderToCleanContents"
+    if (Test-Path $folderToCleanContents) {
+        try {
+            Get-ChildItem -Path $folderToCleanContents -Recurse | Remove-Item -Force -Recurse -ErrorAction Stop
+            Write-Host "$GREEN✅ [成功]$NC 已清空文件夹内容: $folderToCleanContents"
+        }
+        catch {
+            Write-Host "$RED❌ [错误]$NC 清空文件夹 $folderToCleanContents 失败: $($_.Exception.Message)"
+        }
+    } else {
+        Write-Host "$YELLOW⚠️  [跳过]$NC 文件夹不存在，跳过清空: $folderToCleanContents"
+    }
+
+    # 完全删除指定文件夹
+    Write-Host "$BLUE🔍 [检查]$NC 检查待删除文件夹: $folderToDeleteCompletely"
+    if (Test-Path $folderToDeleteCompletely) {
+        try {
+            Remove-Item -Path $folderToDeleteCompletely -Recurse -Force -ErrorAction Stop
+            Write-Host "$GREEN✅ [成功]$NC 已删除文件夹: $folderToDeleteCompletely"
+        }
+        catch {
+            Write-Host "$RED❌ [错误]$NC 删除文件夹 $folderToDeleteCompletely 失败: $($_.Exception.Message)"
+        }
+    } else {
+        Write-Host "$YELLOW⚠️  [跳过]$NC 文件夹不存在，跳过删除: $folderToDeleteCompletely"
+    }
+
+    Write-Host "$GREEN✅ [完成]$NC Cursor 初始化清理完成"
+    Write-Host ""
+}
+
+# 🔧 修改系统注册表 MachineGuid（从旧版本移植）
+function Update-MachineGuid {
+    try {
+        Write-Host "$BLUE🔧 [注册表]$NC 正在修改系统注册表 MachineGuid..."
+
+        # 检查注册表路径是否存在，不存在则创建
+        $registryPath = "HKLM:\SOFTWARE\Microsoft\Cryptography"
+        if (-not (Test-Path $registryPath)) {
+            Write-Host "$YELLOW⚠️  [警告]$NC 注册表路径不存在: $registryPath，正在创建..."
+            New-Item -Path $registryPath -Force | Out-Null
+            Write-Host "$GREEN✅ [信息]$NC 注册表路径创建成功"
+        }
+
+        # 获取当前的 MachineGuid，如果不存在则使用空字符串作为默认值
+        $originalGuid = ""
+        try {
+            $currentGuid = Get-ItemProperty -Path $registryPath -Name MachineGuid -ErrorAction SilentlyContinue
+            if ($currentGuid) {
+                $originalGuid = $currentGuid.MachineGuid
+                Write-Host "$GREEN✅ [信息]$NC 当前注册表值："
+                Write-Host "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Cryptography"
+                Write-Host "    MachineGuid    REG_SZ    $originalGuid"
+            } else {
+                Write-Host "$YELLOW⚠️  [警告]$NC MachineGuid 值不存在，将创建新值"
+            }
+        } catch {
+            Write-Host "$YELLOW⚠️  [警告]$NC 读取注册表失败: $($_.Exception.Message)"
+            Write-Host "$YELLOW⚠️  [警告]$NC 将尝试创建新的 MachineGuid 值"
+        }
+
+        # 创建备份文件（仅当原始值存在时）
+        $backupFile = $null
+        if ($originalGuid) {
+            $backupFile = "$BACKUP_DIR\MachineGuid_$(Get-Date -Format 'yyyyMMdd_HHmmss').reg"
+            Write-Host "$BLUE💾 [备份]$NC 正在备份注册表..."
+            $backupResult = Start-Process "reg.exe" -ArgumentList "export", "`"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Cryptography`"", "`"$backupFile`"" -NoNewWindow -Wait -PassThru
+
+            if ($backupResult.ExitCode -eq 0) {
+                Write-Host "$GREEN✅ [备份]$NC 注册表项已备份到：$backupFile"
+            } else {
+                Write-Host "$YELLOW⚠️  [警告]$NC 备份创建失败，继续执行..."
+                $backupFile = $null
+            }
+        }
+
+        # 生成新GUID
+        $newGuid = [System.Guid]::NewGuid().ToString()
+        Write-Host "$BLUE🔄 [生成]$NC 新的 MachineGuid: $newGuid"
+
+        # 更新或创建注册表值
+        Set-ItemProperty -Path $registryPath -Name MachineGuid -Value $newGuid -Force -ErrorAction Stop
+
+        # 验证更新
+        $verifyGuid = (Get-ItemProperty -Path $registryPath -Name MachineGuid -ErrorAction Stop).MachineGuid
+        if ($verifyGuid -ne $newGuid) {
+            throw "注册表验证失败：更新后的值 ($verifyGuid) 与预期值 ($newGuid) 不匹配"
+        }
+
+        Write-Host "$GREEN✅ [成功]$NC 注册表更新成功："
+        Write-Host "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Cryptography"
+        Write-Host "    MachineGuid    REG_SZ    $newGuid"
+        return $true
+    }
+    catch {
+        Write-Host "$RED❌ [错误]$NC 注册表操作失败：$($_.Exception.Message)"
+
+        # 尝试恢复备份（如果存在）
+        if ($backupFile -and (Test-Path $backupFile)) {
+            Write-Host "$YELLOW🔄 [恢复]$NC 正在从备份恢复..."
+            $restoreResult = Start-Process "reg.exe" -ArgumentList "import", "`"$backupFile`"" -NoNewWindow -Wait -PassThru
+
+            if ($restoreResult.ExitCode -eq 0) {
+                Write-Host "$GREEN✅ [恢复成功]$NC 已还原原始注册表值"
+            } else {
+                Write-Host "$RED❌ [错误]$NC 恢复失败，请手动导入备份文件：$backupFile"
+            }
+        } else {
+            Write-Host "$YELLOW⚠️  [警告]$NC 未找到备份文件或备份创建失败，无法自动恢复"
+        }
+
+        return $false
+    }
+}
+
 # 检查配置文件和环境
 function Test-CursorEnvironment {
     param(
@@ -644,6 +792,18 @@ function Modify-MachineCodeConfig {
                 Write-Host "   🔹 sqmId: $SQM_ID"
                 Write-Host ""
                 Write-Host "$GREEN💾 [备份]$NC 原配置已备份至: $backupName"
+
+                # 🔒 添加配置文件保护机制
+                Write-Host "$BLUE🔒 [保护]$NC 正在设置配置文件保护..."
+                try {
+                    $configFile = Get-Item $configPath
+                    $configFile.IsReadOnly = $true
+                    Write-Host "$GREEN✅ [保护]$NC 配置文件已设置为只读，防止Cursor覆盖修改"
+                    Write-Host "$BLUE💡 [提示]$NC 文件路径: $configPath"
+                } catch {
+                    Write-Host "$YELLOW⚠️  [保护]$NC 设置只读属性失败: $($_.Exception.Message)"
+                    Write-Host "$BLUE💡 [建议]$NC 可手动右键文件 → 属性 → 勾选'只读'"
+                }
                 Write-Host "$BLUE 🔒 [安全]$NC 建议重启Cursor以确保配置生效"
                 return $true
             } else {
@@ -1022,7 +1182,17 @@ function Close-CursorProcessAndSaveInfo {
     }
 }
 
-# 🚀 根据用户选择执行相应功能
+# �️ 确保备份目录存在
+if (-not (Test-Path $BACKUP_DIR)) {
+    try {
+        New-Item -ItemType Directory -Path $BACKUP_DIR -Force | Out-Null
+        Write-Host "$GREEN✅ [备份目录]$NC 备份目录创建成功: $BACKUP_DIR"
+    } catch {
+        Write-Host "$YELLOW⚠️  [警告]$NC 备份目录创建失败: $($_.Exception.Message)"
+    }
+}
+
+# �🚀 根据用户选择执行相应功能
 if ($executeMode -eq "MODIFY_ONLY") {
     Write-Host "$GREEN🚀 [开始]$NC 开始执行仅修改机器码功能..."
 
@@ -1045,9 +1215,56 @@ if ($executeMode -eq "MODIFY_ONLY") {
     }
 
     # 执行机器码修改
-    if (Modify-MachineCodeConfig -Mode "MODIFY_ONLY") {
+    $configSuccess = Modify-MachineCodeConfig -Mode "MODIFY_ONLY"
+
+    if ($configSuccess) {
         Write-Host ""
-        Write-Host "$GREEN🎉 [完成]$NC 机器码修改完成！"
+        Write-Host "$GREEN🎉 [配置文件]$NC 机器码配置文件修改完成！"
+
+        # 添加注册表修改
+        Write-Host "$BLUE🔧 [注册表]$NC 正在修改系统注册表..."
+        $registrySuccess = Update-MachineGuid
+
+        if ($registrySuccess) {
+            Write-Host "$GREEN✅ [注册表]$NC 系统注册表修改成功"
+            Write-Host ""
+            Write-Host "$GREEN🎉 [完成]$NC 所有机器码修改完成！"
+            Write-Host "$BLUE📋 [详情]$NC 已完成以下修改："
+            Write-Host "$GREEN  ✓ Cursor 配置文件 (storage.json)$NC"
+            Write-Host "$GREEN  ✓ 系统注册表 (MachineGuid)$NC"
+
+            # 🔒 添加配置文件保护机制
+            Write-Host "$BLUE🔒 [保护]$NC 正在设置配置文件保护..."
+            try {
+                $configPath = "$env:APPDATA\Cursor\User\globalStorage\storage.json"
+                $configFile = Get-Item $configPath
+                $configFile.IsReadOnly = $true
+                Write-Host "$GREEN✅ [保护]$NC 配置文件已设置为只读，防止Cursor覆盖修改"
+                Write-Host "$BLUE💡 [提示]$NC 文件路径: $configPath"
+            } catch {
+                Write-Host "$YELLOW⚠️  [保护]$NC 设置只读属性失败: $($_.Exception.Message)"
+                Write-Host "$BLUE💡 [建议]$NC 可手动右键文件 → 属性 → 勾选'只读'"
+            }
+        } else {
+            Write-Host "$YELLOW⚠️  [注册表]$NC 注册表修改失败，但配置文件修改成功"
+            Write-Host ""
+            Write-Host "$YELLOW🎉 [部分完成]$NC 配置文件修改完成，注册表修改失败"
+            Write-Host "$BLUE💡 [建议]$NC 可能需要管理员权限来修改注册表"
+
+            # 🔒 即使注册表修改失败，也要保护配置文件
+            Write-Host "$BLUE🔒 [保护]$NC 正在设置配置文件保护..."
+            try {
+                $configPath = "$env:APPDATA\Cursor\User\globalStorage\storage.json"
+                $configFile = Get-Item $configPath
+                $configFile.IsReadOnly = $true
+                Write-Host "$GREEN✅ [保护]$NC 配置文件已设置为只读，防止Cursor覆盖修改"
+                Write-Host "$BLUE💡 [提示]$NC 文件路径: $configPath"
+            } catch {
+                Write-Host "$YELLOW⚠️  [保护]$NC 设置只读属性失败: $($_.Exception.Message)"
+                Write-Host "$BLUE💡 [建议]$NC 可手动右键文件 → 属性 → 勾选'只读'"
+            }
+        }
+
         Write-Host "$BLUE💡 [提示]$NC 现在可以启动Cursor使用新的机器码配置"
     } else {
         Write-Host ""
@@ -1077,11 +1294,72 @@ if ($executeMode -eq "MODIFY_ONLY") {
     Write-Host "$GREEN🚀 [开始]$NC 开始执行核心功能..."
     Remove-CursorTrialFolders
 
+
+
     # 🔄 重启Cursor让其重新生成配置文件
     Restart-CursorAndWait
 
     # 🛠️ 修改机器码配置
-    Modify-MachineCodeConfig
+    $configSuccess = Modify-MachineCodeConfig
+    
+    # 🧹 执行 Cursor 初始化清理
+    Invoke-CursorInitialization
+
+    if ($configSuccess) {
+        Write-Host ""
+        Write-Host "$GREEN🎉 [配置文件]$NC 机器码配置文件修改完成！"
+
+        # 添加注册表修改
+        Write-Host "$BLUE🔧 [注册表]$NC 正在修改系统注册表..."
+        $registrySuccess = Update-MachineGuid
+
+        if ($registrySuccess) {
+            Write-Host "$GREEN✅ [注册表]$NC 系统注册表修改成功"
+            Write-Host ""
+            Write-Host "$GREEN🎉 [完成]$NC 所有操作完成！"
+            Write-Host "$BLUE📋 [详情]$NC 已完成以下操作："
+            Write-Host "$GREEN  ✓ 删除 Cursor 试用相关文件夹$NC"
+            Write-Host "$GREEN  ✓ Cursor 初始化清理$NC"
+            Write-Host "$GREEN  ✓ 重新生成配置文件$NC"
+            Write-Host "$GREEN  ✓ 修改机器码配置$NC"
+            Write-Host "$GREEN  ✓ 修改系统注册表$NC"
+
+            # 🔒 添加配置文件保护机制
+            Write-Host "$BLUE🔒 [保护]$NC 正在设置配置文件保护..."
+            try {
+                $configPath = "$env:APPDATA\Cursor\User\globalStorage\storage.json"
+                $configFile = Get-Item $configPath
+                $configFile.IsReadOnly = $true
+                Write-Host "$GREEN✅ [保护]$NC 配置文件已设置为只读，防止Cursor覆盖修改"
+                Write-Host "$BLUE💡 [提示]$NC 文件路径: $configPath"
+            } catch {
+                Write-Host "$YELLOW⚠️  [保护]$NC 设置只读属性失败: $($_.Exception.Message)"
+                Write-Host "$BLUE💡 [建议]$NC 可手动右键文件 → 属性 → 勾选'只读'"
+            }
+        } else {
+            Write-Host "$YELLOW⚠️  [注册表]$NC 注册表修改失败，但其他操作成功"
+            Write-Host ""
+            Write-Host "$YELLOW🎉 [部分完成]$NC 大部分操作完成，注册表修改失败"
+            Write-Host "$BLUE💡 [建议]$NC 可能需要管理员权限来修改注册表"
+
+            # 🔒 即使注册表修改失败，也要保护配置文件
+            Write-Host "$BLUE🔒 [保护]$NC 正在设置配置文件保护..."
+            try {
+                $configPath = "$env:APPDATA\Cursor\User\globalStorage\storage.json"
+                $configFile = Get-Item $configPath
+                $configFile.IsReadOnly = $true
+                Write-Host "$GREEN✅ [保护]$NC 配置文件已设置为只读，防止Cursor覆盖修改"
+                Write-Host "$BLUE💡 [提示]$NC 文件路径: $configPath"
+            } catch {
+                Write-Host "$YELLOW⚠️  [保护]$NC 设置只读属性失败: $($_.Exception.Message)"
+                Write-Host "$BLUE💡 [建议]$NC 可手动右键文件 → 属性 → 勾选'只读'"
+            }
+        }
+    } else {
+        Write-Host ""
+        Write-Host "$RED❌ [失败]$NC 机器码配置修改失败！"
+        Write-Host "$YELLOW💡 [建议]$NC 请检查错误信息并重试"
+    }
 }
 
 <#
@@ -1149,46 +1427,24 @@ if (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
 }
 #>
 
-<#
-# 🚫 已屏蔽：Update-MachineGuid 函数
-function Update-MachineGuid-已屏蔽 {
-    Write-Host "$YELLOW⚠️  [提示]$NC 注册表修改功能已暂时屏蔽"
-    Write-Host "$BLUE📋 [说明]$NC 当前版本专注于删除文件夹功能"
-    return $false
-}
-#>
-
-<#
-# 🚫 已屏蔽：创建或更新配置文件
-Write-Host "$YELLOW⚠️  [提示]$NC 配置文件修改功能已暂时屏蔽"
-Write-Host "$BLUE📋 [说明]$NC 当前版本专注于删除文件夹功能，不修改配置文件"
-#>
-
-# 🎉 显示操作完成信息
-Write-Host ""
-Write-Host "$GREEN🎉 [完成]$NC Cursor 防掉试用Pro删除操作已完成！"
-Write-Host ""
+# 📝 功能移植完成说明
+# ✅ 已成功从旧版本移植以下关键功能：
+# ✅ Update-MachineGuid - 系统注册表 MachineGuid 修改功能
+# ✅ Invoke-CursorInitialization - Cursor 初始化清理功能
+# ✅ 完整的机器码修改流程（配置文件 + 注册表）
+# ✅ 备份和恢复机制
+# ✅ 错误处理和用户交互优化
 
 # 📱 显示公众号信息
+Write-Host ""
 Write-Host "$GREEN================================$NC"
 Write-Host "$YELLOW📱  关注公众号【煎饼果子卷AI】一起交流更多Cursor技巧和AI知识(脚本免费、关注公众号加群有更多技巧和大佬)  $NC"
 Write-Host "$GREEN================================$NC"
 Write-Host ""
-Write-Host "$GREEN🚀 [提示]$NC 现在可以重新启动 Cursor 尝试使用了！"
-Write-Host ""
-
-# 🚫 自动更新功能已暂时屏蔽
-Write-Host "$YELLOW⚠️  [提示]$NC 自动更新禁用功能已暂时屏蔽"
-Write-Host "$BLUE📋 [说明]$NC 当前版本专注于删除文件夹功能"
-Write-Host ""
 
 # 🎉 脚本执行完成
-Write-Host "$GREEN🎉 [完成]$NC 所有操作已完成！"
-Write-Host ""
-Write-Host "$BLUE💡 [提示]$NC 如果需要恢复机器码修改功能，请联系开发者"
-Write-Host "$YELLOW⚠️  [注意]$NC 重启 Cursor 后生效"
-Write-Host ""
-Write-Host "$GREEN🚀 [下一步]$NC 现在可以启动 Cursor 尝试使用了！"
+Write-Host "$GREEN🎉 [脚本完成]$NC 感谢使用 Cursor 机器码修改工具！"
+Write-Host "$BLUE💡 [提示]$NC 如有问题请参考公众号或重新运行脚本"
 Write-Host ""
 Read-Host "按回车键退出"
 exit 0
