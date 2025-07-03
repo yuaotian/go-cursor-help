@@ -1904,7 +1904,9 @@ main() {
         echo -e "${BLUE}  5️⃣  等待配置文件生成完成（最多45秒）${NC}"
         echo -e "${BLUE}  6️⃣  关闭Cursor进程${NC}"
         echo -e "${BLUE}  7️⃣  修改新生成的机器码配置文件${NC}"
-        echo -e "${BLUE}  8️⃣  显示操作完成统计信息${NC}"
+        echo -e "${BLUE}  8️⃣  修改系统MAC地址${NC}"
+        echo -e "${BLUE}  9️⃣  禁用自动更新${NC}"
+        echo -e "${BLUE}  🔟  显示操作完成统计信息${NC}"
         echo
         echo -e "${YELLOW}⚠️  [注意事项]${NC}"
         echo -e "${YELLOW}  • 脚本执行过程中请勿手动操作Cursor${NC}"
@@ -1912,6 +1914,7 @@ main() {
         echo -e "${YELLOW}  • 执行完成后需要重新启动Cursor${NC}"
         echo -e "${YELLOW}  • 原配置文件会自动备份到backups文件夹${NC}"
         echo -e "${YELLOW}  • 需要Python3环境来处理JSON配置文件${NC}"
+        echo -e "${YELLOW}  • MAC地址修改是临时的，重启后恢复${NC}"
     fi
     echo
 
@@ -1954,6 +1957,21 @@ main() {
             log_error "❌ [失败] 机器码修改失败！"
             log_info "💡 [建议] 请尝试'重置环境+修改机器码'选项"
         fi
+
+        # 🔧 修改系统MAC地址（仅修改模式也需要）
+        echo
+        log_info "🔧 [MAC地址] 开始修改系统MAC地址..."
+        if change_system_mac_address; then
+            log_info "✅ [成功] MAC地址修改完成！"
+        else
+            log_warn "⚠️  [警告] MAC地址修改失败或部分失败"
+            log_info "💡 [提示] 这可能影响设备识别绕过的效果"
+        fi
+
+        # 🚫 禁用自动更新（仅修改模式也需要）
+        echo
+        log_info "🚫 [禁用更新] 正在禁用Cursor自动更新..."
+        disable_auto_update
     else
         # 完整的重置环境+修改机器码流程
         log_info "🚀 [开始] 开始执行重置环境+修改机器码功能..."
@@ -1980,9 +1998,22 @@ main() {
 
         # 🛠️ 修改机器码配置
         modify_machine_code_config
+
+        # 🔧 修改系统MAC地址
+        echo
+        log_info "🔧 [MAC地址] 开始修改系统MAC地址..."
+        if change_system_mac_address; then
+            log_info "✅ [成功] MAC地址修改完成！"
+        else
+            log_warn "⚠️  [警告] MAC地址修改失败或部分失败"
+            log_info "💡 [提示] 这可能影响设备识别绕过的效果"
+        fi
     fi
 
-
+    # 🚫 禁用自动更新
+    echo
+    log_info "🚫 [禁用更新] 正在禁用Cursor自动更新..."
+    disable_auto_update
 
     # 🎉 显示操作完成信息
     echo
@@ -1997,17 +2028,25 @@ main() {
     log_info "🚀 [提示] 现在可以重新启动 Cursor 尝试使用了！"
     echo
 
-    # 🚫 以下功能已暂时屏蔽
-    log_warn "⚠️  [提示] 以下功能已暂时屏蔽："
-    log_info "📋 [说明] - 自动更新禁用功能"
-    log_info "📋 [说明] - 应用修复功能"
-    log_info "📋 [说明] 如需恢复这些功能，请联系开发者"
+    # 🎉 显示修改结果总结
+    echo
+    echo -e "${GREEN}================================${NC}"
+    echo -e "${BLUE}   🎯 修改结果总结     ${NC}"
+    echo -e "${GREEN}================================${NC}"
+    echo -e "${GREEN}✅ JSON配置文件修改: 完成${NC}"
+    echo -e "${GREEN}✅ MAC地址修改: 完成${NC}"
+    echo -e "${GREEN}✅ 自动更新禁用: 完成${NC}"
+    echo -e "${GREEN}================================${NC}"
     echo
 
     # 🎉 脚本执行完成
     log_info "🎉 [完成] 所有操作已完成！"
     echo
-    log_info "💡 [提示] 如果需要恢复机器码修改功能，请联系开发者"
+    log_info "💡 [重要提示] 完整的Cursor破解流程已执行："
+    echo -e "${BLUE}  ✅ 机器码配置文件修改${NC}"
+    echo -e "${BLUE}  ✅ 系统MAC地址修改${NC}"
+    echo -e "${BLUE}  ✅ 自动更新功能禁用${NC}"
+    echo
     log_warn "⚠️  [注意] 重启 Cursor 后生效"
     echo
     log_info "🚀 [下一步] 现在可以启动 Cursor 尝试使用了！"

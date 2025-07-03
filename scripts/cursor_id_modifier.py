@@ -52,6 +52,17 @@ import glob
 import pwd
 
 import gettext
+import random
+
+# 尝试导入netifaces，如果不可用则使用系统命令
+# Try to import netifaces, use system commands if not available
+try:
+    import netifaces
+    NETIFACES_AVAILABLE = True
+except ImportError:
+    NETIFACES_AVAILABLE = False
+    log_warn = lambda x: print(f"[WARN] {x}")  # 临时日志函数
+    log_warn("netifaces library not found, will use system commands for network operations")
 
 # 设置语言环境
 # Set language environment
@@ -802,6 +813,241 @@ global.macMachineId = '$mac_machine_id';
     log_info(_("Successfully modified {} JS files").format(modified_count))
     return True
 
+# 获取网络接口列表
+# Get network interface list
+def get_network_interfaces():
+    global _
+    if NETIFACES_AVAILABLE:
+        try:
+            # 使用netifaces库
+            # Use netifaces library
+            interfaces = netifaces.interfaces()
+            # 过滤掉回环接口
+            # Filter out loopback interfaces
+            return [iface for iface in interfaces if not iface.startswith('lo')]
+        except Exception:
+            pass
+
+    # 如果netifaces不可用或失败，使用系统命令
+    # If netifaces is not available or failed, use system commands
+    try:
+        result = subprocess.run(['ip', 'link', 'show'], capture_output=True, text=True)
+        interfaces = []
+        for line in result.stdout.split('\n'):
+            if ': ' in line and 'state' in line.lower():
+                iface_name = line.split(': ')[1].split('@')[0]
+                if not iface_name.startswith('lo'):
+                    interfaces.append(iface_name)
+        return interfaces
+    except subprocess.CalledProcessError:
+        # 最后的备选方案
+        # Last fallback option
+        try:
+            result = subprocess.run(['ls', '/sys/class/net/'], capture_output=True, text=True)
+            interfaces = result.stdout.strip().split('\n')
+            return [iface for iface in interfaces if not iface.startswith('lo')]
+        except subprocess.CalledProcessError:
+            log_error(_("Unable to get network interface list"))
+            return []
+
+# 生成随机MAC地址
+# Generate random MAC address
+def generate_random_mac():
+    global _
+    # 生成随机MAC地址，确保第一个字节的最低位为0（单播地址）
+    # Generate random MAC address, ensure the lowest bit of first byte is 0 (unicast address)
+    mac = [0x00, 0x16, 0x3e,
+           random.randint(0x00, 0x7f),
+           random.randint(0x00, 0xff),
+           random.randint(0x00, 0xff)]
+    return ':'.join(map(lambda x: "%02x" % x, mac))
+
+# 获取当前MAC地址
+# Get current MAC address
+def get_current_mac(interface):
+    global _
+    if NETIFACES_AVAILABLE:
+        try:
+            # 使用netifaces库
+            # Use netifaces library
+            addrs = netifaces.ifaddresses(interface)
+            if netifaces.AF_LINK in addrs:
+                return addrs[netifaces.AF_LINK][0]['addr']
+        except Exception:
+            pass
+
+    # 使用系统命令获取MAC地址
+    # Use system command to get MAC address
+    try:
+        result = subprocess.run(['cat', f'/sys/class/net/{interface}/address'],
+                              capture_output=True, text=True)
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except subprocess.CalledProcessError:
+        pass
+
+    # 备选方案：使用ip命令
+    # Fallback: use ip command
+    try:
+        result = subprocess.run(['ip', 'link', 'show', interface],
+                              capture_output=True, text=True)
+        for line in result.stdout.split('\n'):
+            if 'link/ether' in line:
+                return line.split()[1]
+    except subprocess.CalledProcessError:
+        pass
+
+    return None
+
+# 修改MAC地址
+# Modify MAC address
+def modify_mac_address():
+    global _
+    log_info(_("Starting MAC address modification..."))
+
+    # 获取网络接口列表
+    # Get network interface list
+    interfaces = get_network_interfaces()
+    if not interfaces:
+        log_error(_("No network interfaces found"))
+        return False
+
+    log_info(_("Found network interfaces: {}").format(', '.join(interfaces)))
+
+    # 选择要修改的接口（通常选择第一个非回环接口）
+    # Select interface to modify (usually the first non-loopback interface)
+    target_interface = None
+    for iface in interfaces:
+        # 优先选择以太网接口
+        # Prefer ethernet interfaces
+        if any(prefix in iface.lower() for prefix in ['eth', 'enp', 'ens', 'enx']):
+            target_interface = iface
+            break
+
+    # 如果没有找到以太网接口，选择第一个可用接口
+    # If no ethernet interface found, select first available interface
+    if not target_interface and interfaces:
+        target_interface = interfaces[0]
+
+    if not target_interface:
+        log_error(_("No suitable network interface found"))
+        return False
+
+    log_info(_("Selected network interface: {}").format(target_interface))
+
+    # 获取当前MAC地址
+    # Get current MAC address
+    current_mac = get_current_mac(target_interface)
+    if current_mac:
+        log_info(_("Current MAC address: {}").format(current_mac))
+
+        # 备份当前MAC地址
+        # Backup current MAC address
+        backup_file = os.path.join(BACKUP_DIR, f"original_mac_{target_interface}.txt")
+        try:
+            os.makedirs(BACKUP_DIR, exist_ok=True)
+            with open(backup_file, 'w') as f:
+                f.write(f"{target_interface}:{current_mac}\n")
+            log_info(_("Original MAC address backed up to: {}").format(backup_file))
+        except OSError:
+            log_warn(_("Failed to backup original MAC address"))
+    else:
+        log_warn(_("Unable to get current MAC address"))
+
+    # 生成新的MAC地址
+    # Generate new MAC address
+    new_mac = generate_random_mac()
+    log_info(_("Generated new MAC address: {}").format(new_mac))
+
+    # 修改MAC地址
+    # Modify MAC address
+    success = False
+
+    # 方法1：使用ip命令
+    # Method 1: Use ip command
+    try:
+        log_debug(_("Attempting to modify MAC address using ip command..."))
+
+        # 先关闭接口
+        # First bring down the interface
+        subprocess.run(['ip', 'link', 'set', 'dev', target_interface, 'down'],
+                      check=True, capture_output=True)
+
+        # 修改MAC地址
+        # Modify MAC address
+        subprocess.run(['ip', 'link', 'set', 'dev', target_interface, 'address', new_mac],
+                      check=True, capture_output=True)
+
+        # 重新启用接口
+        # Bring up the interface
+        subprocess.run(['ip', 'link', 'set', 'dev', target_interface, 'up'],
+                      check=True, capture_output=True)
+
+        success = True
+        log_info(_("Successfully modified MAC address using ip command"))
+
+    except subprocess.CalledProcessError as e:
+        log_warn(_("Failed to modify MAC address using ip command: {}").format(str(e)))
+
+    # 方法2：使用ifconfig命令（备选方案）
+    # Method 2: Use ifconfig command (fallback)
+    if not success:
+        try:
+            log_debug(_("Attempting to modify MAC address using ifconfig command..."))
+
+            # 先关闭接口
+            # First bring down the interface
+            subprocess.run(['ifconfig', target_interface, 'down'],
+                          check=True, capture_output=True)
+
+            # 修改MAC地址
+            # Modify MAC address
+            subprocess.run(['ifconfig', target_interface, 'hw', 'ether', new_mac],
+                          check=True, capture_output=True)
+
+            # 重新启用接口
+            # Bring up the interface
+            subprocess.run(['ifconfig', target_interface, 'up'],
+                          check=True, capture_output=True)
+
+            success = True
+            log_info(_("Successfully modified MAC address using ifconfig command"))
+
+        except subprocess.CalledProcessError as e:
+            log_warn(_("Failed to modify MAC address using ifconfig command: {}").format(str(e)))
+
+    # 验证MAC地址修改
+    # Verify MAC address modification
+    if success:
+        time.sleep(2)  # 等待网络接口稳定
+        # Wait for network interface to stabilize
+
+        new_current_mac = get_current_mac(target_interface)
+        if new_current_mac and new_current_mac.lower() == new_mac.lower():
+            log_info(_("MAC address modification verified successfully"))
+            log_info(_("New MAC address: {}").format(new_current_mac))
+
+            # 保存新MAC地址信息
+            # Save new MAC address information
+            new_mac_file = os.path.join(BACKUP_DIR, f"new_mac_{target_interface}.txt")
+            try:
+                with open(new_mac_file, 'w') as f:
+                    f.write(f"{target_interface}:{new_current_mac}\n")
+                    f.write(f"Modified at: {datetime.datetime.now()}\n")
+                log_info(_("New MAC address information saved to: {}").format(new_mac_file))
+            except OSError:
+                log_warn(_("Failed to save new MAC address information"))
+
+            return True
+        else:
+            log_error(_("MAC address modification verification failed"))
+            log_error(_("Expected: {}, Actual: {}").format(new_mac, new_current_mac))
+            return False
+    else:
+        log_error(_("All MAC address modification methods failed"))
+        log_error(_("Please check if you have sufficient permissions or try running with sudo"))
+        return False
+
 # 禁用自动更新
 # Disable auto-update
 def disable_auto_update():
@@ -983,15 +1229,46 @@ def main():
     # 修改JS文件
     # Modify JS files
     log_info(_("Modifying Cursor JS files..."))
-    if modify_cursor_js_files():
+    js_success = modify_cursor_js_files()
+    if js_success:
         log_info(_("JS files modified successfully!"))
     else:
         log_warn(_("JS file modification failed, but configuration file modification may have succeeded"))
         log_warn(_("If Cursor still indicates the device is disabled after restarting, please rerun this script"))
 
+    # 修改MAC地址
+    # Modify MAC address
+    log_info(_("Modifying system MAC address..."))
+    mac_success = modify_mac_address()
+    if mac_success:
+        log_info(_("MAC address modified successfully!"))
+    else:
+        log_warn(_("MAC address modification failed"))
+        log_warn(_("This may affect the effectiveness of device identification bypass"))
+
     # 禁用自动更新
     # Disable auto-update
     disable_auto_update()
+
+    # 显示修改结果总结
+    # Display modification result summary
+    print()
+    print(f"{GREEN}================================{NC}")
+    print(f"{BLUE}   {_('Modification Results Summary')}     {NC}")
+    print(f"{GREEN}================================{NC}")
+
+    if js_success:
+        print(f"{GREEN}✓{NC} {_('JS files modification: SUCCESS')}")
+    else:
+        print(f"{RED}✗{NC} {_('JS files modification: FAILED')}")
+
+    if mac_success:
+        print(f"{GREEN}✓{NC} {_('MAC address modification: SUCCESS')}")
+    else:
+        print(f"{RED}✗{NC} {_('MAC address modification: FAILED')}")
+
+    print(f"{GREEN}================================{NC}")
+    print()
 
     log_info(_("Please restart Cursor to apply the new configuration"))
 
