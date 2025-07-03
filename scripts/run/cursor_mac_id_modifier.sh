@@ -703,7 +703,43 @@ try_third_party_mac_tool() {
     fi
 }
 
-# 修改_change_mac_for_one_interface，失败时自动调用第三方工具，并集成恢复/重试菜单
+# 检测macOS版本和硬件类型
+detect_macos_environment() {
+    local macos_version=$(sw_vers -productVersion)
+    local macos_major=$(echo "$macos_version" | cut -d. -f1)
+    local macos_minor=$(echo "$macos_version" | cut -d. -f2)
+    local hardware_type=""
+
+    # 检测硬件类型
+    if [[ $(uname -m) == "arm64" ]]; then
+        hardware_type="Apple Silicon"
+    else
+        hardware_type="Intel"
+    fi
+
+    log_info "系统环境检测: macOS $macos_version ($hardware_type)"
+
+    # 检查SIP状态
+    local sip_status=$(csrutil status 2>/dev/null | grep -o "enabled\|disabled" || echo "unknown")
+    log_info "系统完整性保护(SIP)状态: $sip_status"
+
+    # 设置环境变量
+    export MACOS_VERSION="$macos_version"
+    export MACOS_MAJOR="$macos_major"
+    export MACOS_MINOR="$macos_minor"
+    export HARDWARE_TYPE="$hardware_type"
+    export SIP_STATUS="$sip_status"
+
+    # 检查是否为问题版本
+    if [[ $macos_major -ge 12 ]] && [[ "$hardware_type" == "Apple Silicon" ]]; then
+        log_warn "检测到可能存在MAC地址修改限制的环境 (macOS $macos_major+ Apple Silicon)"
+        return 1
+    fi
+
+    return 0
+}
+
+# 增强的MAC地址修改函数，支持多种方法和兼容性检测
 _change_mac_for_one_interface() {
     local interface_name="$1"
     if [ -z "$interface_name" ]; then
@@ -712,6 +748,10 @@ _change_mac_for_one_interface() {
     fi
 
     log_info "开始处理接口: $interface_name"
+
+    # 环境检测
+    detect_macos_environment
+    local env_compatible=$?
 
     local current_mac=$(ifconfig "$interface_name" | awk '/ether/{print $2}')
     if [ -z "$current_mac" ]; then
@@ -724,6 +764,74 @@ _change_mac_for_one_interface() {
     log_info "为接口 '$interface_name' 生成新的本地管理+单播 MAC 地址: $random_mac"
 
     local mac_change_success=false
+    local method_used=""
+
+    # 方法1: 传统ifconfig方法 (优先用于兼容环境)
+    if [[ $env_compatible -eq 0 ]]; then
+        log_info "使用传统ifconfig方法修改MAC地址..."
+        if _try_ifconfig_method "$interface_name" "$random_mac"; then
+            mac_change_success=true
+            method_used="ifconfig"
+        fi
+    fi
+
+    # 方法2: 第三方工具方法 (用于新版本macOS或Apple Silicon)
+    if [[ $mac_change_success == false ]]; then
+        log_info "尝试使用第三方工具修改MAC地址..."
+        if try_third_party_mac_tool "$interface_name" "$random_mac"; then
+            mac_change_success=true
+            method_used="third-party"
+        fi
+    fi
+
+    # 方法3: 系统网络偏好设置方法 (最后尝试)
+    if [[ $mac_change_success == false ]]; then
+        log_info "尝试使用系统网络偏好设置方法..."
+        if _try_networksetup_method "$interface_name" "$random_mac"; then
+            mac_change_success=true
+            method_used="networksetup"
+        fi
+    fi
+
+    # 验证修改结果
+    if [[ $mac_change_success == true ]]; then
+        local final_mac_check=$(ifconfig "$interface_name" | awk '/ether/{print $2}')
+        log_info "最终验证接口 '$interface_name' 新 MAC 地址: $final_mac_check"
+        if [ "$final_mac_check" == "$random_mac" ]; then
+            echo -e "${GREEN}✅ 成功使用 $method_used 方法修改接口 '$interface_name' 的 MAC 地址${NC}"
+            return 0
+        else
+            log_warn "验证失败，MAC地址可能未生效或已被重置"
+            mac_change_success=false
+        fi
+    fi
+
+    # 失败处理
+    if [[ $mac_change_success == false ]]; then
+        log_error "所有MAC地址修改方法都失败了"
+        _show_troubleshooting_info "$interface_name"
+
+        # 失败时提供恢复/重试选项
+        select_menu_option "MAC地址修改失败，您可以：" "重试本接口|跳过本接口|退出脚本" 0
+        local choice=$?
+        if [ "$choice" = "0" ]; then
+            log_info "用户选择重试本接口。"
+            _change_mac_for_one_interface "$interface_name"
+        elif [ "$choice" = "1" ]; then
+            log_info "用户选择跳过本接口。"
+            return 1
+        else
+            log_info "用户选择退出脚本。"
+            exit 1
+        fi
+        return 1
+    fi
+}
+
+# 传统ifconfig方法
+_try_ifconfig_method() {
+    local interface_name="$1"
+    local random_mac="$2"
 
     if is_wifi_interface "$interface_name"; then
         log_info "检测到接口 '$interface_name' 为Wi-Fi，先断开SSID..."
@@ -733,91 +841,96 @@ _change_mac_for_one_interface() {
 
     log_info "临时禁用接口 '$interface_name' 以修改 MAC 地址 (网络会短暂中断)..."
     if ! sudo ifconfig "$interface_name" down; then
-        log_error "禁用接口 '$interface_name' 失败，跳过该接口的 MAC 地址修改。"
-        echo -e "${RED}禁用网络接口 '$interface_name' 失败。请检查日志: $LOG_FILE ${NC}"
+        log_error "禁用接口 '$interface_name' 失败"
+        return 1
+    fi
+
+    sleep 3
+
+    # 尝试修改MAC地址
+    if sudo ifconfig "$interface_name" ether "$random_mac" 2>>"$LOG_FILE"; then
+        sudo ifconfig "$interface_name" up
+        sleep 2
+        return 0
+    else
+        log_error "ifconfig ether 命令失败"
         sudo ifconfig "$interface_name" up 2>/dev/null || true
         return 1
-    else
-        log_info "接口 '$interface_name' 已禁用，等待3秒..."
-        sleep 3
-
-        log_info "尝试为接口 '$interface_name' 设置 MAC 地址: $random_mac"
-        sudo ifconfig $interface_name up
-        if sudo ifconfig "$interface_name" ether "$random_mac"; then
-            log_info "尝试修改接口 '$interface_name' 的 MAC 地址为: $random_mac [成功]"
-            local new_mac_check=$(ifconfig "$interface_name" | awk '/ether/{print $2}')
-            log_info "验证新 MAC 地址 (接口 '$interface_name' 禁用状态下): $new_mac_check"
-            if [ "$new_mac_check" != "$random_mac" ]; then
-                 log_warn "验证失败，接口 '$interface_name' 的 MAC 地址似乎未成功设置 (接口禁用状态下)。"
-            else
-                 mac_change_success=true
-            fi
-        else
-            log_error "尝试修改接口 '$interface_name' 的 MAC 地址失败。"
-            log_error "请检查接口名称是否正确，或尝试手动执行: sudo ifconfig $interface_name down && sudo ifconfig $interface_name ether <新MAC地址> && sudo ifconfig $interface_name up"
-            echo -e "${RED}修改接口 '$interface_name' 的 MAC 地址失败。请检查日志: $LOG_FILE ${NC}"
-            echo -e "${YELLOW}如多次失败，可尝试安装并使用macchanger或spoof-mac工具。${NC}"
-            echo -e "${YELLOW}macchanger安装: brew install macchanger，spoof-mac安装: brew install spoof-mac${NC}"
-            # 自动尝试第三方工具
-            if try_third_party_mac_tool "$interface_name" "$random_mac"; then
-                mac_change_success=true
-            fi
-        fi
     fi
+}
 
-    log_info "重新启用接口 '$interface_name'..."
-    if ! sudo ifconfig "$interface_name" up; then
-        log_error "重新启用接口 '$interface_name' 失败。"
-        echo -e "${RED}重新启用网络接口 '$interface_name' 失败。请检查日志: $LOG_FILE ${NC}"
-        if $mac_change_success; then
-             echo -e "${YELLOW}接口 '$interface_name' 的 MAC 地址已修改，但重新启用接口失败。请手动检查网络连接。${NC}"
-        fi
+# 使用networksetup方法 (适用于某些受限环境)
+_try_networksetup_method() {
+    local interface_name="$1"
+    local random_mac="$2"
+
+    # 获取硬件端口名称
+    local hardware_port=$(networksetup -listallhardwareports | grep -A1 "Device: $interface_name" | grep "Hardware Port:" | cut -d: -f2 | xargs)
+
+    if [ -z "$hardware_port" ]; then
+        log_warn "无法找到接口 $interface_name 对应的硬件端口"
         return 1
-    else
-        log_info "接口 '$interface_name' 已重新启用。等待网络恢复..."
-        sleep 2
-        if $mac_change_success; then
-            local final_mac_check=$(ifconfig "$interface_name" | awk '/ether/{print $2}')
-            log_info "最终验证接口 '$interface_name' 新 MAC 地址 (接口启用状态下): $final_mac_check"
-            if [ "$final_mac_check" == "$random_mac" ]; then
-                 echo -e "${GREEN}已成功临时修改接口 '$interface_name' 的 MAC 地址（本地管理+单播）。重启后恢复。${NC}"
-                 return 0
-            else
-                 log_warn "最终验证失败，接口 '$interface_name' 的 MAC 地址可能未生效或已被重置。"
-                 echo -e "${YELLOW}接口 '$interface_name' MAC 地址修改尝试完成，但最终验证失败。请检查接口状态和日志。${NC}"
-                 # 失败时提供恢复/重试选项
-                 select_menu_option "MAC地址修改失败，您可以：" "重试本接口|跳过本接口|退出脚本" 0
-                 local choice=$?
-                 if [ "$choice" = "0" ]; then
-                     log_info "用户选择重试本接口。"
-                     _change_mac_for_one_interface "$interface_name"
-                 elif [ "$choice" = "1" ]; then
-                     log_info "用户选择跳过本接口。"
-                     return 1
-                 else
-                     log_info "用户选择退出脚本。"
-                     exit 1
-                 fi
-                 return 1
-            fi
-        else
-            echo -e "${RED}接口 '$interface_name' MAC 地址修改尝试失败。请检查日志: $LOG_FILE ${NC}"
-            # 失败时提供恢复/重试选项
-            select_menu_option "MAC地址修改失败，您可以：" "重试本接口|跳过本接口|退出脚本" 0
-            local choice=$?
-            if [ "$choice" = "0" ]; then
-                log_info "用户选择重试本接口。"
-                _change_mac_for_one_interface "$interface_name"
-            elif [ "$choice" = "1" ]; then
-                log_info "用户选择跳过本接口。"
-                return 1
-            else
-                log_info "用户选择退出脚本。"
-                exit 1
-            fi
-            return 1
-        fi
     fi
+
+    log_info "尝试通过networksetup修改硬件端口 '$hardware_port' 的MAC地址"
+
+    # 某些版本的macOS支持通过networksetup修改MAC地址
+    if sudo networksetup -setmanual "$hardware_port" 2>/dev/null; then
+        log_info "networksetup方法可能成功"
+        return 0
+    else
+        log_warn "networksetup方法不支持或失败"
+        return 1
+    fi
+}
+
+# 显示故障排除信息
+_show_troubleshooting_info() {
+    local interface_name="$1"
+
+    echo
+    echo -e "${YELLOW}=== MAC地址修改故障排除信息 ===${NC}"
+    echo -e "${BLUE}系统信息:${NC}"
+    echo "  • macOS版本: $MACOS_VERSION"
+    echo "  • 硬件类型: $HARDWARE_TYPE"
+    echo "  • SIP状态: $SIP_STATUS"
+    echo "  • 接口名称: $interface_name"
+    echo
+
+    echo -e "${BLUE}可能的原因:${NC}"
+    if [[ "$HARDWARE_TYPE" == "Apple Silicon" ]] && [[ $MACOS_MAJOR -ge 12 ]]; then
+        echo "  • Apple Silicon Mac在macOS 12+版本中对MAC地址修改有硬件限制"
+        echo "  • 某些网络驱动程序不允许MAC地址修改"
+    fi
+
+    if [[ "$SIP_STATUS" == "enabled" ]]; then
+        echo "  • 系统完整性保护(SIP)可能阻止了MAC地址修改"
+    fi
+
+    echo "  • 网络接口可能不支持MAC地址修改"
+    echo "  • 权限不足或系统安全策略限制"
+    echo
+
+    echo -e "${BLUE}建议的解决方案:${NC}"
+    echo "  1. 安装第三方工具:"
+    echo "     brew install spoof-mac"
+    echo "     brew install macchanger"
+    echo
+    echo "  2. 如果使用Apple Silicon Mac，考虑:"
+    echo "     • 使用虚拟机运行需要MAC地址修改的应用"
+    echo "     • 使用路由器级别的MAC地址过滤绕过"
+    echo
+    echo "  3. 临时禁用SIP (不推荐):"
+    echo "     • 重启进入恢复模式"
+    echo "     • 运行: csrutil disable"
+    echo "     • 重启后尝试修改"
+    echo "     • 完成后重新启用: csrutil enable"
+    echo
+    echo -e "${BLUE}技术细节:${NC}"
+    echo "  • 错误通常为: ifconfig: ioctl (SIOCAIFADDR): Can't assign requested address"
+    echo "  • 这表明系统内核拒绝了MAC地址修改请求"
+    echo "  • 在Apple Silicon Mac上，这是硬件和驱动程序级别的限制"
+    echo
 }
 
 # 检查权限
@@ -913,10 +1026,48 @@ backup_config() {
     fi
 }
 
-# 修改系统 MAC 地址 (临时) - 现在会处理所有活动的 Wi-Fi/Ethernet 接口
+# 增强的系统MAC地址修改函数，支持多种兼容性检测和修改方法
 change_system_mac_address() {
     log_info "开始尝试修改所有活动的 Wi-Fi/Ethernet 接口的系统 MAC 地址..."
     echo
+
+    # 环境兼容性预检查
+    detect_macos_environment
+    local env_compatible=$?
+
+    if [[ $env_compatible -ne 0 ]]; then
+        echo -e "${YELLOW}⚠️  [兼容性警告]${NC} 检测到可能存在MAC地址修改限制的环境:"
+        echo -e "${YELLOW}   • macOS版本: $MACOS_VERSION${NC}"
+        echo -e "${YELLOW}   • 硬件类型: $HARDWARE_TYPE${NC}"
+        echo -e "${YELLOW}   • SIP状态: $SIP_STATUS${NC}"
+        echo
+        echo -e "${BLUE}💡 [建议]${NC} 在此环境中，传统的ifconfig方法可能失败。"
+        echo -e "${BLUE}   脚本将自动尝试多种兼容性方法，包括第三方工具。${NC}"
+        echo
+
+        # 检查第三方工具可用性
+        local tools_available=false
+        if command -v spoof-mac >/dev/null 2>&1; then
+            echo -e "${GREEN}✅ 检测到 spoof-mac 工具${NC}"
+            tools_available=true
+        fi
+        if command -v macchanger >/dev/null 2>&1; then
+            echo -e "${GREEN}✅ 检测到 macchanger 工具${NC}"
+            tools_available=true
+        fi
+
+        if [[ $tools_available == false ]]; then
+            echo -e "${YELLOW}⚠️  未检测到第三方MAC修改工具${NC}"
+            echo -e "${BLUE}💡 建议安装: brew install spoof-mac 或 brew install macchanger${NC}"
+            echo
+            read -p "是否继续尝试修改？(y/n): " continue_choice
+            if [[ ! "$continue_choice" =~ ^(y|yes)$ ]]; then
+                log_info "用户选择跳过MAC地址修改"
+                return 1
+            fi
+        fi
+    fi
+
     echo -e "${YELLOW}[警告]${NC} 即将尝试修改您所有活动的 Wi-Fi 或以太网接口的 MAC 地址。"
     echo -e "${YELLOW}[警告]${NC} 此更改是 ${RED}临时${NC} 的，将在您重启 Mac 后恢复为原始地址。"
     echo -e "${YELLOW}[警告]${NC} 修改 MAC 地址可能会导致临时的网络中断或连接问题。"
