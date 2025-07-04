@@ -213,6 +213,10 @@ remove_cursor_trial_folders() {
     log_info "✅ [完成] 深度权限修复完成"
     echo
 
+    # 🔧 额外修复：再次调用统一权限修复函数确保一致性
+    log_info "🔧 [额外修复] 使用统一权限修复函数进行最终确认..."
+    ensure_cursor_directory_permissions
+
     # 显示操作统计
     log_info "📊 [统计] 操作完成统计："
     echo "   ✅ 成功删除: $deleted_count 个文件夹"
@@ -299,8 +303,14 @@ restart_cursor_and_wait() {
 
     if [ -f "$config_path" ]; then
         log_info "✅ [成功] 配置文件已生成: $config_path"
+
+        # 🛡️ 关键修复：配置文件生成后立即确保权限正确
+        ensure_cursor_directory_permissions
     else
         log_warn "⚠️  [警告] 配置文件未在预期时间内生成，继续执行..."
+
+        # 即使配置文件未生成，也要确保目录权限正确
+        ensure_cursor_directory_permissions
     fi
 
     # 强制关闭Cursor
@@ -424,7 +434,58 @@ start_cursor_to_generate_config() {
     fi
 }
 
-# 🛠️ 修改机器码配置（增强版）
+# �️ 确保Cursor目录权限正确（新增函数）
+ensure_cursor_directory_permissions() {
+    log_info "🛡️ [权限修复] 确保Cursor目录权限正确..."
+
+    local cursor_support_dir="$HOME/Library/Application Support/Cursor"
+    local cursor_home_dir="$HOME/.cursor"
+
+    # 关键目录列表
+    local directories=(
+        "$cursor_support_dir"
+        "$cursor_support_dir/User"
+        "$cursor_support_dir/User/globalStorage"
+        "$cursor_support_dir/logs"
+        "$cursor_support_dir/CachedData"
+        "$cursor_support_dir/User/workspaceStorage"
+        "$cursor_support_dir/User/History"
+        "$cursor_home_dir"
+        "$cursor_home_dir/extensions"
+    )
+
+    # 确保所有目录存在并有正确权限
+    for dir in "${directories[@]}"; do
+        if [ ! -d "$dir" ]; then
+            mkdir -p "$dir" 2>/dev/null || true
+        fi
+
+        # 设置目录权限：用户可读写执行，组和其他用户可读执行
+        chmod 755 "$dir" 2>/dev/null || true
+        chown "$(whoami)" "$dir" 2>/dev/null || true
+    done
+
+    # 特别处理：使用sudo确保关键目录权限
+    if sudo chown -R "$(whoami)" "$cursor_support_dir" 2>/dev/null; then
+        log_info "✅ [权限] Application Support/Cursor目录权限修复成功"
+    else
+        log_warn "⚠️  [权限] Application Support/Cursor目录权限修复失败"
+    fi
+
+    if sudo chown -R "$(whoami)" "$cursor_home_dir" 2>/dev/null; then
+        log_info "✅ [权限] .cursor目录权限修复成功"
+    else
+        log_warn "⚠️  [权限] .cursor目录权限修复失败"
+    fi
+
+    # 设置用户写入权限
+    chmod -R u+w "$cursor_support_dir" 2>/dev/null || true
+    chmod -R u+w "$cursor_home_dir" 2>/dev/null || true
+
+    log_info "✅ [权限修复] Cursor目录权限修复完成"
+}
+
+# �🛠️ 修改机器码配置（增强版）
 modify_machine_code_config() {
     local mode=${1:-"FULL"}
 
@@ -568,8 +629,32 @@ except Exception as e:
     sys.exit(1)
 " 2>&1)
 
-    if [ $? -eq 0 ] && [[ "$python_result" == "SUCCESS" ]]; then
+    # 🔧 关键修复：正确解析Python执行结果
+    local python_exit_code=$?
+    local python_success=false
+
+    # 检查Python脚本是否成功执行
+    if [ $python_exit_code -eq 0 ]; then
+        # 检查输出中是否包含SUCCESS标记（忽略其他输出）
+        if echo "$python_result" | grep -q "SUCCESS"; then
+            python_success=true
+            log_info "✅ [Python] 配置修改执行成功"
+        else
+            log_warn "⚠️  [Python] 执行成功但未找到SUCCESS标记"
+            log_info "💡 [调试] Python完整输出:"
+            echo "$python_result"
+        fi
+    else
+        log_error "❌ [Python] 脚本执行失败，退出码: $python_exit_code"
+        log_info "💡 [调试] Python完整输出:"
+        echo "$python_result"
+    fi
+
+    if [ "$python_success" = true ]; then
         log_info "⏳ [进度] 5/5 - 验证修改结果..."
+
+        # 🔒 关键修复：在验证前确保文件权限正确
+        chmod 644 "$config_path" 2>/dev/null || true
 
         # 验证修改是否成功
         local verification_result=$(python3 -c "
@@ -602,8 +687,20 @@ except Exception as e:
     print(f'VERIFICATION_ERROR: {e}')
 " 2>&1)
 
-        if [[ "$verification_result" == "VERIFICATION_SUCCESS" ]]; then
+        # 检查验证结果（忽略其他输出，只关注最终结果）
+        if echo "$verification_result" | grep -q "VERIFICATION_SUCCESS"; then
             log_info "✅ [进度] 5/5 - 修改验证成功"
+
+            # 🔐 关键修复：设置配置文件为只读保护
+            if chmod 444 "$config_path" 2>/dev/null; then
+                log_info "🔐 [保护] 配置文件已设置为只读保护"
+            else
+                log_warn "⚠️  [警告] 无法设置配置文件只读保护"
+            fi
+
+            # 🛡️ 关键修复：确保目录权限正确
+            ensure_cursor_directory_permissions
+
             echo
             log_info "🎉 [成功] 机器码配置修改完成！"
             log_info "📋 [详情] 已更新以下标识符："
@@ -615,20 +712,33 @@ except Exception as e:
             log_info "💾 [备份] 原配置已备份至: $backup_name"
             return 0
         else
-            log_error "❌ [错误] 修改验证失败: $verification_result"
-            log_info "🔄 [恢复] 正在恢复备份..."
-            cp "$backup_path" "$config_path"
+            log_error "❌ [错误] 修改验证失败"
+            log_info "💡 [验证详情]:"
+            echo "$verification_result"
+            log_info "🔄 [恢复] 正在恢复备份并修复权限..."
+
+            # 恢复备份并确保权限正确
+            if cp "$backup_path" "$config_path"; then
+                chmod 644 "$config_path" 2>/dev/null || true
+                ensure_cursor_directory_permissions
+                log_info "✅ [恢复] 已恢复原始配置并修复权限"
+            else
+                log_error "❌ [错误] 恢复备份失败"
+            fi
             return 1
         fi
     else
-        log_error "❌ [错误] 修改配置失败: $python_result"
-        log_info "💡 [调试信息] Python执行结果: $python_result"
+        log_error "❌ [错误] 修改配置失败"
+        log_info "💡 [调试信息] Python执行详情:"
+        echo "$python_result"
 
-        # 尝试恢复备份
+        # 尝试恢复备份并修复权限
         if [ -f "$backup_path" ]; then
-            log_info "🔄 [恢复] 正在恢复备份配置..."
+            log_info "🔄 [恢复] 正在恢复备份配置并修复权限..."
             if cp "$backup_path" "$config_path"; then
-                log_info "✅ [恢复] 已恢复原始配置"
+                chmod 644 "$config_path" 2>/dev/null || true
+                ensure_cursor_directory_permissions
+                log_info "✅ [恢复] 已恢复原始配置并修复权限"
             else
                 log_error "❌ [错误] 恢复备份失败"
             fi
