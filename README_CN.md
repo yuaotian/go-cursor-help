@@ -10,7 +10,7 @@
 
 <img src="https://ai-cursor.com/wp-content/uploads/2024/09/logo-cursor-ai-png.webp" alt="Cursor Logo" width="120"/>
 
-<!-- 赞助商广告 - 过期时间: 2025-06-29 -->
+<!-- 赞助商广告 - 过期时间: 2025-06-29 
 <div style="margin: 15px 0; padding: 8px 15px; background: #f8f9fa; border-radius: 20px; border: 1px solid #e9ecef;">
 <span style="color: #6c757d; font-size: 12px; margin-right: 10px;">🎯 由<a href="https://www.twillot.com/?utm_source=go-cursor-help" target="_blank" style="text-decoration: none; color: #495057; font-size: 14px;">Twillot</a>提供赞助</span>
 <a href="https://www.twillot.com/?utm_source=go-cursor-help" target="_blank" style="text-decoration: none; color: #495057; font-size: 14px;">
