@@ -59,18 +59,22 @@ global.macMachineId = 'random-mac-machine-id';
 ### 智能检测逻辑
 ```bash
 if [[ "$HARDWARE_TYPE" == "Apple Silicon" ]]; then
-    # 自动切换到JS内核修改
+    # 自动切换到JS内核修改（无需用户确认）
     modify_cursor_js_files
+    return 0
 else
     # 传统MAC地址修改
-    change_system_mac_address
+    if ! change_system_mac_address; then
+        # 失败时自动切换到JS内核修改（无需用户确认）
+        modify_cursor_js_files
+    fi
 fi
 ```
 
 ### 用户交互优化
-- Apple Silicon环境自动提示JS方案
-- MAC地址修改失败时提供JS备选
-- 清晰的方案说明和效果对比
+- **Apple Silicon环境完全自动化** - 直接使用JS方案，无需确认
+- **MAC地址修改失败自动切换** - 无需用户选择，直接尝试JS方案
+- **最小化用户交互** - 智能决策，减少不必要的确认步骤
 
 ## 💡 方案优势
 
@@ -108,17 +112,20 @@ fi
 
 ## 📋 使用指南
 
-### 自动模式（推荐）
+### 完全自动化模式（推荐）
 ```bash
 sudo ./cursor_mac_id_modifier.sh
 # 选择"重置环境+修改机器码"
 # 脚本会自动检测环境并选择最佳方案
+# Apple Silicon环境自动使用JS内核修改
+# MAC地址修改失败自动切换到JS方案
 ```
 
-### 手动选择
-- MAC地址修改失败时，脚本会提供JS修改选项
-- 用户可以根据提示选择合适的方案
-- 支持重试和备选方案切换
+### 智能决策流程
+- **Apple Silicon检测** - 自动使用JS内核修改，无需确认
+- **MAC地址修改失败** - 自动切换到JS方案，无需用户选择
+- **最小化交互** - 只在必要时询问用户（如重试失败的接口）
+- **智能备选** - 双重保障确保设备识别绕过成功
 
 ## 🛡️ 安全考虑
 

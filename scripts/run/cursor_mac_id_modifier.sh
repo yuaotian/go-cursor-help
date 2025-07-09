@@ -282,6 +282,9 @@ restart_cursor_and_wait() {
     chmod -R u+w "$HOME/Library/Application Support/Cursor" 2>/dev/null || true
     chmod -R u+w "$HOME/.cursor" 2>/dev/null || true
 
+    # 🚀 关键修复：Cursor启动前权限最终确保
+    ensure_cursor_startup_permissions
+
     # 启动Cursor
     log_info "🚀 [启动] 正在启动Cursor..."
     "$CURSOR_PROCESS_PATH" > /dev/null 2>&1 &
@@ -402,6 +405,9 @@ start_cursor_to_generate_config() {
 
     log_info "📍 [路径] 使用Cursor路径: $cursor_executable"
 
+    # 🚀 关键修复：Cursor启动前权限最终确保
+    ensure_cursor_startup_permissions
+
     # 启动Cursor
     "$cursor_executable" > /dev/null 2>&1 &
     local cursor_pid=$!
@@ -436,53 +442,243 @@ start_cursor_to_generate_config() {
 
 # �️ 确保Cursor目录权限正确（新增函数）
 ensure_cursor_directory_permissions() {
-    log_info "🛡️ [权限修复] 确保Cursor目录权限正确..."
+    log_info "🛡️ [增强权限修复] 开始深度权限修复和诊断..."
 
     local cursor_support_dir="$HOME/Library/Application Support/Cursor"
     local cursor_home_dir="$HOME/.cursor"
+    local current_user=$(whoami)
 
-    # 关键目录列表
+    # 扩展的关键目录列表（包含所有可能的子目录）
     local directories=(
         "$cursor_support_dir"
         "$cursor_support_dir/User"
         "$cursor_support_dir/User/globalStorage"
-        "$cursor_support_dir/logs"
-        "$cursor_support_dir/CachedData"
+        "$cursor_support_dir/User/globalStorage/backups"
         "$cursor_support_dir/User/workspaceStorage"
         "$cursor_support_dir/User/History"
+        "$cursor_support_dir/logs"
+        "$cursor_support_dir/CachedData"
+        "$cursor_support_dir/CachedExtensions"
+        "$cursor_support_dir/CachedExtensionVSIXs"
+        "$cursor_support_dir/User/snippets"
+        "$cursor_support_dir/User/keybindings"
+        "$cursor_support_dir/crashDumps"
         "$cursor_home_dir"
         "$cursor_home_dir/extensions"
     )
 
-    # 确保所有目录存在并有正确权限
-    for dir in "${directories[@]}"; do
-        if [ ! -d "$dir" ]; then
-            mkdir -p "$dir" 2>/dev/null || true
-        fi
+    # 🔍 第一步：权限诊断
+    log_info "🔍 [诊断] 执行权限诊断..."
+    local permission_issues=()
 
-        # 设置目录权限：用户可读写执行，组和其他用户可读执行
-        chmod 755 "$dir" 2>/dev/null || true
-        chown "$(whoami)" "$dir" 2>/dev/null || true
+    for dir in "${directories[@]}"; do
+        if [ -d "$dir" ]; then
+            local owner=$(ls -ld "$dir" | awk '{print $3}')
+            local perms=$(ls -ld "$dir" | awk '{print $1}')
+
+            if [ "$owner" != "$current_user" ]; then
+                permission_issues+=("所有权问题: $dir (当前所有者: $owner)")
+            fi
+
+            if [ ! -w "$dir" ]; then
+                permission_issues+=("写入权限问题: $dir")
+            fi
+        fi
     done
 
-    # 特别处理：使用sudo确保关键目录权限
-    if sudo chown -R "$(whoami)" "$cursor_support_dir" 2>/dev/null; then
-        log_info "✅ [权限] Application Support/Cursor目录权限修复成功"
+    if [ ${#permission_issues[@]} -gt 0 ]; then
+        log_warn "⚠️  [诊断] 发现 ${#permission_issues[@]} 个权限问题："
+        for issue in "${permission_issues[@]}"; do
+            echo "     ❌ $issue"
+        done
     else
-        log_warn "⚠️  [权限] Application Support/Cursor目录权限修复失败"
+        log_info "✅ [诊断] 现有目录权限检查通过"
     fi
 
-    if sudo chown -R "$(whoami)" "$cursor_home_dir" 2>/dev/null; then
-        log_info "✅ [权限] .cursor目录权限修复成功"
+    # 🔧 第二步：强制权限修复
+    log_info "🔧 [修复] 开始强制权限修复..."
+
+    # 确保所有目录存在
+    log_info "📁 [创建] 确保所有必要目录存在..."
+    for dir in "${directories[@]}"; do
+        if [ ! -d "$dir" ]; then
+            if mkdir -p "$dir" 2>/dev/null; then
+                log_info "✅ [创建] 成功创建目录: ${dir/$HOME/\~}"
+            else
+                log_warn "⚠️  [创建] 创建目录失败: ${dir/$HOME/\~}"
+            fi
+        fi
+    done
+
+    # 🔑 第三步：使用sudo进行深度权限修复
+    log_info "🔑 [深度修复] 使用sudo进行深度权限修复..."
+
+    # 修复主目录所有权
+    if sudo chown -R "$current_user:staff" "$cursor_support_dir" 2>/dev/null; then
+        log_info "✅ [所有权] Application Support/Cursor目录所有权修复成功"
     else
-        log_warn "⚠️  [权限] .cursor目录权限修复失败"
+        log_error "❌ [所有权] Application Support/Cursor目录所有权修复失败"
     fi
 
-    # 设置用户写入权限
-    chmod -R u+w "$cursor_support_dir" 2>/dev/null || true
-    chmod -R u+w "$cursor_home_dir" 2>/dev/null || true
+    if sudo chown -R "$current_user:staff" "$cursor_home_dir" 2>/dev/null; then
+        log_info "✅ [所有权] .cursor目录所有权修复成功"
+    else
+        log_error "❌ [所有权] .cursor目录所有权修复失败"
+    fi
 
-    log_info "✅ [权限修复] Cursor目录权限修复完成"
+    # 设置递归权限
+    log_info "🔐 [权限] 设置递归权限..."
+    if sudo chmod -R 755 "$cursor_support_dir" 2>/dev/null; then
+        log_info "✅ [权限] Application Support/Cursor目录权限设置成功"
+    else
+        log_warn "⚠️  [权限] Application Support/Cursor目录权限设置失败"
+    fi
+
+    if sudo chmod -R 755 "$cursor_home_dir" 2>/dev/null; then
+        log_info "✅ [权限] .cursor目录权限设置成功"
+    else
+        log_warn "⚠️  [权限] .cursor目录权限设置失败"
+    fi
+
+    # 🔓 第四步：确保用户写入权限
+    log_info "🔓 [写入权限] 确保用户写入权限..."
+    if sudo chmod -R u+w "$cursor_support_dir" 2>/dev/null; then
+        log_info "✅ [写入] Application Support/Cursor写入权限设置成功"
+    else
+        log_warn "⚠️  [写入] Application Support/Cursor写入权限设置失败"
+    fi
+
+    if sudo chmod -R u+w "$cursor_home_dir" 2>/dev/null; then
+        log_info "✅ [写入] .cursor写入权限设置成功"
+    else
+        log_warn "⚠️  [写入] .cursor写入权限设置失败"
+    fi
+
+    # 🎯 第五步：特别处理logs目录
+    log_info "🎯 [特殊处理] 特别处理logs目录权限..."
+    local logs_dir="$cursor_support_dir/logs"
+
+    # 确保logs目录存在并有正确权限
+    sudo mkdir -p "$logs_dir" 2>/dev/null || true
+    sudo chown -R "$current_user:staff" "$logs_dir" 2>/dev/null || true
+    sudo chmod -R 755 "$logs_dir" 2>/dev/null || true
+
+    # 测试logs目录创建权限
+    local test_log_dir="$logs_dir/test_$(date +%s)"
+    if mkdir -p "$test_log_dir" 2>/dev/null; then
+        log_info "✅ [测试] logs目录创建权限测试成功"
+        rmdir "$test_log_dir" 2>/dev/null || true
+    else
+        log_error "❌ [测试] logs目录创建权限测试失败"
+
+        # 强制修复logs目录权限
+        log_info "🔧 [强制修复] 强制修复logs目录权限..."
+        sudo rm -rf "$logs_dir" 2>/dev/null || true
+        sudo mkdir -p "$logs_dir" 2>/dev/null || true
+        sudo chown "$current_user:staff" "$logs_dir" 2>/dev/null || true
+        sudo chmod 755 "$logs_dir" 2>/dev/null || true
+    fi
+
+    # 🔍 第六步：最终验证
+    log_info "🔍 [最终验证] 执行最终权限验证..."
+    local final_issues=()
+
+    for dir in "${directories[@]}"; do
+        if [ -d "$dir" ]; then
+            if [ ! -w "$dir" ]; then
+                final_issues+=("$dir")
+            fi
+        fi
+    done
+
+    if [ ${#final_issues[@]} -eq 0 ]; then
+        log_info "✅ [验证成功] 所有目录权限验证通过"
+    else
+        log_error "❌ [验证失败] 以下目录仍有权限问题："
+        for dir in "${final_issues[@]}"; do
+            echo "     ❌ $dir"
+        done
+
+        # 提供手动修复命令
+        log_info "💡 [手动修复] 如果问题持续，请手动执行以下命令："
+        echo "sudo chown -R $current_user:staff \"$cursor_support_dir\""
+        echo "sudo chown -R $current_user:staff \"$cursor_home_dir\""
+        echo "sudo chmod -R 755 \"$cursor_support_dir\""
+        echo "sudo chmod -R 755 \"$cursor_home_dir\""
+    fi
+
+    log_info "✅ [完成] 增强权限修复完成"
+}
+
+# 🚀 Cursor启动前权限最终确保（新增函数）
+ensure_cursor_startup_permissions() {
+    log_info "🚀 [启动前权限] 确保Cursor启动前权限正确..."
+
+    local cursor_support_dir="$HOME/Library/Application Support/Cursor"
+    local cursor_home_dir="$HOME/.cursor"
+    local current_user=$(whoami)
+
+    # 关键启动目录
+    local startup_dirs=(
+        "$cursor_support_dir"
+        "$cursor_support_dir/logs"
+        "$cursor_support_dir/CachedData"
+        "$cursor_support_dir/User"
+        "$cursor_support_dir/User/globalStorage"
+        "$cursor_home_dir"
+        "$cursor_home_dir/extensions"
+    )
+
+    # 强制确保启动目录权限
+    for dir in "${startup_dirs[@]}"; do
+        # 确保目录存在
+        sudo mkdir -p "$dir" 2>/dev/null || true
+
+        # 设置正确的所有权和权限
+        sudo chown "$current_user:staff" "$dir" 2>/dev/null || true
+        sudo chmod 755 "$dir" 2>/dev/null || true
+
+        # 验证权限
+        if [ -w "$dir" ]; then
+            log_info "✅ [启动权限] $dir 权限正确"
+        else
+            log_warn "⚠️  [启动权限] $dir 权限异常，尝试强制修复..."
+            sudo chown -R "$current_user:staff" "$dir" 2>/dev/null || true
+            sudo chmod -R 755 "$dir" 2>/dev/null || true
+        fi
+    done
+
+    # 特别处理logs目录 - 这是最容易出问题的地方
+    local logs_dir="$cursor_support_dir/logs"
+    log_info "🎯 [logs目录] 特别确保logs目录权限..."
+
+    # 删除并重新创建logs目录以确保权限正确
+    sudo rm -rf "$logs_dir" 2>/dev/null || true
+    sudo mkdir -p "$logs_dir" 2>/dev/null || true
+    sudo chown "$current_user:staff" "$logs_dir" 2>/dev/null || true
+    sudo chmod 755 "$logs_dir" 2>/dev/null || true
+
+    # 测试logs目录权限
+    local test_file="$logs_dir/permission_test_$(date +%s).tmp"
+    if touch "$test_file" 2>/dev/null; then
+        log_info "✅ [logs测试] logs目录权限测试成功"
+        rm -f "$test_file" 2>/dev/null || true
+    else
+        log_error "❌ [logs测试] logs目录权限测试失败"
+
+        # 最后的强制修复尝试
+        log_info "🔧 [最后修复] 执行最后的强制修复..."
+        sudo rm -rf "$cursor_support_dir" 2>/dev/null || true
+        sudo mkdir -p "$cursor_support_dir/logs" 2>/dev/null || true
+        sudo mkdir -p "$cursor_support_dir/User/globalStorage" 2>/dev/null || true
+        sudo chown -R "$current_user:staff" "$cursor_support_dir" 2>/dev/null || true
+        sudo chmod -R 755 "$cursor_support_dir" 2>/dev/null || true
+    fi
+
+    log_info "✅ [启动前权限] Cursor启动前权限确保完成"
+}
+
+    log_info "✅ [启动前权限] Cursor启动前权限确保完成"
 }
 
 # �🛠️ 修改机器码配置（增强版）
@@ -700,6 +896,9 @@ except Exception as e:
 
             # 🛡️ 关键修复：确保目录权限正确
             ensure_cursor_directory_permissions
+
+            # 🚀 关键修复：确保Cursor启动前权限正确
+            ensure_cursor_startup_permissions
 
             echo
             log_info "🎉 [成功] 机器码配置修改完成！"
@@ -921,12 +1120,12 @@ _change_mac_for_one_interface() {
         log_error "所有MAC地址修改方法都失败了"
         _show_troubleshooting_info "$interface_name"
 
-        # 🔧 失败时提供JS修改备选方案
+        # 🔧 失败时提供选择：重试、跳过或退出
         echo
-        echo -e "${BLUE}🔧 [备选方案]${NC} MAC地址修改失败，但可以使用更直接的JS内核修改方案"
-        echo -e "${BLUE}💡 [说明]${NC} JS内核修改直接绕过Cursor的设备检测，效果更好"
+        echo -e "${BLUE}� [说明]${NC} MAC地址修改失败，可以重试或跳过此接口"
+        echo -e "${BLUE}� [备注]${NC} 如果所有接口都失败，脚本会自动尝试JS内核修改方案"
 
-        select_menu_option "MAC地址修改失败，您可以：" "重试本接口|跳过本接口|使用JS内核修改|退出脚本" 0
+        select_menu_option "MAC地址修改失败，您可以：" "重试本接口|跳过本接口|退出脚本" 0
         local choice=$?
         if [ "$choice" = "0" ]; then
             log_info "用户选择重试本接口。"
@@ -934,15 +1133,6 @@ _change_mac_for_one_interface() {
         elif [ "$choice" = "1" ]; then
             log_info "用户选择跳过本接口。"
             return 1
-        elif [ "$choice" = "2" ]; then
-            log_info "用户选择使用JS内核修改方案。"
-            if modify_cursor_js_files; then
-                log_info "✅ [成功] JS内核修改完成，已实现设备识别绕过"
-                return 0
-            else
-                log_error "❌ [失败] JS内核修改也失败了"
-                return 1
-            fi
         else
             log_info "用户选择退出脚本。"
             exit 1
@@ -1352,37 +1542,23 @@ change_system_mac_address() {
             # 🔧 Apple Silicon智能替代方案
             if [[ "$HARDWARE_TYPE" == "Apple Silicon" ]]; then
                 echo -e "${BLUE}🔧 [智能方案]${NC} 检测到Apple Silicon环境，MAC地址修改受硬件限制"
-                echo -e "${BLUE}💡 [替代方案]${NC} 将使用Cursor内核JS修改实现更直接的设备识别绕过"
+                echo -e "${BLUE}💡 [自动切换]${NC} 将自动使用JS内核修改实现更直接的设备识别绕过"
                 echo
 
-                log_info "🔄 [切换] 自动切换到JS内核修改方案..."
+                log_info "🔄 [智能切换] 自动切换到JS内核修改方案..."
                 if modify_cursor_js_files; then
                     log_info "✅ [成功] JS内核修改完成，已实现设备识别绕过"
-                    log_info "💡 [说明] 此方案比MAC地址修改更直接有效"
+                    log_info "💡 [说明] 此方案比MAC地址修改更直接有效，完美适配Apple Silicon"
                     return 0
                 else
                     log_warn "⚠️  [警告] JS内核修改失败，将继续尝试MAC地址修改"
                 fi
             fi
 
+            # 非Apple Silicon环境或JS修改失败时，询问是否继续MAC地址修改
             read -p "是否继续尝试MAC地址修改？(y/n): " continue_choice
             if [[ ! "$continue_choice" =~ ^(y|yes)$ ]]; then
                 log_info "用户选择跳过MAC地址修改"
-
-                # 提供JS修改作为备选方案
-                echo
-                echo -e "${BLUE}🔧 [备选方案]${NC} 是否尝试使用JS内核修改实现设备识别绕过？"
-                read -p "这种方法更直接有效 (y/n): " js_choice
-                if [[ "$js_choice" =~ ^(y|yes)$ ]]; then
-                    if modify_cursor_js_files; then
-                        log_info "✅ [成功] JS内核修改完成"
-                        return 0
-                    else
-                        log_error "❌ [失败] JS内核修改失败"
-                        return 1
-                    fi
-                fi
-
                 return 1
             fi
         fi
@@ -1469,27 +1645,20 @@ change_system_mac_address() {
     if $overall_success; then
         return 0 # 所有尝试都成功
     else
-        # 🔧 MAC地址修改失败时提供JS内核修改备选方案
+        # 🔧 MAC地址修改失败时自动切换到JS内核修改
         echo
         log_warn "⚠️  [警告] MAC地址修改失败或部分失败"
-        echo -e "${BLUE}🔧 [备选方案]${NC} 检测到MAC地址修改困难，建议使用JS内核修改方案"
-        echo -e "${BLUE}💡 [优势]${NC} JS内核修改直接修改Cursor设备检测逻辑，绕过效果更好"
-        echo
+        log_info "� [智能切换] 自动切换到JS内核修改方案..."
+        log_info "💡 [说明] JS内核修改直接修改Cursor设备检测逻辑，绕过效果更好"
 
-        read -p "是否尝试使用JS内核修改作为备选方案？(y/n): " js_fallback_choice
-        if [[ "$js_fallback_choice" =~ ^(y|yes)$ ]]; then
-            log_info "🔄 [切换] 尝试使用JS内核修改方案..."
-            if modify_cursor_js_files; then
-                log_info "✅ [成功] JS内核修改完成，已实现设备识别绕过"
-                log_info "💡 [说明] 虽然MAC地址修改失败，但JS内核修改提供了更直接的解决方案"
-                return 0
-            else
-                log_error "❌ [失败] JS内核修改也失败了"
-                return 1
-            fi
+        if modify_cursor_js_files; then
+            log_info "✅ [成功] JS内核修改完成，已实现设备识别绕过"
+            log_info "💡 [结果] 虽然MAC地址修改失败，但JS内核修改提供了更直接的解决方案"
+            return 0
         else
-            log_info "用户选择不使用备选方案"
-            return 1 # 至少有一个尝试失败
+            log_error "❌ [失败] JS内核修改也失败了"
+            log_error "💥 [严重] 所有设备识别绕过方案都失败了"
+            return 1
         fi
     fi
 }
