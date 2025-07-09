@@ -440,7 +440,7 @@ start_cursor_to_generate_config() {
     fi
 }
 
-# �️ 确保Cursor目录权限正确（新增函数）
+# 🛡️ 确保Cursor目录权限正确（新增函数）
 ensure_cursor_directory_permissions() {
     log_info "🛡️ [增强权限修复] 开始深度权限修复和诊断..."
 
@@ -809,7 +809,7 @@ apply_macos_advanced_permissions() {
     return 0
 }
 
-# �️ 增强的Cursor权限完整修复（新增函数）
+# 🛡️ 增强的Cursor权限完整修复（新增函数）
 ensure_cursor_complete_permissions() {
     log_info "🛡️ [完整权限] 开始Cursor权限完整修复..."
 
@@ -931,7 +931,7 @@ ensure_cursor_complete_permissions() {
     return 0
 }
 
-# �🛠️ 修改机器码配置（增强版）
+# 🛠️ 修改机器码配置（增强版）
 modify_machine_code_config() {
     local mode=${1:-"FULL"}
 
@@ -1234,20 +1234,6 @@ generate_local_unicast_mac() {
         $first_byte $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256)))
     echo "$mac"
 }
-
-# 🔍 MAC地址验证函数（基于randommac.sh）
-validate_mac_address() {
-    local mac="$1"
-    local regex="^([0-9A-Fa-f]{2}[:]){5}([0-9A-Fa-f]{2})$"
-
-    if [[ $mac =~ $regex ]]; then
-        return 0
-    else
-        return 1
-    fi
-}
-
-
 
 # 🔍 MAC地址验证函数（基于randommac.sh）
 validate_mac_address() {
@@ -1587,28 +1573,50 @@ _change_mac_for_one_interface() {
         sleep 2
     done
 
-    # 验证修改结果
+    # 🔍 验证修改结果
     if [[ $mac_change_success == true ]]; then
+        log_info "🔍 [验证] 验证MAC地址修改结果..."
+        sleep 3  # 等待系统更新
+
         local final_mac_check=$(ifconfig "$interface_name" | awk '/ether/{print $2}')
-        log_info "最终验证接口 '$interface_name' 新 MAC 地址: $final_mac_check"
+        log_info "📍 [检查] 接口 '$interface_name' 最终MAC地址: $final_mac_check"
+
         if [ "$final_mac_check" == "$random_mac" ]; then
-            echo -e "${GREEN}✅ 成功使用 $method_used 方法修改接口 '$interface_name' 的 MAC 地址${NC}"
+            echo
+            log_info "🎉 [成功] MAC地址修改成功！"
+            echo "     ✅ 使用方法: $method_used"
+            echo "     ✅ 接口: $interface_name"
+            echo "     ✅ 原MAC: $current_mac"
+            echo "     ✅ 新MAC: $final_mac_check"
+
+            # 🔄 WiFi后处理
+            manage_wifi_connection "reconnect" "$interface_name"
+
             return 0
         else
-            log_warn "验证失败，MAC地址可能未生效或已被重置"
+            log_warn "⚠️  [验证失败] MAC地址可能未生效或已被系统重置"
+            log_info "💡 [提示] 期望: $random_mac, 实际: $final_mac_check"
             mac_change_success=false
         fi
     fi
 
-    # 失败处理
+    # ❌ 失败处理和用户选择
     if [[ $mac_change_success == false ]]; then
-        log_error "所有MAC地址修改方法都失败了"
+        echo
+        log_error "❌ [失败] 所有MAC地址修改方法都失败了"
+        log_info "📋 [尝试过的方法]: ${methods_tried[*]}"
+
+        # 🔄 WiFi恢复
+        manage_wifi_connection "reconnect" "$interface_name"
+
+        # 📊 显示故障排除信息
         _show_troubleshooting_info "$interface_name"
 
-        # 🔧 失败时提供选择：重试、跳过或退出
+        # 🎯 提供用户选择
         echo
-        echo -e "${BLUE}� [说明]${NC} MAC地址修改失败，可以重试或跳过此接口"
-        echo -e "${BLUE}� [备注]${NC} 如果所有接口都失败，脚本会自动尝试JS内核修改方案"
+        echo -e "${BLUE}💡 [说明]${NC} MAC地址修改失败，您可以选择："
+        echo -e "${BLUE}💡 [备注]${NC} 如果所有接口都失败，脚本会自动尝试JS内核修改方案"
+        echo
 
         # 简化的用户选择
         echo "请选择操作："
@@ -2313,15 +2321,13 @@ change_system_mac_address() {
 
     log_info "📋 [完成] 所有活动接口的MAC地址修改尝试完成"
 
-    log_info "所有活动接口的 MAC 地址修改尝试完成。"
-
     if $overall_success; then
         return 0 # 所有尝试都成功
     else
         # 🔧 MAC地址修改失败时自动切换到JS内核修改
         echo
         log_warn "⚠️  [警告] MAC地址修改失败或部分失败"
-        log_info "� [智能切换] 自动切换到JS内核修改方案..."
+        log_info "🔧 [智能切换] 自动切换到JS内核修改方案..."
         log_info "💡 [说明] JS内核修改直接修改Cursor设备检测逻辑，绕过效果更好"
 
         if modify_cursor_js_files; then
