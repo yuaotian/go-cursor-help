@@ -167,7 +167,29 @@ force_fix_permissions() {
     sudo chown -R "$CURRENT_USER:staff" "$CURSOR_HOME_DIR" 2>/dev/null || true
     sudo chmod -R 755 "$CURSOR_SUPPORT_DIR" 2>/dev/null || true
     sudo chmod -R 755 "$CURSOR_HOME_DIR" 2>/dev/null || true
-    
+
+    # 🚀 macOS高级权限处理
+    log_info "🚀 [高级权限] 应用macOS特有的高级权限处理..."
+
+    # 清理扩展属性
+    log_info "🧹 [扩展属性] 清理扩展属性..."
+    xattr -cr "$CURSOR_SUPPORT_DIR" 2>/dev/null || true
+    xattr -cr "$CURSOR_HOME_DIR" 2>/dev/null || true
+
+    # 设置ACL权限
+    log_info "🔐 [ACL权限] 设置ACL权限..."
+    chmod +a "user:$CURRENT_USER allow read,write,execute,delete,add_file,add_subdirectory,inherit" "$CURSOR_SUPPORT_DIR" 2>/dev/null || true
+    chmod +a "user:$CURRENT_USER allow read,write,execute,delete,add_file,add_subdirectory,inherit" "$CURSOR_HOME_DIR" 2>/dev/null || true
+    chmod +a "user:$CURRENT_USER allow read,write,execute,delete,add_file,add_subdirectory,inherit" "$CURSOR_SUPPORT_DIR/logs" 2>/dev/null || true
+
+    # 刷新权限缓存
+    log_info "🔄 [权限缓存] 刷新系统权限缓存..."
+    sudo dscacheutil -flushcache 2>/dev/null || true
+    sudo killall -HUP DirectoryService 2>/dev/null || true
+
+    # 等待缓存更新
+    sleep 2
+
     # 特别确保logs目录权限
     log_info "🎯 [logs] 特别确保logs目录权限..."
     sudo chown "$CURRENT_USER:staff" "$CURSOR_SUPPORT_DIR/logs" 2>/dev/null || true

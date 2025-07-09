@@ -610,9 +610,9 @@ ensure_cursor_directory_permissions() {
     log_info "✅ [完成] 增强权限修复完成"
 }
 
-# 🚀 Cursor启动前权限最终确保（新增函数）
+# 🚀 Cursor启动前权限最终确保（增强版）
 ensure_cursor_startup_permissions() {
-    log_info "🚀 [启动前权限] 确保Cursor启动前权限正确..."
+    log_info "🚀 [启动前权限] 确保Cursor启动前权限正确（增强版）..."
 
     local cursor_support_dir="$HOME/Library/Application Support/Cursor"
     local cursor_home_dir="$HOME/.cursor"
@@ -629,7 +629,8 @@ ensure_cursor_startup_permissions() {
         "$cursor_home_dir/extensions"
     )
 
-    # 强制确保启动目录权限
+    # 🔧 第一步：基础权限确保
+    log_info "🔧 [基础权限] 确保基础权限设置..."
     for dir in "${startup_dirs[@]}"; do
         # 确保目录存在
         sudo mkdir -p "$dir" 2>/dev/null || true
@@ -640,17 +641,26 @@ ensure_cursor_startup_permissions() {
 
         # 验证权限
         if [ -w "$dir" ]; then
-            log_info "✅ [启动权限] $dir 权限正确"
+            log_info "✅ [基础权限] ${dir/$HOME/\~} 权限正确"
         else
-            log_warn "⚠️  [启动权限] $dir 权限异常，尝试强制修复..."
+            log_warn "⚠️  [基础权限] ${dir/$HOME/\~} 权限异常，尝试强制修复..."
             sudo chown -R "$current_user:staff" "$dir" 2>/dev/null || true
             sudo chmod -R 755 "$dir" 2>/dev/null || true
         fi
     done
 
-    # 特别处理logs目录 - 这是最容易出问题的地方
+    # 🚀 第二步：应用macOS高级权限处理
+    log_info "🚀 [高级权限] 应用macOS特有的高级权限处理..."
+    for dir in "${startup_dirs[@]}"; do
+        if [ -d "$dir" ]; then
+            log_info "🔧 [高级处理] 处理目录: ${dir/$HOME/\~}"
+            apply_macos_advanced_permissions "$dir" || log_warn "⚠️  [高级处理] 高级权限处理失败: ${dir/$HOME/\~}"
+        fi
+    done
+
+    # 🎯 第三步：特别处理logs目录
     local logs_dir="$cursor_support_dir/logs"
-    log_info "🎯 [logs目录] 特别确保logs目录权限..."
+    log_info "🎯 [logs特殊] 特别确保logs目录权限（增强版）..."
 
     # 删除并重新创建logs目录以确保权限正确
     sudo rm -rf "$logs_dir" 2>/dev/null || true
@@ -658,13 +668,33 @@ ensure_cursor_startup_permissions() {
     sudo chown "$current_user:staff" "$logs_dir" 2>/dev/null || true
     sudo chmod 755 "$logs_dir" 2>/dev/null || true
 
-    # 测试logs目录权限
-    local test_file="$logs_dir/permission_test_$(date +%s).tmp"
-    if touch "$test_file" 2>/dev/null; then
-        log_info "✅ [logs测试] logs目录权限测试成功"
-        rm -f "$test_file" 2>/dev/null || true
+    # 应用高级权限到logs目录
+    if apply_macos_advanced_permissions "$logs_dir"; then
+        log_info "✅ [logs高级] logs目录高级权限处理成功"
     else
-        log_error "❌ [logs测试] logs目录权限测试失败"
+        log_warn "⚠️  [logs高级] logs目录高级权限处理失败"
+    fi
+
+    # 🧪 第四步：模拟Cursor启动行为测试
+    log_info "🧪 [启动模拟] 模拟Cursor启动行为测试..."
+
+    # 模拟Cursor创建时间戳目录的行为
+    local timestamp_dir="$logs_dir/startup_test_$(date +%Y%m%dT%H%M%S)"
+    if mkdir -p "$timestamp_dir" 2>/dev/null; then
+        log_info "✅ [启动模拟] 时间戳目录创建测试成功"
+
+        # 测试在时间戳目录中创建文件
+        local test_log_file="$timestamp_dir/startup.log"
+        if touch "$test_log_file" 2>/dev/null; then
+            log_info "✅ [启动模拟] 启动日志文件创建测试成功"
+            rm -f "$test_log_file" 2>/dev/null || true
+        else
+            log_warn "⚠️  [启动模拟] 启动日志文件创建测试失败"
+        fi
+
+        rmdir "$timestamp_dir" 2>/dev/null || true
+    else
+        log_error "❌ [启动模拟] 时间戳目录创建测试失败"
 
         # 最后的强制修复尝试
         log_info "🔧 [最后修复] 执行最后的强制修复..."
@@ -673,12 +703,232 @@ ensure_cursor_startup_permissions() {
         sudo mkdir -p "$cursor_support_dir/User/globalStorage" 2>/dev/null || true
         sudo chown -R "$current_user:staff" "$cursor_support_dir" 2>/dev/null || true
         sudo chmod -R 755 "$cursor_support_dir" 2>/dev/null || true
+
+        # 再次应用高级权限
+        apply_macos_advanced_permissions "$cursor_support_dir/logs"
+
+        # 再次测试
+        if mkdir -p "$timestamp_dir" 2>/dev/null; then
+            log_info "✅ [最后修复] 强制修复后测试成功"
+            rmdir "$timestamp_dir" 2>/dev/null || true
+        else
+            log_error "❌ [最后修复] 强制修复后测试仍然失败"
+        fi
     fi
 
-    log_info "✅ [启动前权限] Cursor启动前权限确保完成"
+    log_info "✅ [启动前权限] Cursor启动前权限确保完成（增强版）"
 }
 
-    log_info "✅ [启动前权限] Cursor启动前权限确保完成"
+# 🔧 macOS特有的深入权限处理（新增核心函数）
+apply_macos_advanced_permissions() {
+    local target_dir="$1"
+    local current_user=$(whoami)
+
+    log_info "🔧 [高级权限] 开始macOS特有的深入权限处理: ${target_dir/$HOME/\~}"
+
+    # 🧹 第一步：清理扩展属性
+    log_info "🧹 [扩展属性] 清理可能干扰权限的扩展属性..."
+    if xattr -cr "$target_dir" 2>/dev/null; then
+        log_info "✅ [扩展属性] 扩展属性清理成功"
+    else
+        log_warn "⚠️  [扩展属性] 扩展属性清理失败或无需清理"
+    fi
+
+    # 🔐 第二步：设置ACL权限
+    log_info "🔐 [ACL权限] 设置访问控制列表权限..."
+
+    # 为当前用户设置完整的ACL权限，包括继承
+    local acl_rule="user:$current_user allow read,write,execute,delete,add_file,add_subdirectory,inherit"
+    if chmod +a "$acl_rule" "$target_dir" 2>/dev/null; then
+        log_info "✅ [ACL权限] 用户ACL权限设置成功"
+    else
+        log_warn "⚠️  [ACL权限] 用户ACL权限设置失败，可能已存在或不支持"
+    fi
+
+    # 为staff组设置ACL权限
+    local staff_acl_rule="group:staff allow read,write,execute,add_file,add_subdirectory,inherit"
+    if chmod +a "$staff_acl_rule" "$target_dir" 2>/dev/null; then
+        log_info "✅ [ACL权限] staff组ACL权限设置成功"
+    else
+        log_warn "⚠️  [ACL权限] staff组ACL权限设置失败，可能已存在或不支持"
+    fi
+
+    # 🔄 第三步：刷新权限缓存
+    log_info "🔄 [权限缓存] 刷新系统权限缓存..."
+    if sudo dscacheutil -flushcache 2>/dev/null; then
+        log_info "✅ [权限缓存] 系统权限缓存刷新成功"
+    else
+        log_warn "⚠️  [权限缓存] 系统权限缓存刷新失败"
+    fi
+
+    # 刷新目录服务缓存
+    if sudo killall -HUP DirectoryService 2>/dev/null; then
+        log_info "✅ [目录服务] 目录服务缓存刷新成功"
+    else
+        log_warn "⚠️  [目录服务] 目录服务缓存刷新失败或不需要"
+    fi
+
+    # ⏰ 第四步：等待权限缓存更新
+    log_info "⏰ [等待] 等待权限缓存更新生效..."
+    sleep 2
+
+    # 🧪 第五步：权限验证测试
+    log_info "🧪 [验证] 执行权限验证测试..."
+
+    # 测试基础读写权限
+    local test_file="$target_dir/.permission_test_$(date +%s)"
+    if touch "$test_file" 2>/dev/null; then
+        log_info "✅ [验证] 基础文件创建权限正常"
+        rm -f "$test_file" 2>/dev/null || true
+    else
+        log_error "❌ [验证] 基础文件创建权限异常"
+        return 1
+    fi
+
+    # 测试子目录创建权限（模拟Cursor行为）
+    local test_subdir="$target_dir/test_subdir_$(date +%s)"
+    if mkdir -p "$test_subdir" 2>/dev/null; then
+        log_info "✅ [验证] 子目录创建权限正常"
+
+        # 测试子目录中的文件创建
+        local test_subfile="$test_subdir/test_file"
+        if touch "$test_subfile" 2>/dev/null; then
+            log_info "✅ [验证] 子目录文件创建权限正常"
+            rm -f "$test_subfile" 2>/dev/null || true
+        else
+            log_warn "⚠️  [验证] 子目录文件创建权限异常"
+        fi
+
+        rmdir "$test_subdir" 2>/dev/null || true
+    else
+        log_error "❌ [验证] 子目录创建权限异常"
+        return 1
+    fi
+
+    log_info "✅ [高级权限] macOS特有的深入权限处理完成"
+    return 0
+}
+
+# �️ 增强的Cursor权限完整修复（新增函数）
+ensure_cursor_complete_permissions() {
+    log_info "🛡️ [完整权限] 开始Cursor权限完整修复..."
+
+    local cursor_support_dir="$HOME/Library/Application Support/Cursor"
+    local cursor_home_dir="$HOME/.cursor"
+    local current_user=$(whoami)
+
+    # 关键目录列表
+    local critical_dirs=(
+        "$cursor_support_dir"
+        "$cursor_support_dir/logs"
+        "$cursor_support_dir/User"
+        "$cursor_support_dir/User/globalStorage"
+        "$cursor_home_dir"
+        "$cursor_home_dir/extensions"
+    )
+
+    # 🔧 第一步：基础权限修复
+    log_info "🔧 [基础权限] 执行基础权限修复..."
+    ensure_cursor_directory_permissions
+
+    # 🚀 第二步：高级权限处理
+    log_info "🚀 [高级权限] 执行macOS特有的高级权限处理..."
+
+    for dir in "${critical_dirs[@]}"; do
+        if [ -d "$dir" ]; then
+            log_info "🔧 [处理] 处理目录: ${dir/$HOME/\~}"
+            if ! apply_macos_advanced_permissions "$dir"; then
+                log_warn "⚠️  [警告] 目录高级权限处理失败: ${dir/$HOME/\~}"
+            fi
+        else
+            log_warn "⚠️  [跳过] 目录不存在: ${dir/$HOME/\~}"
+        fi
+    done
+
+    # 🎯 第三步：特别处理logs目录
+    log_info "🎯 [logs特殊] 特别处理logs目录权限..."
+    local logs_dir="$cursor_support_dir/logs"
+
+    # 确保logs目录存在
+    sudo mkdir -p "$logs_dir" 2>/dev/null || true
+    sudo chown "$current_user:staff" "$logs_dir" 2>/dev/null || true
+    sudo chmod 755 "$logs_dir" 2>/dev/null || true
+
+    # 应用高级权限
+    if apply_macos_advanced_permissions "$logs_dir"; then
+        log_info "✅ [logs特殊] logs目录高级权限处理成功"
+    else
+        log_warn "⚠️  [logs特殊] logs目录高级权限处理失败"
+    fi
+
+    # 🧪 第四步：模拟Cursor行为测试
+    log_info "🧪 [Cursor模拟] 模拟Cursor应用行为测试..."
+
+    # 模拟Cursor创建时间戳目录的行为
+    local timestamp_dir="$logs_dir/test_$(date +%Y%m%dT%H%M%S)"
+    if mkdir -p "$timestamp_dir" 2>/dev/null; then
+        log_info "✅ [Cursor模拟] 时间戳目录创建测试成功"
+
+        # 测试在时间戳目录中创建文件
+        local test_log_file="$timestamp_dir/test.log"
+        if touch "$test_log_file" 2>/dev/null; then
+            log_info "✅ [Cursor模拟] 日志文件创建测试成功"
+            rm -f "$test_log_file" 2>/dev/null || true
+        else
+            log_warn "⚠️  [Cursor模拟] 日志文件创建测试失败"
+        fi
+
+        rmdir "$timestamp_dir" 2>/dev/null || true
+    else
+        log_error "❌ [Cursor模拟] 时间戳目录创建测试失败"
+
+        # 如果模拟失败，尝试最后的强制修复
+        log_info "🔧 [最后修复] 执行最后的强制权限修复..."
+        sudo rm -rf "$logs_dir" 2>/dev/null || true
+        sudo mkdir -p "$logs_dir" 2>/dev/null || true
+        sudo chown "$current_user:staff" "$logs_dir" 2>/dev/null || true
+        sudo chmod 755 "$logs_dir" 2>/dev/null || true
+
+        # 再次应用高级权限
+        apply_macos_advanced_permissions "$logs_dir"
+
+        # 再次测试
+        if mkdir -p "$timestamp_dir" 2>/dev/null; then
+            log_info "✅ [最后修复] 强制修复后测试成功"
+            rmdir "$timestamp_dir" 2>/dev/null || true
+        else
+            log_error "❌ [最后修复] 强制修复后测试仍然失败"
+            return 1
+        fi
+    fi
+
+    # 🔍 第五步：最终权限诊断
+    log_info "🔍 [最终诊断] 执行最终权限诊断..."
+
+    echo "📋 [权限报告] 最终权限状态："
+    echo "----------------------------------------"
+
+    for dir in "${critical_dirs[@]}"; do
+        if [ -d "$dir" ]; then
+            local perms=$(ls -ld "$dir" | awk '{print $1}')
+            local owner=$(ls -ld "$dir" | awk '{print $3":"$4}')
+
+            # 检查ACL权限
+            local acl_info=""
+            if ls -le "$dir" 2>/dev/null | grep -q "user:$current_user"; then
+                acl_info=" [ACL:✅]"
+            else
+                acl_info=" [ACL:❌]"
+            fi
+
+            echo "✅ ${dir/$HOME/\~}: $perms $owner$acl_info"
+        else
+            echo "❌ ${dir/$HOME/\~}: 不存在"
+        fi
+    done
+
+    log_info "✅ [完整权限] Cursor权限完整修复完成"
+    return 0
 }
 
 # �🛠️ 修改机器码配置（增强版）
@@ -894,11 +1144,8 @@ except Exception as e:
                 log_warn "⚠️  [警告] 无法设置配置文件只读保护"
             fi
 
-            # 🛡️ 关键修复：确保目录权限正确
-            ensure_cursor_directory_permissions
-
-            # 🚀 关键修复：确保Cursor启动前权限正确
-            ensure_cursor_startup_permissions
+            # 🛡️ 关键修复：执行完整的权限修复（包含macOS高级权限处理）
+            ensure_cursor_complete_permissions
 
             echo
             log_info "🎉 [成功] 机器码配置修改完成！"
@@ -919,7 +1166,7 @@ except Exception as e:
             # 恢复备份并确保权限正确
             if cp "$backup_path" "$config_path"; then
                 chmod 644 "$config_path" 2>/dev/null || true
-                ensure_cursor_directory_permissions
+                ensure_cursor_complete_permissions
                 log_info "✅ [恢复] 已恢复原始配置并修复权限"
             else
                 log_error "❌ [错误] 恢复备份失败"
@@ -936,7 +1183,7 @@ except Exception as e:
             log_info "🔄 [恢复] 正在恢复备份配置并修复权限..."
             if cp "$backup_path" "$config_path"; then
                 chmod 644 "$config_path" 2>/dev/null || true
-                ensure_cursor_directory_permissions
+                ensure_cursor_complete_permissions
                 log_info "✅ [恢复] 已恢复原始配置并修复权限"
             else
                 log_error "❌ [错误] 恢复备份失败"
