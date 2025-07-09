@@ -921,8 +921,12 @@ _change_mac_for_one_interface() {
         log_error "所有MAC地址修改方法都失败了"
         _show_troubleshooting_info "$interface_name"
 
-        # 失败时提供恢复/重试选项
-        select_menu_option "MAC地址修改失败，您可以：" "重试本接口|跳过本接口|退出脚本" 0
+        # 🔧 失败时提供JS修改备选方案
+        echo
+        echo -e "${BLUE}🔧 [备选方案]${NC} MAC地址修改失败，但可以使用更直接的JS内核修改方案"
+        echo -e "${BLUE}💡 [说明]${NC} JS内核修改直接绕过Cursor的设备检测，效果更好"
+
+        select_menu_option "MAC地址修改失败，您可以：" "重试本接口|跳过本接口|使用JS内核修改|退出脚本" 0
         local choice=$?
         if [ "$choice" = "0" ]; then
             log_info "用户选择重试本接口。"
@@ -930,6 +934,15 @@ _change_mac_for_one_interface() {
         elif [ "$choice" = "1" ]; then
             log_info "用户选择跳过本接口。"
             return 1
+        elif [ "$choice" = "2" ]; then
+            log_info "用户选择使用JS内核修改方案。"
+            if modify_cursor_js_files; then
+                log_info "✅ [成功] JS内核修改完成，已实现设备识别绕过"
+                return 0
+            else
+                log_error "❌ [失败] JS内核修改也失败了"
+                return 1
+            fi
         else
             log_info "用户选择退出脚本。"
             exit 1
@@ -1136,6 +1149,171 @@ backup_config() {
     fi
 }
 
+# 🔧 修改Cursor内核JS文件实现设备识别绕过（新增核心功能）
+modify_cursor_js_files() {
+    log_info "🔧 [内核修改] 开始修改Cursor内核JS文件实现设备识别绕过..."
+    echo
+
+    # 检查Cursor应用是否存在
+    if [ ! -d "$CURSOR_APP_PATH" ]; then
+        log_error "❌ [错误] 未找到Cursor应用: $CURSOR_APP_PATH"
+        return 1
+    fi
+
+    # 生成新的设备标识符
+    local new_uuid=$(uuidgen | tr '[:upper:]' '[:lower:]')
+    local machine_id="auth0|user_$(openssl rand -hex 16)"
+    local device_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
+    local mac_machine_id=$(openssl rand -hex 32)
+
+    log_info "🔑 [生成] 已生成新的设备标识符"
+
+    # 目标JS文件列表
+    local js_files=(
+        "$CURSOR_APP_PATH/Contents/Resources/app/out/vs/workbench/api/node/extensionHostProcess.js"
+        "$CURSOR_APP_PATH/Contents/Resources/app/out/main.js"
+        "$CURSOR_APP_PATH/Contents/Resources/app/out/vs/code/node/cliProcessMain.js"
+    )
+
+    local modified_count=0
+    local need_modification=false
+
+    # 检查是否需要修改
+    log_info "🔍 [检查] 检查JS文件修改状态..."
+    for file in "${js_files[@]}"; do
+        if [ ! -f "$file" ]; then
+            log_warn "⚠️  [警告] 文件不存在: ${file/$CURSOR_APP_PATH\//}"
+            continue
+        fi
+
+        if ! grep -q "return crypto.randomUUID()" "$file" 2>/dev/null; then
+            log_info "📝 [需要] 文件需要修改: ${file/$CURSOR_APP_PATH\//}"
+            need_modification=true
+            break
+        else
+            log_info "✅ [已修改] 文件已修改: ${file/$CURSOR_APP_PATH\//}"
+        fi
+    done
+
+    if [ "$need_modification" = false ]; then
+        log_info "✅ [跳过] 所有JS文件已经被修改过，无需重复操作"
+        return 0
+    fi
+
+    # 关闭Cursor进程
+    log_info "🔄 [关闭] 关闭Cursor进程以进行文件修改..."
+    check_and_kill_cursor
+
+    # 创建备份
+    local timestamp=$(date +%Y%m%d_%H%M%S)
+    local backup_app="/tmp/Cursor.app.backup_js_${timestamp}"
+
+    log_info "💾 [备份] 创建Cursor应用备份..."
+    if ! cp -R "$CURSOR_APP_PATH" "$backup_app"; then
+        log_error "❌ [错误] 创建备份失败"
+        return 1
+    fi
+
+    log_info "✅ [备份] 备份创建成功: $backup_app"
+
+    # 修改JS文件
+    log_info "🔧 [修改] 开始修改JS文件..."
+
+    for file in "${js_files[@]}"; do
+        if [ ! -f "$file" ]; then
+            log_warn "⚠️  [跳过] 文件不存在: ${file/$CURSOR_APP_PATH\//}"
+            continue
+        fi
+
+        log_info "📝 [处理] 正在处理: ${file/$CURSOR_APP_PATH\//}"
+
+        # 检查是否已经修改过
+        if grep -q "return crypto.randomUUID()" "$file" || grep -q "// Cursor ID 修改工具注入" "$file"; then
+            log_info "✅ [跳过] 文件已经被修改过"
+            ((modified_count++))
+            continue
+        fi
+
+        # 方法1: 查找IOPlatformUUID相关函数
+        if grep -q "IOPlatformUUID" "$file"; then
+            log_info "🔍 [发现] 找到IOPlatformUUID关键字"
+
+            # 针对不同的函数模式进行修改
+            if grep -q "function a\$" "$file"; then
+                if sed -i.tmp 's/function a\$(t){switch/function a\$(t){return crypto.randomUUID(); switch/' "$file"; then
+                    log_info "✅ [成功] 修改a$函数成功"
+                    ((modified_count++))
+                    continue
+                fi
+            fi
+
+            # 通用注入方法
+            local inject_code="
+// Cursor ID 修改工具注入 - $(date)
+const originalRequire_$(date +%s) = require;
+require = function(module) {
+    const result = originalRequire_$(date +%s).apply(this, arguments);
+    if (module === 'crypto' && result.randomUUID) {
+        const originalRandomUUID_$(date +%s) = result.randomUUID;
+        result.randomUUID = function() {
+            return '${new_uuid}';
+        };
+    }
+    return result;
+};
+
+// 覆盖所有可能的系统ID获取函数
+global.getMachineId = function() { return '${machine_id}'; };
+global.getDeviceId = function() { return '${device_id}'; };
+global.macMachineId = '${mac_machine_id}';
+"
+
+            # 替换变量
+            inject_code=${inject_code//\$\{new_uuid\}/$new_uuid}
+            inject_code=${inject_code//\$\{machine_id\}/$machine_id}
+            inject_code=${inject_code//\$\{device_id\}/$device_id}
+            inject_code=${inject_code//\$\{mac_machine_id\}/$mac_machine_id}
+
+            # 注入代码到文件开头
+            echo "$inject_code" > "${file}.new"
+            cat "$file" >> "${file}.new"
+            mv "${file}.new" "$file"
+
+            log_info "✅ [成功] 通用注入方法修改成功"
+            ((modified_count++))
+
+        # 方法2: 查找其他设备ID相关函数
+        elif grep -q "function t\$()" "$file" || grep -q "async function y5" "$file"; then
+            log_info "🔍 [发现] 找到设备ID相关函数"
+
+            # 修改MAC地址获取函数
+            if grep -q "function t\$()" "$file"; then
+                sed -i.tmp 's/function t\$(){/function t\$(){return "00:00:00:00:00:00";/' "$file"
+                log_info "✅ [成功] 修改MAC地址获取函数"
+            fi
+
+            # 修改设备ID获取函数
+            if grep -q "async function y5" "$file"; then
+                sed -i.tmp 's/async function y5(t){/async function y5(t){return crypto.randomUUID();/' "$file"
+                log_info "✅ [成功] 修改设备ID获取函数"
+            fi
+
+            ((modified_count++))
+        else
+            log_warn "⚠️  [警告] 未找到已知的设备ID函数模式，跳过此文件"
+        fi
+    done
+
+    if [ $modified_count -gt 0 ]; then
+        log_info "🎉 [完成] 成功修改 $modified_count 个JS文件"
+        log_info "💾 [备份] 原始文件备份位置: $backup_app"
+        return 0
+    else
+        log_error "❌ [失败] 没有成功修改任何文件"
+        return 1
+    fi
+}
+
 # 增强的系统MAC地址修改函数，支持多种兼容性检测和修改方法
 change_system_mac_address() {
     log_info "开始尝试修改所有活动的 Wi-Fi/Ethernet 接口的系统 MAC 地址..."
@@ -1170,9 +1348,41 @@ change_system_mac_address() {
             echo -e "${YELLOW}⚠️  未检测到第三方MAC修改工具${NC}"
             echo -e "${BLUE}💡 建议安装: brew install spoof-mac 或 brew install macchanger${NC}"
             echo
-            read -p "是否继续尝试修改？(y/n): " continue_choice
+
+            # 🔧 Apple Silicon智能替代方案
+            if [[ "$HARDWARE_TYPE" == "Apple Silicon" ]]; then
+                echo -e "${BLUE}🔧 [智能方案]${NC} 检测到Apple Silicon环境，MAC地址修改受硬件限制"
+                echo -e "${BLUE}💡 [替代方案]${NC} 将使用Cursor内核JS修改实现更直接的设备识别绕过"
+                echo
+
+                log_info "🔄 [切换] 自动切换到JS内核修改方案..."
+                if modify_cursor_js_files; then
+                    log_info "✅ [成功] JS内核修改完成，已实现设备识别绕过"
+                    log_info "💡 [说明] 此方案比MAC地址修改更直接有效"
+                    return 0
+                else
+                    log_warn "⚠️  [警告] JS内核修改失败，将继续尝试MAC地址修改"
+                fi
+            fi
+
+            read -p "是否继续尝试MAC地址修改？(y/n): " continue_choice
             if [[ ! "$continue_choice" =~ ^(y|yes)$ ]]; then
                 log_info "用户选择跳过MAC地址修改"
+
+                # 提供JS修改作为备选方案
+                echo
+                echo -e "${BLUE}🔧 [备选方案]${NC} 是否尝试使用JS内核修改实现设备识别绕过？"
+                read -p "这种方法更直接有效 (y/n): " js_choice
+                if [[ "$js_choice" =~ ^(y|yes)$ ]]; then
+                    if modify_cursor_js_files; then
+                        log_info "✅ [成功] JS内核修改完成"
+                        return 0
+                    else
+                        log_error "❌ [失败] JS内核修改失败"
+                        return 1
+                    fi
+                fi
+
                 return 1
             fi
         fi
@@ -1259,7 +1469,28 @@ change_system_mac_address() {
     if $overall_success; then
         return 0 # 所有尝试都成功
     else
-        return 1 # 至少有一个尝试失败
+        # 🔧 MAC地址修改失败时提供JS内核修改备选方案
+        echo
+        log_warn "⚠️  [警告] MAC地址修改失败或部分失败"
+        echo -e "${BLUE}🔧 [备选方案]${NC} 检测到MAC地址修改困难，建议使用JS内核修改方案"
+        echo -e "${BLUE}💡 [优势]${NC} JS内核修改直接修改Cursor设备检测逻辑，绕过效果更好"
+        echo
+
+        read -p "是否尝试使用JS内核修改作为备选方案？(y/n): " js_fallback_choice
+        if [[ "$js_fallback_choice" =~ ^(y|yes)$ ]]; then
+            log_info "🔄 [切换] 尝试使用JS内核修改方案..."
+            if modify_cursor_js_files; then
+                log_info "✅ [成功] JS内核修改完成，已实现设备识别绕过"
+                log_info "💡 [说明] 虽然MAC地址修改失败，但JS内核修改提供了更直接的解决方案"
+                return 0
+            else
+                log_error "❌ [失败] JS内核修改也失败了"
+                return 1
+            fi
+        else
+            log_info "用户选择不使用备选方案"
+            return 1 # 至少有一个尝试失败
+        fi
     fi
 }
 
@@ -2165,7 +2396,7 @@ main() {
         echo -e "${BLUE}  5️⃣  等待配置文件生成完成（最多45秒）${NC}"
         echo -e "${BLUE}  6️⃣  关闭Cursor进程${NC}"
         echo -e "${BLUE}  7️⃣  修改新生成的机器码配置文件${NC}"
-        echo -e "${BLUE}  8️⃣  修改系统MAC地址${NC}"
+        echo -e "${BLUE}  8️⃣  智能设备识别绕过（MAC地址修改或JS内核修改）${NC}"
         echo -e "${BLUE}  9️⃣  禁用自动更新${NC}"
         echo -e "${BLUE}  🔟  显示操作完成统计信息${NC}"
         echo
@@ -2219,14 +2450,16 @@ main() {
             log_info "💡 [建议] 请尝试'重置环境+修改机器码'选项"
         fi
 
-        # 🔧 修改系统MAC地址（仅修改模式也需要）
+        # 🔧 智能设备识别绕过（MAC地址修改或JS内核修改）
         echo
-        log_info "🔧 [MAC地址] 开始修改系统MAC地址..."
+        log_info "🔧 [设备识别] 开始智能设备识别绕过..."
+        log_info "💡 [说明] 将根据系统环境自动选择最佳方案（MAC地址修改或JS内核修改）"
+
         if change_system_mac_address; then
-            log_info "✅ [成功] MAC地址修改完成！"
+            log_info "✅ [成功] 设备识别绕过完成（使用MAC地址修改）"
         else
-            log_warn "⚠️  [警告] MAC地址修改失败或部分失败"
-            log_info "💡 [提示] 这可能影响设备识别绕过的效果"
+            log_warn "⚠️  [警告] 设备识别绕过失败或部分失败"
+            log_info "💡 [提示] 但可能已通过JS内核修改实现了绕过效果"
         fi
 
         # 🚫 禁用自动更新（仅修改模式也需要）
@@ -2260,14 +2493,16 @@ main() {
         # 🛠️ 修改机器码配置
         modify_machine_code_config
 
-        # 🔧 修改系统MAC地址
+        # 🔧 智能设备识别绕过（MAC地址修改或JS内核修改）
         echo
-        log_info "🔧 [MAC地址] 开始修改系统MAC地址..."
+        log_info "🔧 [设备识别] 开始智能设备识别绕过..."
+        log_info "💡 [说明] 将根据系统环境自动选择最佳方案（MAC地址修改或JS内核修改）"
+
         if change_system_mac_address; then
-            log_info "✅ [成功] MAC地址修改完成！"
+            log_info "✅ [成功] 设备识别绕过完成（使用MAC地址修改）"
         else
-            log_warn "⚠️  [警告] MAC地址修改失败或部分失败"
-            log_info "💡 [提示] 这可能影响设备识别绕过的效果"
+            log_warn "⚠️  [警告] 设备识别绕过失败或部分失败"
+            log_info "💡 [提示] 但可能已通过JS内核修改实现了绕过效果"
         fi
     fi
 
