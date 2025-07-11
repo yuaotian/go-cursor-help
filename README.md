@@ -267,6 +267,13 @@ curl -fsSL https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/
 irm https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
 ```
 
+**Windows (Enhanced Version)**
+
+```powershell
+irm https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier_new.ps1 | iex
+```
+> Enhanced Cursor machine code modifier with dual-mode operation and trial reset functionality
+
 <div align="center">
 <img src="img/run_success.png" alt="Run Success" width="600"/>
 </div>
@@ -293,6 +300,13 @@ curl -fsSL https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com
 ```powershell
 irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
 ```
+
+**Windows (Enhanced Version)**
+
+```powershell
+irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier_new.ps1 | iex
+```
+> Enhanced Cursor machine code modifier with dual-mode operation and trial reset functionality
 
 </details>
 
@@ -322,6 +336,11 @@ irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaoti
 irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
 ```
 
+For the enhanced version:
+```powershell
+irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier_new.ps1 | iex
+```
+
 ##### Method 3: Using Search
 >![Search PowerShell](img/pwsh_1.png)
 >
@@ -331,6 +350,11 @@ irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaoti
 Enter the reset script in the administrator terminal:
 ```powershell
 irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
+```
+
+For the enhanced version:
+```powershell
+irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier_new.ps1 | iex
 ```
 
 ### 🔧 PowerShell Installation Guide 
@@ -480,6 +504,19 @@ Modifying this registry key may affect:
 
 - [Cursor Issues Collection and Solutions](https://mp.weixin.qq.com/s/pnJrH7Ifx4WZvseeP1fcEA)
 - [AI Universal Development Assistant Prompt Guide](https://mp.weixin.qq.com/s/PRPz-qVkFJSgkuEKkTdzwg)
+
+---
+
+## 💬 Feedback & Suggestions
+
+We value your feedback on the new enhanced script! If you've tried the `cursor_win_id_modifier_new.ps1` script, please share your experience:
+
+- 🐛 **Bug Reports**: Found any issues? Let us know!
+- 💡 **Feature Suggestions**: Have ideas for improvements?
+- ⭐ **Success Stories**: Share how the tool helped you!
+- 🔧 **Technical Feedback**: Performance, compatibility, or usability insights
+
+Your feedback helps us improve the tool for everyone. Feel free to open an issue or contribute to the project!
 
 ---
 

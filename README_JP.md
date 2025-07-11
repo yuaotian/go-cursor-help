@@ -247,7 +247,7 @@ Claude 3.7 Sonnetの"High Load"メッセージが表示された場合、これ�
 
 ```bash
 # 方法2
-curl -fsSL https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_mac_id_modifier.sh -o ./cursor_mac_id_modifier.sh && sudo bash ./cursor_mac_id_modifier.sh && rm ./cursor_mac_id_modifier.sh
+curl -fsSL https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_mac_id_modifier.sh -o ./cursor_mac_id_modifier.sh && sudo bash ./cursor_mac_id_modifier.sh && rm ./cursor_mac_id_modifier.sh
 ```
 
 **Linux**
@@ -261,6 +261,13 @@ curl -fsSL https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/
 ```powershell
 irm https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
 ```
+
+**Windows (強化版)**
+
+```powershell
+irm https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier_new.ps1 | iex
+```
+> デュアルモード操作とトライアルリセット機能を備えた強化版Cursorマシンコード修正ツール
 
 <div align="center">
 <img src="img/run_success.png" alt="Run Success" width="600"/>
@@ -291,6 +298,13 @@ curl -fsSL https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com
 irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
 ```
 
+**Windows (強化版)**
+
+```powershell
+irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier_new.ps1 | iex
+```
+> デュアルモード操作とトライアルリセット機能を備えた強化版Cursorマシンコード修正ツール
+
 </details>
 
 <details open>
@@ -319,6 +333,11 @@ irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaoti
 irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
 ```
 
+強化版スクリプト：
+```powershell
+irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier_new.ps1 | iex
+```
+
 ##### 方法3: 検索を使用する
 >![PowerShellを検索](img/pwsh_1.png)
 >
@@ -328,6 +347,11 @@ irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaoti
 管理者ターミナルにリセットスクリプトを入力します：
 ```powershell
 irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
+```
+
+強化版スクリプト：
+```powershell
+irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier_new.ps1 | iex
 ```
 
 ### 🔧 PowerShellインストールガイド
@@ -517,6 +541,19 @@ ETC: 0xa2745f4CD5d32310AC01694ABDB28bA32D125a6b
 </tr>
 </table>
 </div>
+
+---
+
+## 💬 フィードバック＆提案
+
+新しい強化スクリプトに関するフィードバックをお待ちしています！`cursor_win_id_modifier_new.ps1` スクリプトをお試しいただいた方は、ぜひご体験をお聞かせください：
+
+- 🐛 **バグレポート**：問題を発見されましたか？お知らせください！
+- 💡 **機能提案**：改善のアイデアはありますか？
+- ⭐ **成功事例**：ツールがどのようにお役に立ったかお聞かせください！
+- 🔧 **技術的フィードバック**：パフォーマンス、互換性、使いやすさに関するご意見
+
+皆様のフィードバックは、すべてのユーザーのためにツールを改善するのに役立ちます。お気軽にissueを開いたり、プロジェクトに貢献してください！
 
 ---
 

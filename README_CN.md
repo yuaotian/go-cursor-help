@@ -204,6 +204,13 @@ curl -fsSL https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com
 ```powershell
 irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
 ```
+
+**Windows (增强版)**
+
+```powershell
+irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier_new.ps1 | iex
+```
+> 增强版Cursor机器码修改工具，支持双模式操作和试用重置功能
 <div align="center">
 <img src="img/run_success.png" alt="运行成功" width="600"/>
 </div>
@@ -235,6 +242,11 @@ irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaoti
 irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
 ```
 
+增强版脚本：
+```powershell
+irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier_new.ps1 | iex
+```
+
 ##### 方法三：通过搜索启动
 >![搜索 PowerShell](img/pwsh_1.png)
 >
@@ -244,6 +256,11 @@ irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaoti
 在管理员终端中输入重置脚本:
 ```powershell
 irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
+```
+
+增强版脚本：
+```powershell
+irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier_new.ps1 | iex
 ```
 
 ### 🔧 PowerShell 安装指南
@@ -472,6 +489,19 @@ irm https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/
 
 - [Cursor 异常问题收集和解决方案](https://mp.weixin.qq.com/s/pnJrH7Ifx4WZvseeP1fcEA)
 - [AI 通用开发助手提示词指南](https://mp.weixin.qq.com/s/PRPz-qVkFJSgkuEKkTdzwg)
+
+---
+
+## 💬 反馈与建议
+
+我们非常重视您对新增强脚本的反馈！如果您已经尝试了 `cursor_win_id_modifier_new.ps1` 脚本，请分享您的使用体验：
+
+- 🐛 **错误报告**：发现任何问题？请告诉我们！
+- 💡 **功能建议**：有改进想法？
+- ⭐ **成功案例**：分享工具如何帮助到您！
+- 🔧 **技术反馈**：性能、兼容性或易用性方面的见解
+
+您的反馈帮助我们为所有人改进工具。欢迎提交issue或为项目做出贡献！
 
 ---
 
