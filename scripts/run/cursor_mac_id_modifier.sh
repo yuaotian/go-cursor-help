@@ -2078,25 +2078,33 @@ modify_cursor_js_files() {
                 fi
             fi
 
-            # 通用注入方法
+            # 通用注入方法 - ES模块兼容版本
             local inject_code="
-// Cursor ID 修改工具注入 - $(date)
-const originalRequire_$(date +%s) = require;
-require = function(module) {
-    const result = originalRequire_$(date +%s).apply(this, arguments);
-    if (module === 'crypto' && result.randomUUID) {
-        const originalRandomUUID_$(date +%s) = result.randomUUID;
-        result.randomUUID = function() {
-            return '${new_uuid}';
-        };
-    }
-    return result;
+// Cursor ID 修改工具注入 - $(date) - ES模块兼容版本
+import crypto from 'crypto';
+
+// 保存原始函数引用
+const originalRandomUUID_$(date +%s) = crypto.randomUUID;
+
+// 重写crypto.randomUUID方法
+crypto.randomUUID = function() {
+    return '${new_uuid}';
 };
 
-// 覆盖所有可能的系统ID获取函数
-global.getMachineId = function() { return '${machine_id}'; };
-global.getDeviceId = function() { return '${device_id}'; };
-global.macMachineId = '${mac_machine_id}';
+// 覆盖所有可能的系统ID获取函数 - ES模块兼容版本
+globalThis.getMachineId = function() { return '${machine_id}'; };
+globalThis.getDeviceId = function() { return '${device_id}'; };
+globalThis.macMachineId = '${mac_machine_id}';
+
+// 确保在不同环境下都能访问
+if (typeof window !== 'undefined') {
+    window.getMachineId = globalThis.getMachineId;
+    window.getDeviceId = globalThis.getDeviceId;
+    window.macMachineId = globalThis.macMachineId;
+}
+
+// 确保模块顶层执行
+console.log('Cursor设备标识符已成功劫持 - ES模块版本');
 "
 
             # 替换变量
@@ -2709,11 +2717,13 @@ modify_cursor_app_files() {
                 # 使用更通用的注入方法
                 log_warn "未找到具体函数，尝试使用通用修改方法"
                 inject_code="
-// Cursor ID 修改工具注入 - $(date +%Y%m%d%H%M%S)
+// Cursor ID 修改工具注入 - $(date +%Y%m%d%H%M%S) - ES模块兼容版本
 // 随机设备ID生成器注入 - $(date +%s)
+import crypto from 'crypto';
+
 const randomDeviceId_$(date +%s) = () => {
     try {
-        return require('crypto').randomUUID();
+        return crypto.randomUUID();
     } catch (e) {
         return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
             const r = Math.random() * 16 | 0;
@@ -2769,24 +2779,32 @@ const randomDeviceId_$(date +%s) = () => {
                 log_warn "未找到任何已知函数，使用最通用的方法"
 
                 inject_universal_code="
-// Cursor ID 修改工具注入 - $(date +%Y%m%d%H%M%S)
+// Cursor ID 修改工具注入 - $(date +%Y%m%d%H%M%S) - ES模块兼容版本
 // 全局拦截设备标识符 - $(date +%s)
-const originalRequire_$(date +%s) = require;
-require = function(module) {
-    const result = originalRequire_$(date +%s)(module);
-    if (module === 'crypto' && result.randomUUID) {
-        const originalRandomUUID_$(date +%s) = result.randomUUID;
-        result.randomUUID = function() {
-            return '${new_uuid}';
-        };
-    }
-    return result;
+import crypto from 'crypto';
+
+// 保存原始函数引用
+const originalRandomUUID_$(date +%s) = crypto.randomUUID;
+
+// 重写crypto.randomUUID方法
+crypto.randomUUID = function() {
+    return '${new_uuid}';
 };
 
-// 覆盖所有可能的系统ID获取函数
-global.getMachineId = function() { return '${machine_id}'; };
-global.getDeviceId = function() { return '${device_id}'; };
-global.macMachineId = '${mac_machine_id}';
+// 覆盖所有可能的系统ID获取函数 - 使用globalThis
+globalThis.getMachineId = function() { return '${machine_id}'; };
+globalThis.getDeviceId = function() { return '${device_id}'; };
+globalThis.macMachineId = '${mac_machine_id}';
+
+// 确保在不同环境下都能访问
+if (typeof window !== 'undefined') {
+    window.getMachineId = globalThis.getMachineId;
+    window.getDeviceId = globalThis.getDeviceId;
+    window.macMachineId = globalThis.macMachineId;
+}
+
+// 确保模块顶层执行
+console.log('Cursor全局设备标识符拦截已激活 - ES模块版本');
 "
                 # 将代码注入到文件开头
                 local new_uuid=$(uuidgen | tr '[:upper:]' '[:lower:]')
