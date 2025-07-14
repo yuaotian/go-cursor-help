@@ -2430,16 +2430,8 @@ change_system_mac_address() {
     fi
 }
 
-# 生成随机 ID
-generate_random_id() {
-    # 生成32字节(64个十六进制字符)的随机数
-    openssl rand -hex 32
-}
 
-# 生成随机 UUID
-generate_uuid() {
-    uuidgen | tr '[:upper:]' '[:lower:]'
-}
+
 
 # 修改现有文件
 modify_or_add_config() {
