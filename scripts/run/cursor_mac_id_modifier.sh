@@ -1,5 +1,23 @@
 #!/bin/bash
 
+# ========================================
+# Cursor macOS 机器码修改脚本 (增强权限修复版)
+# ========================================
+#
+# 🔧 权限修复增强：
+# - 集成用户提供的核心权限修复命令
+# - 特别处理logs目录权限问题
+# - 解决EACCES: permission denied错误
+# - 确保Cursor能正常启动
+#
+# 🚨 如果遇到权限错误，脚本会自动执行：
+# - sudo chown -R $(whoami) ~/Library/"Application Support"/Cursor
+# - sudo chown -R $(whoami) ~/.cursor
+# - chmod -R u+w ~/Library/"Application Support"/Cursor
+# - chmod -R u+w ~/.cursor/extensions
+#
+# ========================================
+
 # 设置错误处理
 set -e
 
@@ -132,32 +150,36 @@ remove_cursor_trial_folders() {
     chown -R "$(whoami)" "$cursor_support_dir" 2>/dev/null || true
     chown -R "$(whoami)" "$cursor_home_dir" 2>/dev/null || true
 
-    # 🔑 关键修复：使用sudo确保目录所有权（解决EACCES错误）
-    log_info "🔑 [关键修复] 使用sudo确保目录所有权正确..."
+    # 🔑 关键修复：执行用户提供的核心权限修复命令（解决EACCES错误）
+    log_info "🔑 [关键修复] 执行用户提供的核心权限修复命令..."
+
+    # 执行用户明确要求的权限修复命令
     if sudo chown -R "$(whoami)" "$HOME/Library/Application Support/Cursor" 2>/dev/null; then
-        log_info "✅ [成功] sudo设置Application Support/Cursor目录所有权成功"
+        log_info "✅ [成功] sudo chown -R \$(whoami) ~/Library/\"Application Support\"/Cursor"
     else
-        log_warn "⚠️  [警告] sudo设置Application Support/Cursor目录所有权失败"
+        log_warn "⚠️  [警告] sudo chown Application Support/Cursor 失败"
     fi
 
     if sudo chown -R "$(whoami)" "$HOME/.cursor" 2>/dev/null; then
-        log_info "✅ [成功] sudo设置.cursor目录所有权成功"
+        log_info "✅ [成功] sudo chown -R \$(whoami) ~/.cursor"
     else
-        log_warn "⚠️  [警告] sudo设置.cursor目录所有权失败"
+        log_warn "⚠️  [警告] sudo chown .cursor 失败"
     fi
 
-    # 🔓 关键修复：设置用户写入权限
-    log_info "🔓 [关键修复] 设置用户写入权限..."
+    # 🔓 关键修复：执行用户提供的写入权限修复命令
+    log_info "🔓 [关键修复] 执行用户提供的写入权限修复命令..."
     if chmod -R u+w "$HOME/Library/Application Support/Cursor" 2>/dev/null; then
-        log_info "✅ [成功] 设置Application Support/Cursor写入权限成功"
+        log_info "✅ [成功] chmod -R u+w ~/Library/\"Application Support\"/Cursor"
     else
-        log_warn "⚠️  [警告] 设置Application Support/Cursor写入权限失败"
+        log_warn "⚠️  [警告] chmod Application Support/Cursor 写入权限失败"
     fi
 
+    # 确保extensions目录存在并设置权限
+    mkdir -p "$HOME/.cursor/extensions" 2>/dev/null || true
     if chmod -R u+w "$HOME/.cursor/extensions" 2>/dev/null; then
-        log_info "✅ [成功] 设置.cursor/extensions写入权限成功"
+        log_info "✅ [成功] chmod -R u+w ~/.cursor/extensions"
     else
-        log_warn "⚠️  [警告] 设置.cursor/extensions写入权限失败"
+        log_warn "⚠️  [警告] chmod .cursor/extensions 写入权限失败"
     fi
 
     # 验证权限设置
@@ -275,15 +297,25 @@ restart_cursor_and_wait() {
     chown -R "$(whoami)" "$cursor_support_dir" 2>/dev/null || true
     chown -R "$(whoami)" "$cursor_home_dir" 2>/dev/null || true
 
-    # 🔑 最终权限修复：使用sudo确保权限正确
-    log_info "🔑 [最终修复] 使用sudo确保启动前权限正确..."
+    # 🔑 最终权限修复：执行用户提供的完整权限修复命令
+    log_info "🔑 [最终修复] 执行用户提供的完整权限修复命令确保启动前权限正确..."
+
+    # 执行用户提供的完整权限修复序列
     sudo chown -R "$(whoami)" "$HOME/Library/Application Support/Cursor" 2>/dev/null || true
     sudo chown -R "$(whoami)" "$HOME/.cursor" 2>/dev/null || true
     chmod -R u+w "$HOME/Library/Application Support/Cursor" 2>/dev/null || true
-    chmod -R u+w "$HOME/.cursor" 2>/dev/null || true
+
+    # 确保extensions目录存在并设置权限
+    mkdir -p "$HOME/.cursor/extensions" 2>/dev/null || true
+    chmod -R u+w "$HOME/.cursor/extensions" 2>/dev/null || true
+
+    log_info "✅ [最终修复] 用户提供的权限修复命令执行完成"
 
     # 🚀 关键修复：Cursor启动前权限最终确保
     ensure_cursor_startup_permissions
+
+    # 🚨 额外修复：执行用户要求的关键权限修复
+    fix_cursor_permissions_critical
 
     # 启动Cursor
     log_info "🚀 [启动] 正在启动Cursor..."
@@ -407,6 +439,9 @@ start_cursor_to_generate_config() {
 
     # 🚀 关键修复：Cursor启动前权限最终确保
     ensure_cursor_startup_permissions
+
+    # 🚨 额外修复：执行用户要求的关键权限修复
+    fix_cursor_permissions_critical
 
     # 启动Cursor
     "$cursor_executable" > /dev/null 2>&1 &
@@ -610,6 +645,51 @@ ensure_cursor_directory_permissions() {
     log_info "✅ [完成] 增强权限修复完成"
 }
 
+# 🚀 启动时权限预检查和修复（新增函数）
+startup_permissions_check() {
+    log_info "🚀 [启动检查] 执行启动时权限预检查..."
+
+    local cursor_support_dir="$HOME/Library/Application Support/Cursor"
+    local cursor_home_dir="$HOME/.cursor"
+    local needs_fix=false
+
+    # 检查主要目录是否存在权限问题
+    if [ -d "$cursor_support_dir" ] && [ ! -w "$cursor_support_dir" ]; then
+        log_warn "⚠️  [权限问题] 检测到Application Support/Cursor目录权限问题"
+        needs_fix=true
+    fi
+
+    if [ -d "$cursor_home_dir" ] && [ ! -w "$cursor_home_dir" ]; then
+        log_warn "⚠️  [权限问题] 检测到.cursor目录权限问题"
+        needs_fix=true
+    fi
+
+    # 特别检查logs目录（用户报告的具体问题）
+    local logs_dir="$cursor_support_dir/logs"
+    if [ -d "$logs_dir" ] && [ ! -w "$logs_dir" ]; then
+        log_warn "⚠️  [权限问题] 检测到logs目录权限问题（EACCES错误源头）"
+        needs_fix=true
+    fi
+
+    # 如果检测到权限问题，立即执行修复
+    if $needs_fix; then
+        log_info "🔧 [预修复] 检测到权限问题，立即执行用户提供的权限修复命令..."
+
+        # 执行用户提供的核心权限修复命令
+        sudo chown -R "$(whoami)" "$cursor_support_dir" 2>/dev/null || true
+        sudo chown -R "$(whoami)" "$cursor_home_dir" 2>/dev/null || true
+        chmod -R u+w "$cursor_support_dir" 2>/dev/null || true
+
+        # 确保extensions目录存在并设置权限
+        mkdir -p "$cursor_home_dir/extensions" 2>/dev/null || true
+        chmod -R u+w "$cursor_home_dir/extensions" 2>/dev/null || true
+
+        log_info "✅ [预修复] 启动时权限预修复完成"
+    else
+        log_info "✅ [启动检查] 权限检查通过，无需预修复"
+    fi
+}
+
 # 🚨 关键权限修复函数（用户要求的核心修复）
 fix_cursor_permissions_critical() {
     log_info "🚨 [关键权限修复] 执行用户要求的关键权限修复..."
@@ -618,53 +698,135 @@ fix_cursor_permissions_critical() {
     local cursor_home_dir="$HOME/.cursor"
     local success=true
 
-    # 执行用户明确要求的权限修复命令
-    log_info "🔧 [核心命令] 执行核心权限修复命令..."
+    # 🔧 第一步：执行用户明确要求的核心权限修复命令
+    log_info "🔧 [核心命令] 执行用户提供的核心权限修复命令..."
 
+    # 用户提供的第一个命令：sudo chown -R $(whoami) ~/Library/"Application Support"/Cursor
+    log_info "🔑 [命令1] 执行: sudo chown -R \$(whoami) ~/Library/\"Application Support\"/Cursor"
     if sudo chown -R "$(whoami)" "$cursor_support_dir" 2>/dev/null; then
-        log_info "✅ [成功] sudo chown -R \$(whoami) ~/Library/Application\ Support/Cursor"
+        log_info "✅ [成功] Application Support/Cursor 目录所有权修复成功"
     else
-        log_error "❌ [失败] sudo chown -R \$(whoami) ~/Library/Application\ Support/Cursor"
+        log_error "❌ [失败] Application Support/Cursor 目录所有权修复失败"
         success=false
     fi
 
+    # 用户提供的第二个命令：sudo chown -R $(whoami) ~/.cursor
+    log_info "🔑 [命令2] 执行: sudo chown -R \$(whoami) ~/.cursor"
     if sudo chown -R "$(whoami)" "$cursor_home_dir" 2>/dev/null; then
-        log_info "✅ [成功] sudo chown -R \$(whoami) ~/.cursor"
+        log_info "✅ [成功] .cursor 目录所有权修复成功"
     else
-        log_error "❌ [失败] sudo chown -R \$(whoami) ~/.cursor"
+        log_error "❌ [失败] .cursor 目录所有权修复失败"
         success=false
     fi
 
-    # 额外的权限设置确保Cursor能正常启动
-    log_info "🔧 [额外修复] 设置额外权限确保Cursor正常启动..."
+    # 🔓 第二步：执行用户提供的写入权限修复命令
+    log_info "🔓 [写入权限] 执行用户提供的写入权限修复命令..."
 
-    # 设置目录权限
-    chmod -R 755 "$cursor_support_dir" 2>/dev/null || true
-    chmod -R 755 "$cursor_home_dir" 2>/dev/null || true
+    # 用户提供的第三个命令：chmod -R u+w ~/Library/"Application Support"/Cursor
+    log_info "🔓 [命令3] 执行: chmod -R u+w ~/Library/\"Application Support\"/Cursor"
+    if chmod -R u+w "$cursor_support_dir" 2>/dev/null; then
+        log_info "✅ [成功] Application Support/Cursor 写入权限设置成功"
+    else
+        log_warn "⚠️  [警告] Application Support/Cursor 写入权限设置失败"
+    fi
 
-    # 设置用户写入权限
-    chmod -R u+w "$cursor_support_dir" 2>/dev/null || true
-    chmod -R u+w "$cursor_home_dir" 2>/dev/null || true
+    # 用户提供的第四个命令：chmod -R u+w ~/.cursor/extensions
+    log_info "🔓 [命令4] 执行: chmod -R u+w ~/.cursor/extensions"
+    if [ -d "$cursor_home_dir/extensions" ]; then
+        if chmod -R u+w "$cursor_home_dir/extensions" 2>/dev/null; then
+            log_info "✅ [成功] .cursor/extensions 写入权限设置成功"
+        else
+            log_warn "⚠️  [警告] .cursor/extensions 写入权限设置失败"
+        fi
+    else
+        # 如果extensions目录不存在，创建它
+        mkdir -p "$cursor_home_dir/extensions" 2>/dev/null || true
+        chmod -R u+w "$cursor_home_dir/extensions" 2>/dev/null || true
+        log_info "✅ [创建] .cursor/extensions 目录已创建并设置权限"
+    fi
 
-    # 验证权限修复结果
+    # 🎯 第三步：特别处理logs目录（解决用户报告的具体错误）
+    log_info "🎯 [logs特殊] 特别处理logs目录权限（解决EACCES错误）..."
+    local logs_dir="$cursor_support_dir/logs"
+
+    # 确保logs目录存在并有正确权限
+    sudo mkdir -p "$logs_dir" 2>/dev/null || true
+    sudo chown -R "$(whoami)" "$logs_dir" 2>/dev/null || true
+    chmod -R u+w "$logs_dir" 2>/dev/null || true
+    chmod 755 "$logs_dir" 2>/dev/null || true
+
+    # 测试logs目录的时间戳子目录创建权限（模拟Cursor行为）
+    local test_timestamp_dir="$logs_dir/test_$(date +%Y%m%dT%H%M%S)"
+    if mkdir -p "$test_timestamp_dir" 2>/dev/null; then
+        log_info "✅ [logs测试] logs目录时间戳子目录创建权限正常"
+        rmdir "$test_timestamp_dir" 2>/dev/null || true
+    else
+        log_warn "⚠️  [logs测试] logs目录时间戳子目录创建权限异常，执行强制修复..."
+
+        # 强制修复logs目录
+        sudo rm -rf "$logs_dir" 2>/dev/null || true
+        sudo mkdir -p "$logs_dir" 2>/dev/null || true
+        sudo chown "$(whoami):staff" "$logs_dir" 2>/dev/null || true
+        sudo chmod 755 "$logs_dir" 2>/dev/null || true
+
+        # 再次测试
+        if mkdir -p "$test_timestamp_dir" 2>/dev/null; then
+            log_info "✅ [logs强制修复] 强制修复后logs目录权限正常"
+            rmdir "$test_timestamp_dir" 2>/dev/null || true
+        else
+            log_error "❌ [logs强制修复] 强制修复后logs目录权限仍然异常"
+            success=false
+        fi
+    fi
+
+    # 🔍 第四步：验证权限修复结果
     log_info "🔍 [验证] 验证权限修复结果..."
 
-    if [ -w "$cursor_support_dir" ] && [ -w "$cursor_home_dir" ]; then
-        log_info "✅ [验证成功] 关键目录权限验证通过"
-        log_info "💡 [结果] Cursor应用现在应该能够正常启动"
+    local verification_passed=true
+
+    # 验证主目录权限
+    if [ -w "$cursor_support_dir" ]; then
+        log_info "✅ [验证] Application Support/Cursor 目录可写"
     else
-        log_warn "⚠️  [验证警告] 部分目录权限可能仍有问题"
-        log_info "💡 [建议] 如果Cursor启动仍有问题，请手动执行："
-        echo "   sudo chown -R \$(whoami) \"$cursor_support_dir\""
-        echo "   sudo chown -R \$(whoami) \"$cursor_home_dir\""
-        success=false
+        log_warn "⚠️  [验证] Application Support/Cursor 目录不可写"
+        verification_passed=false
     fi
 
-    if $success; then
-        log_info "✅ [完成] 关键权限修复完成"
+    if [ -w "$cursor_home_dir" ]; then
+        log_info "✅ [验证] .cursor 目录可写"
+    else
+        log_warn "⚠️  [验证] .cursor 目录不可写"
+        verification_passed=false
+    fi
+
+    # 验证logs目录权限
+    if [ -w "$logs_dir" ]; then
+        log_info "✅ [验证] logs 目录可写"
+    else
+        log_warn "⚠️  [验证] logs 目录不可写"
+        verification_passed=false
+    fi
+
+    # 验证extensions目录权限
+    if [ -w "$cursor_home_dir/extensions" ]; then
+        log_info "✅ [验证] extensions 目录可写"
+    else
+        log_warn "⚠️  [验证] extensions 目录不可写"
+        verification_passed=false
+    fi
+
+    # 🎉 第五步：显示修复结果
+    if $success && $verification_passed; then
+        log_info "✅ [完成] 关键权限修复完成，所有验证通过"
+        log_info "💡 [结果] Cursor应用现在应该能够正常启动，不会出现EACCES错误"
         return 0
     else
-        log_warn "⚠️  [警告] 关键权限修复部分失败"
+        log_warn "⚠️  [警告] 关键权限修复部分失败或验证未通过"
+        log_info "💡 [手动修复] 如果Cursor启动仍有问题，请手动执行以下命令："
+        echo "   sudo chown -R \$(whoami) \"$HOME/Library/Application Support/Cursor\""
+        echo "   sudo chown -R \$(whoami) \"$HOME/.cursor\""
+        echo "   chmod -R u+w \"$HOME/Library/Application Support/Cursor\""
+        echo "   chmod -R u+w \"$HOME/.cursor/extensions\""
         return 1
     fi
 }
@@ -3233,6 +3395,9 @@ main() {
     initialize_log
     log_info "脚本启动..."
 
+    # 🚀 启动时权限预检查和修复（解决EACCES错误）
+    startup_permissions_check
+
     # 记录系统信息
     log_info "系统信息: $(uname -a)"
     log_info "当前用户: $CURRENT_USER"
@@ -3266,6 +3431,7 @@ main() {
     echo
     echo -e "${YELLOW}💡 [重要提示]${NC} 本工具采用分阶段执行策略，既能彻底清理又能修改机器码。"
     echo -e "${YELLOW}💡 [重要提示]${NC} 本工具免费，如果对您有帮助，请关注公众号【煎饼果子卷AI】"
+    echo
     echo
 
     # 🎯 用户选择菜单
