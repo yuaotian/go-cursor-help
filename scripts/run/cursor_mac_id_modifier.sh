@@ -610,6 +610,65 @@ ensure_cursor_directory_permissions() {
     log_info "✅ [完成] 增强权限修复完成"
 }
 
+# 🚨 关键权限修复函数（用户要求的核心修复）
+fix_cursor_permissions_critical() {
+    log_info "🚨 [关键权限修复] 执行用户要求的关键权限修复..."
+
+    local cursor_support_dir="$HOME/Library/Application Support/Cursor"
+    local cursor_home_dir="$HOME/.cursor"
+    local success=true
+
+    # 执行用户明确要求的权限修复命令
+    log_info "🔧 [核心命令] 执行核心权限修复命令..."
+
+    if sudo chown -R "$(whoami)" "$cursor_support_dir" 2>/dev/null; then
+        log_info "✅ [成功] sudo chown -R \$(whoami) ~/Library/Application\ Support/Cursor"
+    else
+        log_error "❌ [失败] sudo chown -R \$(whoami) ~/Library/Application\ Support/Cursor"
+        success=false
+    fi
+
+    if sudo chown -R "$(whoami)" "$cursor_home_dir" 2>/dev/null; then
+        log_info "✅ [成功] sudo chown -R \$(whoami) ~/.cursor"
+    else
+        log_error "❌ [失败] sudo chown -R \$(whoami) ~/.cursor"
+        success=false
+    fi
+
+    # 额外的权限设置确保Cursor能正常启动
+    log_info "🔧 [额外修复] 设置额外权限确保Cursor正常启动..."
+
+    # 设置目录权限
+    chmod -R 755 "$cursor_support_dir" 2>/dev/null || true
+    chmod -R 755 "$cursor_home_dir" 2>/dev/null || true
+
+    # 设置用户写入权限
+    chmod -R u+w "$cursor_support_dir" 2>/dev/null || true
+    chmod -R u+w "$cursor_home_dir" 2>/dev/null || true
+
+    # 验证权限修复结果
+    log_info "🔍 [验证] 验证权限修复结果..."
+
+    if [ -w "$cursor_support_dir" ] && [ -w "$cursor_home_dir" ]; then
+        log_info "✅ [验证成功] 关键目录权限验证通过"
+        log_info "💡 [结果] Cursor应用现在应该能够正常启动"
+    else
+        log_warn "⚠️  [验证警告] 部分目录权限可能仍有问题"
+        log_info "💡 [建议] 如果Cursor启动仍有问题，请手动执行："
+        echo "   sudo chown -R \$(whoami) \"$cursor_support_dir\""
+        echo "   sudo chown -R \$(whoami) \"$cursor_home_dir\""
+        success=false
+    fi
+
+    if $success; then
+        log_info "✅ [完成] 关键权限修复完成"
+        return 0
+    else
+        log_warn "⚠️  [警告] 关键权限修复部分失败"
+        return 1
+    fi
+}
+
 # 🚀 Cursor启动前权限最终确保（增强版）
 ensure_cursor_startup_permissions() {
     log_info "🚀 [启动前权限] 确保Cursor启动前权限正确（增强版）..."
@@ -826,6 +885,22 @@ ensure_cursor_complete_permissions() {
         "$cursor_home_dir"
         "$cursor_home_dir/extensions"
     )
+
+    # 🚨 关键修复：强制执行用户要求的权限修复命令
+    log_info "🚨 [关键修复] 执行用户要求的核心权限修复命令..."
+
+    # 执行用户明确要求的权限修复命令
+    if sudo chown -R "$(whoami)" "$HOME/Library/Application Support/Cursor" 2>/dev/null; then
+        log_info "✅ [核心修复] sudo chown Application Support/Cursor 执行成功"
+    else
+        log_error "❌ [核心修复] sudo chown Application Support/Cursor 执行失败"
+    fi
+
+    if sudo chown -R "$(whoami)" "$HOME/.cursor" 2>/dev/null; then
+        log_info "✅ [核心修复] sudo chown .cursor 执行成功"
+    else
+        log_error "❌ [核心修复] sudo chown .cursor 执行失败"
+    fi
 
     # 🔧 第一步：基础权限修复
     log_info "🔧 [基础权限] 执行基础权限修复..."
@@ -1147,6 +1222,9 @@ except Exception as e:
             # 🛡️ 关键修复：执行完整的权限修复（包含macOS高级权限处理）
             ensure_cursor_complete_permissions
 
+            # 🚨 额外的关键权限修复（用户要求的核心修复）
+            fix_cursor_permissions_critical
+
             echo
             log_info "🎉 [成功] 机器码配置修改完成！"
             log_info "📋 [详情] 已更新以下标识符："
@@ -1167,6 +1245,7 @@ except Exception as e:
             if cp "$backup_path" "$config_path"; then
                 chmod 644 "$config_path" 2>/dev/null || true
                 ensure_cursor_complete_permissions
+                fix_cursor_permissions_critical
                 log_info "✅ [恢复] 已恢复原始配置并修复权限"
             else
                 log_error "❌ [错误] 恢复备份失败"
@@ -1184,6 +1263,7 @@ except Exception as e:
             if cp "$backup_path" "$config_path"; then
                 chmod 644 "$config_path" 2>/dev/null || true
                 ensure_cursor_complete_permissions
+                fix_cursor_permissions_critical
                 log_info "✅ [恢复] 已恢复原始配置并修复权限"
             else
                 log_error "❌ [错误] 恢复备份失败"
@@ -3332,6 +3412,13 @@ main() {
         echo
         log_info "🚫 [禁用更新] 正在禁用Cursor自动更新..."
         disable_auto_update
+
+        # 🛡️ 关键修复：仅修改模式的权限修复
+        echo
+        log_info "🛡️ [权限修复] 执行仅修改模式的权限修复..."
+        log_info "💡 [说明] 确保Cursor应用能够正常启动，无权限错误"
+        ensure_cursor_complete_permissions
+        fix_cursor_permissions_critical
     else
         # 完整的重置环境+修改机器码流程
         log_info "🚀 [开始] 开始执行重置环境+修改机器码功能..."
@@ -3401,6 +3488,37 @@ main() {
     echo -e "${GREEN}================================${NC}"
     echo
 
+    # 🛡️ 关键修复：脚本执行完成前的最终权限修复
+    echo
+    log_info "🛡️ [最终权限修复] 执行脚本完成前的最终权限修复..."
+    log_info "💡 [说明] 确保Cursor应用能够正常启动，无权限错误"
+
+    # 执行完整的权限修复
+    ensure_cursor_complete_permissions
+
+    # 执行用户要求的关键权限修复
+    fix_cursor_permissions_critical
+
+    # 额外的权限验证和修复
+    log_info "🔍 [最终验证] 执行最终权限验证..."
+    local cursor_support_dir="$HOME/Library/Application Support/Cursor"
+    local cursor_home_dir="$HOME/.cursor"
+
+    # 确保关键目录可写
+    if [ ! -w "$cursor_support_dir" ] || [ ! -w "$cursor_home_dir" ]; then
+        log_warn "⚠️  [权限警告] 检测到权限问题，执行紧急修复..."
+
+        # 紧急权限修复
+        sudo chown -R "$(whoami)" "$cursor_support_dir" 2>/dev/null || true
+        sudo chown -R "$(whoami)" "$cursor_home_dir" 2>/dev/null || true
+        chmod -R u+w "$cursor_support_dir" 2>/dev/null || true
+        chmod -R u+w "$cursor_home_dir" 2>/dev/null || true
+
+        log_info "✅ [紧急修复] 紧急权限修复完成"
+    else
+        log_info "✅ [权限验证] 最终权限验证通过"
+    fi
+
     # 🎉 脚本执行完成
     log_info "🎉 [完成] 所有操作已完成！"
     echo
@@ -3408,6 +3526,7 @@ main() {
     echo -e "${BLUE}  ✅ 机器码配置文件修改${NC}"
     echo -e "${BLUE}  ✅ 系统MAC地址修改${NC}"
     echo -e "${BLUE}  ✅ 自动更新功能禁用${NC}"
+    echo -e "${BLUE}  ✅ 权限修复和验证${NC}"
     echo
     log_warn "⚠️  [注意] 重启 Cursor 后生效"
     echo
