@@ -3149,7 +3149,7 @@ fix_damaged_app() {
     echo "2. 暂时关闭Gatekeeper（不建议）: sudo spctl --master-disable"
     echo "3. 重新下载安装Cursor应用"
     echo
-    echo -e "${BLUE}参考链接: https://sysin.org/blog/macos-if-crashes-when-opening/${NC}"
+    echo -e "${BLUE} 参考链接: https://sysin.org/blog/macos-if-crashes-when-opening/ ${NC}"
 
     return 0
 }
@@ -3411,6 +3411,18 @@ main() {
         log_info "💡 [说明] 确保Cursor应用能够正常启动，无权限错误"
         ensure_cursor_complete_permissions
         fix_cursor_permissions_critical
+
+        # 🔧 关键修复：修复应用签名问题（防止"应用已损坏"错误）
+        echo
+        log_info "🔧 [应用修复] 正在修复Cursor应用签名问题..."
+        log_info "💡 [说明] 防止出现'应用已损坏，无法打开'的错误"
+
+        if fix_damaged_app; then
+            log_info "✅ [应用修复] Cursor应用签名修复成功"
+        else
+            log_warn "⚠️  [应用修复] 应用签名修复失败，可能需要手动处理"
+            log_info "💡 [建议] 如果Cursor无法启动，请在系统偏好设置中允许打开"
+        fi
     else
         # 完整的重置环境+修改机器码流程
         log_info "🚀 [开始] 开始执行重置环境+修改机器码功能..."
@@ -3448,6 +3460,18 @@ main() {
         else
             log_warn "⚠️  [警告] 设备识别绕过失败或部分失败"
             log_info "💡 [提示] 但可能已通过JS内核修改实现了绕过效果"
+        fi
+
+        # 🔧 关键修复：修复应用签名问题（防止"应用已损坏"错误）
+        echo
+        log_info "🔧 [应用修复] 正在修复Cursor应用签名问题..."
+        log_info "💡 [说明] 防止出现'应用已损坏，无法打开'的错误"
+
+        if fix_damaged_app; then
+            log_info "✅ [应用修复] Cursor应用签名修复成功"
+        else
+            log_warn "⚠️  [应用修复] 应用签名修复失败，可能需要手动处理"
+            log_info "💡 [建议] 如果Cursor无法启动，请在系统偏好设置中允许打开"
         fi
     fi
 
