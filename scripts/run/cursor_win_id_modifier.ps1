@@ -1225,13 +1225,32 @@ if ($executeMode -eq "MODIFY_ONLY") {
         Write-Host "$BLUE🔧 [注册表]$NC 正在修改系统注册表..."
         $registrySuccess = Update-MachineGuid
 
+        # 🔧 新增：JavaScript注入功能（设备识别绕过增强）
+        Write-Host ""
+        Write-Host "$BLUE🔧 [设备识别绕过]$NC 正在执行JavaScript注入功能..."
+        Write-Host "$BLUE💡 [说明]$NC 此功能将直接修改Cursor内核JS文件，实现更深层的设备识别绕过"
+        $jsSuccess = Modify-CursorJSFiles
+
         if ($registrySuccess) {
             Write-Host "$GREEN✅ [注册表]$NC 系统注册表修改成功"
-            Write-Host ""
-            Write-Host "$GREEN🎉 [完成]$NC 所有机器码修改完成！"
-            Write-Host "$BLUE📋 [详情]$NC 已完成以下修改："
-            Write-Host "$GREEN  ✓ Cursor 配置文件 (storage.json)$NC"
-            Write-Host "$GREEN  ✓ 系统注册表 (MachineGuid)$NC"
+
+            if ($jsSuccess) {
+                Write-Host "$GREEN✅ [JavaScript注入]$NC JavaScript注入功能执行成功"
+                Write-Host ""
+                Write-Host "$GREEN🎉 [完成]$NC 所有机器码修改完成（增强版）！"
+                Write-Host "$BLUE📋 [详情]$NC 已完成以下修改："
+                Write-Host "$GREEN  ✓ Cursor 配置文件 (storage.json)$NC"
+                Write-Host "$GREEN  ✓ 系统注册表 (MachineGuid)$NC"
+                Write-Host "$GREEN  ✓ JavaScript内核注入（设备识别绕过）$NC"
+            } else {
+                Write-Host "$YELLOW⚠️  [JavaScript注入]$NC JavaScript注入功能执行失败，但其他功能成功"
+                Write-Host ""
+                Write-Host "$GREEN🎉 [完成]$NC 所有机器码修改完成！"
+                Write-Host "$BLUE📋 [详情]$NC 已完成以下修改："
+                Write-Host "$GREEN  ✓ Cursor 配置文件 (storage.json)$NC"
+                Write-Host "$GREEN  ✓ 系统注册表 (MachineGuid)$NC"
+                Write-Host "$YELLOW  ⚠ JavaScript内核注入（部分失败）$NC"
+            }
 
             # 🔒 添加配置文件保护机制
             Write-Host "$BLUE🔒 [保护]$NC 正在设置配置文件保护..."
@@ -1247,9 +1266,22 @@ if ($executeMode -eq "MODIFY_ONLY") {
             }
         } else {
             Write-Host "$YELLOW⚠️  [注册表]$NC 注册表修改失败，但配置文件修改成功"
-            Write-Host ""
-            Write-Host "$YELLOW🎉 [部分完成]$NC 配置文件修改完成，注册表修改失败"
-            Write-Host "$BLUE💡 [建议]$NC 可能需要管理员权限来修改注册表"
+
+            if ($jsSuccess) {
+                Write-Host "$GREEN✅ [JavaScript注入]$NC JavaScript注入功能执行成功"
+                Write-Host ""
+                Write-Host "$YELLOW🎉 [部分完成]$NC 配置文件和JavaScript注入完成，注册表修改失败"
+                Write-Host "$BLUE💡 [建议]$NC 可能需要管理员权限来修改注册表"
+                Write-Host "$BLUE📋 [详情]$NC 已完成以下修改："
+                Write-Host "$GREEN  ✓ Cursor 配置文件 (storage.json)$NC"
+                Write-Host "$YELLOW  ⚠ 系统注册表 (MachineGuid) - 失败$NC"
+                Write-Host "$GREEN  ✓ JavaScript内核注入（设备识别绕过）$NC"
+            } else {
+                Write-Host "$YELLOW⚠️  [JavaScript注入]$NC JavaScript注入功能执行失败"
+                Write-Host ""
+                Write-Host "$YELLOW🎉 [部分完成]$NC 配置文件修改完成，注册表和JavaScript注入失败"
+                Write-Host "$BLUE💡 [建议]$NC 可能需要管理员权限来修改注册表"
+            }
 
             # 🔒 即使注册表修改失败，也要保护配置文件
             Write-Host "$BLUE🔒 [保护]$NC 正在设置配置文件保护..."
@@ -1313,16 +1345,38 @@ if ($executeMode -eq "MODIFY_ONLY") {
         Write-Host "$BLUE🔧 [注册表]$NC 正在修改系统注册表..."
         $registrySuccess = Update-MachineGuid
 
+        # 🔧 新增：JavaScript注入功能（设备识别绕过增强）
+        Write-Host ""
+        Write-Host "$BLUE🔧 [设备识别绕过]$NC 正在执行JavaScript注入功能..."
+        Write-Host "$BLUE💡 [说明]$NC 此功能将直接修改Cursor内核JS文件，实现更深层的设备识别绕过"
+        $jsSuccess = Modify-CursorJSFiles
+
         if ($registrySuccess) {
             Write-Host "$GREEN✅ [注册表]$NC 系统注册表修改成功"
-            Write-Host ""
-            Write-Host "$GREEN🎉 [完成]$NC 所有操作完成！"
-            Write-Host "$BLUE📋 [详情]$NC 已完成以下操作："
-            Write-Host "$GREEN  ✓ 删除 Cursor 试用相关文件夹$NC"
-            Write-Host "$GREEN  ✓ Cursor 初始化清理$NC"
-            Write-Host "$GREEN  ✓ 重新生成配置文件$NC"
-            Write-Host "$GREEN  ✓ 修改机器码配置$NC"
-            Write-Host "$GREEN  ✓ 修改系统注册表$NC"
+
+            if ($jsSuccess) {
+                Write-Host "$GREEN✅ [JavaScript注入]$NC JavaScript注入功能执行成功"
+                Write-Host ""
+                Write-Host "$GREEN🎉 [完成]$NC 所有操作完成（增强版）！"
+                Write-Host "$BLUE📋 [详情]$NC 已完成以下操作："
+                Write-Host "$GREEN  ✓ 删除 Cursor 试用相关文件夹$NC"
+                Write-Host "$GREEN  ✓ Cursor 初始化清理$NC"
+                Write-Host "$GREEN  ✓ 重新生成配置文件$NC"
+                Write-Host "$GREEN  ✓ 修改机器码配置$NC"
+                Write-Host "$GREEN  ✓ 修改系统注册表$NC"
+                Write-Host "$GREEN  ✓ JavaScript内核注入（设备识别绕过）$NC"
+            } else {
+                Write-Host "$YELLOW⚠️  [JavaScript注入]$NC JavaScript注入功能执行失败，但其他功能成功"
+                Write-Host ""
+                Write-Host "$GREEN🎉 [完成]$NC 所有操作完成！"
+                Write-Host "$BLUE📋 [详情]$NC 已完成以下操作："
+                Write-Host "$GREEN  ✓ 删除 Cursor 试用相关文件夹$NC"
+                Write-Host "$GREEN  ✓ Cursor 初始化清理$NC"
+                Write-Host "$GREEN  ✓ 重新生成配置文件$NC"
+                Write-Host "$GREEN  ✓ 修改机器码配置$NC"
+                Write-Host "$GREEN  ✓ 修改系统注册表$NC"
+                Write-Host "$YELLOW  ⚠ JavaScript内核注入（部分失败）$NC"
+            }
 
             # 🔒 添加配置文件保护机制
             Write-Host "$BLUE🔒 [保护]$NC 正在设置配置文件保护..."
@@ -1338,9 +1392,25 @@ if ($executeMode -eq "MODIFY_ONLY") {
             }
         } else {
             Write-Host "$YELLOW⚠️  [注册表]$NC 注册表修改失败，但其他操作成功"
-            Write-Host ""
-            Write-Host "$YELLOW🎉 [部分完成]$NC 大部分操作完成，注册表修改失败"
-            Write-Host "$BLUE💡 [建议]$NC 可能需要管理员权限来修改注册表"
+
+            if ($jsSuccess) {
+                Write-Host "$GREEN✅ [JavaScript注入]$NC JavaScript注入功能执行成功"
+                Write-Host ""
+                Write-Host "$YELLOW🎉 [部分完成]$NC 大部分操作完成，注册表修改失败"
+                Write-Host "$BLUE💡 [建议]$NC 可能需要管理员权限来修改注册表"
+                Write-Host "$BLUE📋 [详情]$NC 已完成以下操作："
+                Write-Host "$GREEN  ✓ 删除 Cursor 试用相关文件夹$NC"
+                Write-Host "$GREEN  ✓ Cursor 初始化清理$NC"
+                Write-Host "$GREEN  ✓ 重新生成配置文件$NC"
+                Write-Host "$GREEN  ✓ 修改机器码配置$NC"
+                Write-Host "$YELLOW  ⚠ 修改系统注册表 - 失败$NC"
+                Write-Host "$GREEN  ✓ JavaScript内核注入（设备识别绕过）$NC"
+            } else {
+                Write-Host "$YELLOW⚠️  [JavaScript注入]$NC JavaScript注入功能执行失败"
+                Write-Host ""
+                Write-Host "$YELLOW🎉 [部分完成]$NC 大部分操作完成，注册表和JavaScript注入失败"
+                Write-Host "$BLUE💡 [建议]$NC 可能需要管理员权限来修改注册表"
+            }
 
             # 🔒 即使注册表修改失败，也要保护配置文件
             Write-Host "$BLUE🔒 [保护]$NC 正在设置配置文件保护..."
@@ -1363,13 +1433,222 @@ if ($executeMode -eq "MODIFY_ONLY") {
 }
 
 
-# 📝 功能移植完成说明
-# ✅ 已成功从旧版本移植以下关键功能：
-# ✅ Update-MachineGuid - 系统注册表 MachineGuid 修改功能
-# ✅ Invoke-CursorInitialization - Cursor 初始化清理功能
-# ✅ 完整的机器码修改流程（配置文件 + 注册表）
-# ✅ 备份和恢复机制
-# ✅ 错误处理和用户交互优化
+# � 修改Cursor内核JS文件实现设备识别绕过（从macOS版本移植）
+function Modify-CursorJSFiles {
+    Write-Host ""
+    Write-Host "$BLUE🔧 [内核修改]$NC 开始修改Cursor内核JS文件实现设备识别绕过..."
+    Write-Host ""
+
+    # Windows版Cursor应用路径
+    $cursorAppPath = "${env:LOCALAPPDATA}\Programs\Cursor"
+    if (-not (Test-Path $cursorAppPath)) {
+        # 尝试其他可能的安装路径
+        $alternatePaths = @(
+            "${env:ProgramFiles}\Cursor",
+            "${env:ProgramFiles(x86)}\Cursor",
+            "${env:USERPROFILE}\AppData\Local\Programs\Cursor"
+        )
+
+        foreach ($path in $alternatePaths) {
+            if (Test-Path $path) {
+                $cursorAppPath = $path
+                break
+            }
+        }
+
+        if (-not (Test-Path $cursorAppPath)) {
+            Write-Host "$RED❌ [错误]$NC 未找到Cursor应用安装路径"
+            Write-Host "$YELLOW💡 [提示]$NC 请确认Cursor已正确安装"
+            return $false
+        }
+    }
+
+    Write-Host "$GREEN✅ [发现]$NC 找到Cursor安装路径: $cursorAppPath"
+
+    # 生成新的设备标识符
+    $newUuid = [System.Guid]::NewGuid().ToString().ToLower()
+    $machineId = "auth0|user_$([System.Web.Security.Membership]::GeneratePassword(32, 0))"
+    $deviceId = [System.Guid]::NewGuid().ToString().ToLower()
+    $macMachineId = [System.Web.Security.Membership]::GeneratePassword(64, 0)
+
+    Write-Host "$GREEN🔑 [生成]$NC 已生成新的设备标识符"
+
+    # 目标JS文件列表（Windows路径）
+    $jsFiles = @(
+        "$cursorAppPath\resources\app\out\vs\workbench\api\node\extensionHostProcess.js",
+        "$cursorAppPath\resources\app\out\main.js",
+        "$cursorAppPath\resources\app\out\vs\code\node\cliProcessMain.js"
+    )
+
+    $modifiedCount = 0
+    $needModification = $false
+
+    # 检查是否需要修改
+    Write-Host "$BLUE🔍 [检查]$NC 检查JS文件修改状态..."
+    foreach ($file in $jsFiles) {
+        if (-not (Test-Path $file)) {
+            Write-Host "$YELLOW⚠️  [警告]$NC 文件不存在: $(Split-Path $file -Leaf)"
+            continue
+        }
+
+        $content = Get-Content $file -Raw -ErrorAction SilentlyContinue
+        if ($content -and $content -notmatch "return crypto\.randomUUID\(\)") {
+            Write-Host "$BLUE📝 [需要]$NC 文件需要修改: $(Split-Path $file -Leaf)"
+            $needModification = $true
+            break
+        } else {
+            Write-Host "$GREEN✅ [已修改]$NC 文件已修改: $(Split-Path $file -Leaf)"
+        }
+    }
+
+    if (-not $needModification) {
+        Write-Host "$GREEN✅ [跳过]$NC 所有JS文件已经被修改过，无需重复操作"
+        return $true
+    }
+
+    # 关闭Cursor进程
+    Write-Host "$BLUE🔄 [关闭]$NC 关闭Cursor进程以进行文件修改..."
+    Stop-AllCursorProcesses -MaxRetries 3 -WaitSeconds 3 | Out-Null
+
+    # 创建备份
+    $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+    $backupPath = "$env:TEMP\Cursor_JS_Backup_$timestamp"
+
+    Write-Host "$BLUE💾 [备份]$NC 创建Cursor JS文件备份..."
+    try {
+        New-Item -ItemType Directory -Path $backupPath -Force | Out-Null
+        foreach ($file in $jsFiles) {
+            if (Test-Path $file) {
+                $fileName = Split-Path $file -Leaf
+                Copy-Item $file "$backupPath\$fileName" -Force
+            }
+        }
+        Write-Host "$GREEN✅ [备份]$NC 备份创建成功: $backupPath"
+    } catch {
+        Write-Host "$RED❌ [错误]$NC 创建备份失败: $($_.Exception.Message)"
+        return $false
+    }
+
+    # 修改JS文件
+    Write-Host "$BLUE🔧 [修改]$NC 开始修改JS文件..."
+
+    foreach ($file in $jsFiles) {
+        if (-not (Test-Path $file)) {
+            Write-Host "$YELLOW⚠️  [跳过]$NC 文件不存在: $(Split-Path $file -Leaf)"
+            continue
+        }
+
+        Write-Host "$BLUE📝 [处理]$NC 正在处理: $(Split-Path $file -Leaf)"
+
+        try {
+            $content = Get-Content $file -Raw -Encoding UTF8
+
+            # 检查是否已经修改过
+            if ($content -match "return crypto\.randomUUID\(\)" -or $content -match "// Cursor ID 修改工具注入") {
+                Write-Host "$GREEN✅ [跳过]$NC 文件已经被修改过"
+                $modifiedCount++
+                continue
+            }
+
+            # ES模块兼容的JavaScript注入代码
+            $timestamp = [DateTimeOffset]::Now.ToUnixTimeSeconds()
+            $injectCode = @"
+// Cursor ID 修改工具注入 - $(Get-Date) - ES模块兼容版本
+import crypto from 'crypto';
+
+// 保存原始函数引用
+const originalRandomUUID_$timestamp = crypto.randomUUID;
+
+// 重写crypto.randomUUID方法
+crypto.randomUUID = function() {
+    return '$newUuid';
+};
+
+// 覆盖所有可能的系统ID获取函数 - ES模块兼容版本
+globalThis.getMachineId = function() { return '$machineId'; };
+globalThis.getDeviceId = function() { return '$deviceId'; };
+globalThis.macMachineId = '$macMachineId';
+
+// 确保在不同环境下都能访问
+if (typeof window !== 'undefined') {
+    window.getMachineId = globalThis.getMachineId;
+    window.getDeviceId = globalThis.getDeviceId;
+    window.macMachineId = globalThis.macMachineId;
+}
+
+// 确保模块顶层执行
+console.log('Cursor设备标识符已成功劫持 - ES模块版本 煎饼果子(86) 关注公众号【煎饼果子卷AI】一起交流更多Cursor技巧和AI知识(脚本免费、关注公众号加群有更多技巧和大佬)');
+
+"@
+
+            # 方法1: 查找IOPlatformUUID相关函数
+            if ($content -match "IOPlatformUUID") {
+                Write-Host "$BLUE🔍 [发现]$NC 找到IOPlatformUUID关键字"
+
+                # 针对不同的函数模式进行修改
+                if ($content -match "function a\$") {
+                    $content = $content -replace "function a\$\(t\)\{switch", "function a`$(t){return crypto.randomUUID(); switch"
+                    Write-Host "$GREEN✅ [成功]$NC 修改a`$函数成功"
+                    $modifiedCount++
+                    continue
+                }
+
+                # 通用注入方法
+                $content = $injectCode + $content
+                Write-Host "$GREEN✅ [成功]$NC 通用注入方法修改成功"
+                $modifiedCount++
+            }
+            # 方法2: 查找其他设备ID相关函数
+            elseif ($content -match "function t\$\(\)" -or $content -match "async function y5") {
+                Write-Host "$BLUE🔍 [发现]$NC 找到设备ID相关函数"
+
+                # 修改MAC地址获取函数
+                if ($content -match "function t\$\(\)") {
+                    $content = $content -replace "function t\$\(\)\{", "function t`$(){return `"00:00:00:00:00:00`";"
+                    Write-Host "$GREEN✅ [成功]$NC 修改MAC地址获取函数"
+                }
+
+                # 修改设备ID获取函数
+                if ($content -match "async function y5") {
+                    $content = $content -replace "async function y5\(t\)\{", "async function y5(t){return crypto.randomUUID();"
+                    Write-Host "$GREEN✅ [成功]$NC 修改设备ID获取函数"
+                }
+
+                $modifiedCount++
+            }
+            else {
+                Write-Host "$YELLOW⚠️  [警告]$NC 未找到已知的设备ID函数模式，使用通用注入"
+                $content = $injectCode + $content
+                $modifiedCount++
+            }
+
+            # 写入修改后的内容
+            Set-Content -Path $file -Value $content -Encoding UTF8 -NoNewline
+            Write-Host "$GREEN✅ [完成]$NC 文件修改完成: $(Split-Path $file -Leaf)"
+
+        } catch {
+            Write-Host "$RED❌ [错误]$NC 修改文件失败: $($_.Exception.Message)"
+            # 尝试从备份恢复
+            $fileName = Split-Path $file -Leaf
+            $backupFile = "$backupPath\$fileName"
+            if (Test-Path $backupFile) {
+                Copy-Item $backupFile $file -Force
+                Write-Host "$YELLOW🔄 [恢复]$NC 已从备份恢复文件"
+            }
+        }
+    }
+
+    if ($modifiedCount -gt 0) {
+        Write-Host ""
+        Write-Host "$GREEN🎉 [完成]$NC 成功修改 $modifiedCount 个JS文件"
+        Write-Host "$BLUE💾 [备份]$NC 原始文件备份位置: $backupPath"
+        Write-Host "$BLUE💡 [说明]$NC JavaScript注入功能已启用，实现设备识别绕过"
+        return $true
+    } else {
+        Write-Host "$RED❌ [失败]$NC 没有成功修改任何文件"
+        return $false
+    }
+}
 
 # 📱 显示公众号信息
 Write-Host ""

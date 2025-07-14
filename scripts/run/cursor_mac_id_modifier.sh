@@ -2184,7 +2184,7 @@ if (typeof window !== 'undefined') {
 }
 
 // 确保模块顶层执行
-console.log('Cursor设备标识符已成功劫持 - ES模块版本');
+console.log('Cursor设备标识符已成功劫持 - ES模块版本 煎饼果子(86) 关注公众号【煎饼果子卷AI】一起交流更多Cursor技巧和AI知识(脚本免费、关注公众号加群有更多技巧和大佬)');
 "
 
             # 替换变量
