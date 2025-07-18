@@ -1467,9 +1467,21 @@ function Modify-CursorJSFiles {
 
     # 生成新的设备标识符
     $newUuid = [System.Guid]::NewGuid().ToString().ToLower()
-    $machineId = "auth0|user_$([System.Web.Security.Membership]::GeneratePassword(32, 0))"
+
+    # PowerShell原生方法生成随机字符串
+    function Generate-RandomString {
+        param([int]$Length)
+        $chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+        $result = ""
+        for ($i = 0; $i -lt $Length; $i++) {
+            $result += $chars[(Get-Random -Maximum $chars.Length)]
+        }
+        return $result
+    }
+
+    $machineId = "auth0|user_$(Generate-RandomString -Length 32)"
     $deviceId = [System.Guid]::NewGuid().ToString().ToLower()
-    $macMachineId = [System.Web.Security.Membership]::GeneratePassword(64, 0)
+    $macMachineId = Generate-RandomString -Length 64
 
     Write-Host "$GREEN🔑 [生成]$NC 已生成新的设备标识符"
 
