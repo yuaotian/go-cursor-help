@@ -13,6 +13,17 @@ $NC = "`e[0m"
 $STORAGE_FILE = "$env:APPDATA\Cursor\User\globalStorage\storage.json"
 $BACKUP_DIR = "$env:APPDATA\Cursor\User\globalStorage\backups"
 
+# PowerShell原生方法生成随机字符串
+function Generate-RandomString {
+    param([int]$Length)
+    $chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    $result = ""
+    for ($i = 0; $i -lt $Length; $i++) {
+        $result += $chars[(Get-Random -Maximum $chars.Length)]
+    }
+    return $result
+}
+
 # 🚀 新增 Cursor 防掉试用Pro删除文件夹功能
 function Remove-CursorTrialFolders {
     Write-Host ""
@@ -1468,16 +1479,7 @@ function Modify-CursorJSFiles {
     # 生成新的设备标识符
     $newUuid = [System.Guid]::NewGuid().ToString().ToLower()
 
-    # PowerShell原生方法生成随机字符串
-    function Generate-RandomString {
-        param([int]$Length)
-        $chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-        $result = ""
-        for ($i = 0; $i -lt $Length; $i++) {
-            $result += $chars[(Get-Random -Maximum $chars.Length)]
-        }
-        return $result
-    }
+
 
     $machineId = "auth0|user_$(Generate-RandomString -Length 32)"
     $deviceId = [System.Guid]::NewGuid().ToString().ToLower()
