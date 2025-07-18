@@ -24,6 +24,224 @@ function Generate-RandomString {
     return $result
 }
 
+# 修改Cursor内核JS文件实现设备识别绕过（从macOS版本移植）
+function Modify-CursorJSFiles {
+    Write-Host ""
+    Write-Host "$BLUE🔧 [内核修改]$NC 开始修改Cursor内核JS文件实现设备识别绕过..."
+    Write-Host ""
+
+    # Windows版Cursor应用路径
+    $cursorAppPath = "${env:LOCALAPPDATA}\Programs\Cursor"
+    if (-not (Test-Path $cursorAppPath)) {
+        # 尝试其他可能的安装路径
+        $alternatePaths = @(
+            "${env:ProgramFiles}\Cursor",
+            "${env:ProgramFiles(x86)}\Cursor",
+            "${env:USERPROFILE}\AppData\Local\Programs\Cursor"
+        )
+
+        foreach ($path in $alternatePaths) {
+            if (Test-Path $path) {
+                $cursorAppPath = $path
+                break
+            }
+        }
+
+        if (-not (Test-Path $cursorAppPath)) {
+            Write-Host "$RED❌ [错误]$NC 未找到Cursor应用安装路径"
+            Write-Host "$YELLOW💡 [提示]$NC 请确认Cursor已正确安装"
+            return $false
+        }
+    }
+
+    Write-Host "$GREEN✅ [发现]$NC 找到Cursor安装路径: $cursorAppPath"
+
+    # 生成新的设备标识符
+    $newUuid = [System.Guid]::NewGuid().ToString().ToLower()
+    $machineId = "auth0|user_$(Generate-RandomString -Length 32)"
+    $deviceId = [System.Guid]::NewGuid().ToString().ToLower()
+    $macMachineId = Generate-RandomString -Length 64
+
+    Write-Host "$GREEN🔑 [生成]$NC 已生成新的设备标识符"
+
+    # 目标JS文件列表（Windows路径）
+    $jsFiles = @(
+        "$cursorAppPath\resources\app\out\vs\workbench\api\node\extensionHostProcess.js",
+        "$cursorAppPath\resources\app\out\main.js",
+        "$cursorAppPath\resources\app\out\vs\code\node\cliProcessMain.js"
+    )
+
+    $modifiedCount = 0
+    $needModification = $false
+
+    # 检查是否需要修改
+    Write-Host "$BLUE🔍 [检查]$NC 检查JS文件修改状态..."
+    foreach ($file in $jsFiles) {
+        if (-not (Test-Path $file)) {
+            Write-Host "$YELLOW⚠️  [警告]$NC 文件不存在: $(Split-Path $file -Leaf)"
+            continue
+        }
+
+        $content = Get-Content $file -Raw -ErrorAction SilentlyContinue
+        if ($content -and $content -notmatch "return crypto\.randomUUID\(\)") {
+            Write-Host "$BLUE📝 [需要]$NC 文件需要修改: $(Split-Path $file -Leaf)"
+            $needModification = $true
+            break
+        } else {
+            Write-Host "$GREEN✅ [已修改]$NC 文件已修改: $(Split-Path $file -Leaf)"
+        }
+    }
+
+    if (-not $needModification) {
+        Write-Host "$GREEN✅ [跳过]$NC 所有JS文件已经被修改过，无需重复操作"
+        return $true
+    }
+
+    # 关闭Cursor进程
+    Write-Host "$BLUE🔄 [关闭]$NC 关闭Cursor进程以进行文件修改..."
+    Stop-AllCursorProcesses -MaxRetries 3 -WaitSeconds 3 | Out-Null
+
+    # 创建备份
+    $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+    $backupPath = "$env:TEMP\Cursor_JS_Backup_$timestamp"
+
+    Write-Host "$BLUE💾 [备份]$NC 创建Cursor JS文件备份..."
+    try {
+        New-Item -ItemType Directory -Path $backupPath -Force | Out-Null
+        foreach ($file in $jsFiles) {
+            if (Test-Path $file) {
+                $fileName = Split-Path $file -Leaf
+                Copy-Item $file "$backupPath\$fileName" -Force
+            }
+        }
+        Write-Host "$GREEN✅ [备份]$NC 备份创建成功: $backupPath"
+    } catch {
+        Write-Host "$RED❌ [错误]$NC 创建备份失败: $($_.Exception.Message)"
+        return $false
+    }
+
+    # 修改JS文件
+    Write-Host "$BLUE🔧 [修改]$NC 开始修改JS文件..."
+
+    foreach ($file in $jsFiles) {
+        if (-not (Test-Path $file)) {
+            Write-Host "$YELLOW⚠️  [跳过]$NC 文件不存在: $(Split-Path $file -Leaf)"
+            continue
+        }
+
+        Write-Host "$BLUE📝 [处理]$NC 正在处理: $(Split-Path $file -Leaf)"
+
+        try {
+            $content = Get-Content $file -Raw -Encoding UTF8
+
+            # 检查是否已经修改过
+            if ($content -match "return crypto\.randomUUID\(\)" -or $content -match "// Cursor ID 修改工具注入") {
+                Write-Host "$GREEN✅ [跳过]$NC 文件已经被修改过"
+                $modifiedCount++
+                continue
+            }
+
+            # ES模块兼容的JavaScript注入代码
+            $timestampVar = [DateTimeOffset]::Now.ToUnixTimeSeconds()
+            $injectCode = @"
+// Cursor ID 修改工具注入 - $(Get-Date) - ES模块兼容版本
+import crypto from 'crypto';
+
+// 保存原始函数引用
+const originalRandomUUID_${timestampVar} = crypto.randomUUID;
+
+// 重写crypto.randomUUID方法
+crypto.randomUUID = function() {
+    return '${newUuid}';
+};
+
+// 覆盖所有可能的系统ID获取函数 - ES模块兼容版本
+globalThis.getMachineId = function() { return '${machineId}'; };
+globalThis.getDeviceId = function() { return '${deviceId}'; };
+globalThis.macMachineId = '${macMachineId}';
+
+// 确保在不同环境下都能访问
+if (typeof window !== 'undefined') {
+    window.getMachineId = globalThis.getMachineId;
+    window.getDeviceId = globalThis.getDeviceId;
+    window.macMachineId = globalThis.macMachineId;
+}
+
+// 确保模块顶层执行
+console.log('Cursor设备标识符已成功劫持 - ES模块版本 煎饼果子(86) 关注公众号【煎饼果子卷AI】一起交流更多Cursor技巧和AI知识(脚本免费、关注公众号加群有更多技巧和大佬)');
+
+"@
+
+            # 方法1: 查找IOPlatformUUID相关函数
+            if ($content -match "IOPlatformUUID") {
+                Write-Host "$BLUE🔍 [发现]$NC 找到IOPlatformUUID关键字"
+
+                # 针对不同的函数模式进行修改
+                if ($content -match "function a\$") {
+                    $content = $content -replace "function a\$\(t\)\{switch", "function a`$(t){return crypto.randomUUID(); switch"
+                    Write-Host "$GREEN✅ [成功]$NC 修改a`$函数成功"
+                    $modifiedCount++
+                    continue
+                }
+
+                # 通用注入方法
+                $content = $injectCode + $content
+                Write-Host "$GREEN✅ [成功]$NC 通用注入方法修改成功"
+                $modifiedCount++
+            }
+            # 方法2: 查找其他设备ID相关函数
+            elseif ($content -match "function t\$\(\)" -or $content -match "async function y5") {
+                Write-Host "$BLUE🔍 [发现]$NC 找到设备ID相关函数"
+
+                # 修改MAC地址获取函数
+                if ($content -match "function t\$\(\)") {
+                    $content = $content -replace "function t\$\(\)\{", "function t`$(){return `"00:00:00:00:00:00`";"
+                    Write-Host "$GREEN✅ [成功]$NC 修改MAC地址获取函数"
+                }
+
+                # 修改设备ID获取函数
+                if ($content -match "async function y5") {
+                    $content = $content -replace "async function y5\(t\)\{", "async function y5(t){return crypto.randomUUID();"
+                    Write-Host "$GREEN✅ [成功]$NC 修改设备ID获取函数"
+                }
+
+                $modifiedCount++
+            }
+            else {
+                Write-Host "$YELLOW⚠️  [警告]$NC 未找到已知的设备ID函数模式，使用通用注入"
+                $content = $injectCode + $content
+                $modifiedCount++
+            }
+
+            # 写入修改后的内容
+            Set-Content -Path $file -Value $content -Encoding UTF8 -NoNewline
+            Write-Host "$GREEN✅ [完成]$NC 文件修改完成: $(Split-Path $file -Leaf)"
+
+        } catch {
+            Write-Host "$RED❌ [错误]$NC 修改文件失败: $($_.Exception.Message)"
+            # 尝试从备份恢复
+            $fileName = Split-Path $file -Leaf
+            $backupFile = "$backupPath\$fileName"
+            if (Test-Path $backupFile) {
+                Copy-Item $backupFile $file -Force
+                Write-Host "$YELLOW🔄 [恢复]$NC 已从备份恢复文件"
+            }
+        }
+    }
+
+    if ($modifiedCount -gt 0) {
+        Write-Host ""
+        Write-Host "$GREEN🎉 [完成]$NC 成功修改 $modifiedCount 个JS文件"
+        Write-Host "$BLUE💾 [备份]$NC 原始文件备份位置: $backupPath"
+        Write-Host "$BLUE💡 [说明]$NC JavaScript注入功能已启用，实现设备识别绕过"
+        return $true
+    } else {
+        Write-Host "$RED❌ [失败]$NC 没有成功修改任何文件"
+        return $false
+    }
+}
+
+
 # 🚀 新增 Cursor 防掉试用Pro删除文件夹功能
 function Remove-CursorTrialFolders {
     Write-Host ""
@@ -973,7 +1191,8 @@ Write-Host ""
 Write-Host "$GREEN🎯 [选择模式]$NC 请选择您要执行的操作："
 Write-Host ""
 Write-Host "$BLUE  1️⃣  仅修改机器码$NC"
-Write-Host "$YELLOW      • 仅执行机器码修改功能$NC"
+Write-Host "$YELLOW      • 执行机器码修改功能$NC"
+Write-Host "$YELLOW      • 执行注入破解JS代码到核心文件$NC"
 Write-Host "$YELLOW      • 跳过文件夹删除/环境重置步骤$NC"
 Write-Host "$YELLOW      • 保留现有Cursor配置和数据$NC"
 Write-Host ""
@@ -981,6 +1200,7 @@ Write-Host "$BLUE  2️⃣  重置环境+修改机器码$NC"
 Write-Host "$RED      • 执行完全环境重置（删除Cursor文件夹）$NC"
 Write-Host "$RED      • ⚠️  配置将丢失，请注意备份$NC"
 Write-Host "$YELLOW      • 按照机器代码修改$NC"
+Write-Host "$YELLOW      • 执行注入破解JS代码到核心文件$NC"
 Write-Host "$YELLOW      • 这相当于当前的完整脚本行为$NC"
 Write-Host ""
 
@@ -1443,226 +1663,6 @@ if ($executeMode -eq "MODIFY_ONLY") {
     }
 }
 
-
-# � 修改Cursor内核JS文件实现设备识别绕过（从macOS版本移植）
-function Modify-CursorJSFiles {
-    Write-Host ""
-    Write-Host "$BLUE🔧 [内核修改]$NC 开始修改Cursor内核JS文件实现设备识别绕过..."
-    Write-Host ""
-
-    # Windows版Cursor应用路径
-    $cursorAppPath = "${env:LOCALAPPDATA}\Programs\Cursor"
-    if (-not (Test-Path $cursorAppPath)) {
-        # 尝试其他可能的安装路径
-        $alternatePaths = @(
-            "${env:ProgramFiles}\Cursor",
-            "${env:ProgramFiles(x86)}\Cursor",
-            "${env:USERPROFILE}\AppData\Local\Programs\Cursor"
-        )
-
-        foreach ($path in $alternatePaths) {
-            if (Test-Path $path) {
-                $cursorAppPath = $path
-                break
-            }
-        }
-
-        if (-not (Test-Path $cursorAppPath)) {
-            Write-Host "$RED❌ [错误]$NC 未找到Cursor应用安装路径"
-            Write-Host "$YELLOW💡 [提示]$NC 请确认Cursor已正确安装"
-            return $false
-        }
-    }
-
-    Write-Host "$GREEN✅ [发现]$NC 找到Cursor安装路径: $cursorAppPath"
-
-    # 生成新的设备标识符
-    $newUuid = [System.Guid]::NewGuid().ToString().ToLower()
-
-
-
-    $machineId = "auth0|user_$(Generate-RandomString -Length 32)"
-    $deviceId = [System.Guid]::NewGuid().ToString().ToLower()
-    $macMachineId = Generate-RandomString -Length 64
-
-    Write-Host "$GREEN🔑 [生成]$NC 已生成新的设备标识符"
-
-    # 目标JS文件列表（Windows路径）
-    $jsFiles = @(
-        "$cursorAppPath\resources\app\out\vs\workbench\api\node\extensionHostProcess.js",
-        "$cursorAppPath\resources\app\out\main.js",
-        "$cursorAppPath\resources\app\out\vs\code\node\cliProcessMain.js"
-    )
-
-    $modifiedCount = 0
-    $needModification = $false
-
-    # 检查是否需要修改
-    Write-Host "$BLUE🔍 [检查]$NC 检查JS文件修改状态..."
-    foreach ($file in $jsFiles) {
-        if (-not (Test-Path $file)) {
-            Write-Host "$YELLOW⚠️  [警告]$NC 文件不存在: $(Split-Path $file -Leaf)"
-            continue
-        }
-
-        $content = Get-Content $file -Raw -ErrorAction SilentlyContinue
-        if ($content -and $content -notmatch "return crypto\.randomUUID\(\)") {
-            Write-Host "$BLUE📝 [需要]$NC 文件需要修改: $(Split-Path $file -Leaf)"
-            $needModification = $true
-            break
-        } else {
-            Write-Host "$GREEN✅ [已修改]$NC 文件已修改: $(Split-Path $file -Leaf)"
-        }
-    }
-
-    if (-not $needModification) {
-        Write-Host "$GREEN✅ [跳过]$NC 所有JS文件已经被修改过，无需重复操作"
-        return $true
-    }
-
-    # 关闭Cursor进程
-    Write-Host "$BLUE🔄 [关闭]$NC 关闭Cursor进程以进行文件修改..."
-    Stop-AllCursorProcesses -MaxRetries 3 -WaitSeconds 3 | Out-Null
-
-    # 创建备份
-    $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
-    $backupPath = "$env:TEMP\Cursor_JS_Backup_$timestamp"
-
-    Write-Host "$BLUE💾 [备份]$NC 创建Cursor JS文件备份..."
-    try {
-        New-Item -ItemType Directory -Path $backupPath -Force | Out-Null
-        foreach ($file in $jsFiles) {
-            if (Test-Path $file) {
-                $fileName = Split-Path $file -Leaf
-                Copy-Item $file "$backupPath\$fileName" -Force
-            }
-        }
-        Write-Host "$GREEN✅ [备份]$NC 备份创建成功: $backupPath"
-    } catch {
-        Write-Host "$RED❌ [错误]$NC 创建备份失败: $($_.Exception.Message)"
-        return $false
-    }
-
-    # 修改JS文件
-    Write-Host "$BLUE🔧 [修改]$NC 开始修改JS文件..."
-
-    foreach ($file in $jsFiles) {
-        if (-not (Test-Path $file)) {
-            Write-Host "$YELLOW⚠️  [跳过]$NC 文件不存在: $(Split-Path $file -Leaf)"
-            continue
-        }
-
-        Write-Host "$BLUE📝 [处理]$NC 正在处理: $(Split-Path $file -Leaf)"
-
-        try {
-            $content = Get-Content $file -Raw -Encoding UTF8
-
-            # 检查是否已经修改过
-            if ($content -match "return crypto\.randomUUID\(\)" -or $content -match "// Cursor ID 修改工具注入") {
-                Write-Host "$GREEN✅ [跳过]$NC 文件已经被修改过"
-                $modifiedCount++
-                continue
-            }
-
-            # ES模块兼容的JavaScript注入代码
-            $timestamp = [DateTimeOffset]::Now.ToUnixTimeSeconds()
-            $injectCode = @"
-// Cursor ID 修改工具注入 - $(Get-Date) - ES模块兼容版本
-import crypto from 'crypto';
-
-// 保存原始函数引用
-const originalRandomUUID_$timestamp = crypto.randomUUID;
-
-// 重写crypto.randomUUID方法
-crypto.randomUUID = function() {
-    return '$newUuid';
-};
-
-// 覆盖所有可能的系统ID获取函数 - ES模块兼容版本
-globalThis.getMachineId = function() { return '$machineId'; };
-globalThis.getDeviceId = function() { return '$deviceId'; };
-globalThis.macMachineId = '$macMachineId';
-
-// 确保在不同环境下都能访问
-if (typeof window !== 'undefined') {
-    window.getMachineId = globalThis.getMachineId;
-    window.getDeviceId = globalThis.getDeviceId;
-    window.macMachineId = globalThis.macMachineId;
-}
-
-// 确保模块顶层执行
-console.log('Cursor设备标识符已成功劫持 - ES模块版本 煎饼果子(86) 关注公众号【煎饼果子卷AI】一起交流更多Cursor技巧和AI知识(脚本免费、关注公众号加群有更多技巧和大佬)');
-
-"@
-
-            # 方法1: 查找IOPlatformUUID相关函数
-            if ($content -match "IOPlatformUUID") {
-                Write-Host "$BLUE🔍 [发现]$NC 找到IOPlatformUUID关键字"
-
-                # 针对不同的函数模式进行修改
-                if ($content -match "function a\$") {
-                    $content = $content -replace "function a\$\(t\)\{switch", "function a`$(t){return crypto.randomUUID(); switch"
-                    Write-Host "$GREEN✅ [成功]$NC 修改a`$函数成功"
-                    $modifiedCount++
-                    continue
-                }
-
-                # 通用注入方法
-                $content = $injectCode + $content
-                Write-Host "$GREEN✅ [成功]$NC 通用注入方法修改成功"
-                $modifiedCount++
-            }
-            # 方法2: 查找其他设备ID相关函数
-            elseif ($content -match "function t\$\(\)" -or $content -match "async function y5") {
-                Write-Host "$BLUE🔍 [发现]$NC 找到设备ID相关函数"
-
-                # 修改MAC地址获取函数
-                if ($content -match "function t\$\(\)") {
-                    $content = $content -replace "function t\$\(\)\{", "function t`$(){return `"00:00:00:00:00:00`";"
-                    Write-Host "$GREEN✅ [成功]$NC 修改MAC地址获取函数"
-                }
-
-                # 修改设备ID获取函数
-                if ($content -match "async function y5") {
-                    $content = $content -replace "async function y5\(t\)\{", "async function y5(t){return crypto.randomUUID();"
-                    Write-Host "$GREEN✅ [成功]$NC 修改设备ID获取函数"
-                }
-
-                $modifiedCount++
-            }
-            else {
-                Write-Host "$YELLOW⚠️  [警告]$NC 未找到已知的设备ID函数模式，使用通用注入"
-                $content = $injectCode + $content
-                $modifiedCount++
-            }
-
-            # 写入修改后的内容
-            Set-Content -Path $file -Value $content -Encoding UTF8 -NoNewline
-            Write-Host "$GREEN✅ [完成]$NC 文件修改完成: $(Split-Path $file -Leaf)"
-
-        } catch {
-            Write-Host "$RED❌ [错误]$NC 修改文件失败: $($_.Exception.Message)"
-            # 尝试从备份恢复
-            $fileName = Split-Path $file -Leaf
-            $backupFile = "$backupPath\$fileName"
-            if (Test-Path $backupFile) {
-                Copy-Item $backupFile $file -Force
-                Write-Host "$YELLOW🔄 [恢复]$NC 已从备份恢复文件"
-            }
-        }
-    }
-
-    if ($modifiedCount -gt 0) {
-        Write-Host ""
-        Write-Host "$GREEN🎉 [完成]$NC 成功修改 $modifiedCount 个JS文件"
-        Write-Host "$BLUE💾 [备份]$NC 原始文件备份位置: $backupPath"
-        Write-Host "$BLUE💡 [说明]$NC JavaScript注入功能已启用，实现设备识别绕过"
-        return $true
-    } else {
-        Write-Host "$RED❌ [失败]$NC 没有成功修改任何文件"
-        return $false
-    }
-}
 
 # 📱 显示公众号信息
 Write-Host ""
