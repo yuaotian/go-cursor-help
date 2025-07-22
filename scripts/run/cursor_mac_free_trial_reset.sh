@@ -1161,7 +1161,8 @@ fix_damaged_app() {
     fi
     
     log_info "尝试移除隔离属性..."
-    if sudo xattr -rd com.apple.quarantine "$CURSOR_APP_PATH" 2>/dev/null; then
+    if sudo find "$CURSOR_APP_PATH" -print0 \
+         | xargs -0 sudo xattr -d com.apple.quarantine 2>/dev/null
         log_info "成功移除隔离属性"
     else
         log_warn "移除隔离属性失败，尝试其他方法..."
