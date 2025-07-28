@@ -461,8 +461,8 @@ irm https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/
 </td>
 <td align="center">
 <b>微信交流群</b><br>
-<img src="img/qun-15.jpg" width="500" alt="WeChat"><br>
-<small>二维码7天内(7月14日前)有效，过期请加微信</small>
+<img src="img/qun-16.png" width="500" alt="WeChat"><br>
+<small>二维码7天内(8月4日前)有效，过期请加微信</small>
 </td>
 <td align="center">
 <b>公众号</b><br>
