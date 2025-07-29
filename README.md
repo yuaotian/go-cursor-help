@@ -270,7 +270,7 @@ irm https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/
 **Windows (Enhanced Version)**
 
 ```powershell
-irm https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier_new.ps1 | iex
+irm https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
 ```
 > Enhanced Cursor machine code modifier with dual-mode operation and trial reset functionality
 
@@ -304,7 +304,7 @@ irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaoti
 **Windows (Enhanced Version)**
 
 ```powershell
-irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier_new.ps1 | iex
+irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
 ```
 > Enhanced Cursor machine code modifier with dual-mode operation and trial reset functionality
 
@@ -338,7 +338,7 @@ irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaoti
 
 For the enhanced version:
 ```powershell
-irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier_new.ps1 | iex
+irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
 ```
 
 ##### Method 3: Using Search
@@ -354,7 +354,7 @@ irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaoti
 
 For the enhanced version:
 ```powershell
-irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier_new.ps1 | iex
+irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
 ```
 
 ### 🔧 PowerShell Installation Guide 
@@ -509,7 +509,7 @@ Modifying this registry key may affect:
 
 ## 💬 Feedback & Suggestions
 
-We value your feedback on the new enhanced script! If you've tried the `cursor_win_id_modifier_new.ps1` script, please share your experience:
+We value your feedback on the new enhanced script! If you've tried the `cursor_win_id_modifier.ps1` script, please share your experience:
 
 - 🐛 **Bug Reports**: Found any issues? Let us know!
 - 💡 **Feature Suggestions**: Have ideas for improvements?

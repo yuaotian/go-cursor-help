@@ -265,7 +265,7 @@ irm https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/
 **Windows (強化版)**
 
 ```powershell
-irm https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier_new.ps1 | iex
+irm https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
 ```
 > デュアルモード操作とトライアルリセット機能を備えた強化版Cursorマシンコード修正ツール
 
@@ -301,7 +301,7 @@ irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaoti
 **Windows (強化版)**
 
 ```powershell
-irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier_new.ps1 | iex
+irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
 ```
 > デュアルモード操作とトライアルリセット機能を備えた強化版Cursorマシンコード修正ツール
 
@@ -335,7 +335,7 @@ irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaoti
 
 強化版スクリプト：
 ```powershell
-irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier_new.ps1 | iex
+irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
 ```
 
 ##### 方法3: 検索を使用する
@@ -351,7 +351,7 @@ irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaoti
 
 強化版スクリプト：
 ```powershell
-irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier_new.ps1 | iex
+irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
 ```
 
 ### 🔧 PowerShellインストールガイド
@@ -546,7 +546,7 @@ ETC: 0xa2745f4CD5d32310AC01694ABDB28bA32D125a6b
 
 ## 💬 フィードバック＆提案
 
-新しい強化スクリプトに関するフィードバックをお待ちしています！`cursor_win_id_modifier_new.ps1` スクリプトをお試しいただいた方は、ぜひご体験をお聞かせください：
+新しい強化スクリプトに関するフィードバックをお待ちしています！`cursor_win_id_modifier.ps1` スクリプトをお試しいただいた方は、ぜひご体験をお聞かせください：
 
 - 🐛 **バグレポート**：問題を発見されましたか？お知らせください！
 - 💡 **機能提案**：改善のアイデアはありますか？
