@@ -544,8 +544,8 @@ Your feedback helps us improve the tool for everyone. Feel free to open an issue
 </td>
 <td align="center">
 <b>WeChat</b><br>
-<img src="img/qun-16.png" width="500" alt="WeChat"><br>
-<em>二维码7天内(8月4日前前)有效，过期请加微信</em>
+<img src="img/qun-17.png" width="500" alt="WeChat"><br>
+<em>二维码7天内(8月18日前前)有效，过期请加微信</em>
 </td>
 <!-- <td align="center">
 <b>ETC</b><br>
