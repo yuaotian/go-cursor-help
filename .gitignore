@@ -16,7 +16,7 @@ go/
 .idea/
 *.swp
 *.swo
-
+*ssm
 # OS specific
 .DS_Store
 Thumbs.db
