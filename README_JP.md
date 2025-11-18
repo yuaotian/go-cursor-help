@@ -528,8 +528,8 @@ macOS/Linuxユーザーはシステム内で同様の`cursor-updater`ディレ�
 </td>
 <td align="center">
 <b>WeChat</b><br>
-<img src="img/qun-19.jpg" width="500" alt="WeChat"><br>
-<em>二维码7天内(9月29日前前)有效，过期请加微信或者公众号`煎饼果子卷AI`</em>
+<img src="img/qun-20.jpg" width="500" alt="WeChat"><br>
+<em>二维码7天内(11月25日前前)有效，过期请加微信或者公众号`煎饼果子卷AI`</em>
 </td>
 <!-- <td align="center">
 <b>ETC</b><br>
