@@ -15,6 +15,8 @@ const (
 	CN Language = "cn"
 	// EN represents English language
 	EN Language = "en"
+	// PT_BR represents Brazilian Portuguese language
+	PT_BR Language = "pt_br"
 )
 
 // TextResource contains all translatable text resources
@@ -44,6 +46,10 @@ type TextResource struct {
 
 	// Info messages
 	ConfigLocation string
+	
+	// Application messages
+	RequestingAdminPrivileges string
+	OperationCompleted        string
 }
 
 var (
@@ -81,14 +87,22 @@ func detectLanguage() Language {
 	if isChineseEnvVar() {
 		return CN
 	}
+	if isPortugueseEnvVar() {
+		return PT_BR
+	}
 
 	// Then check OS-specific locale
 	if isWindows() {
 		if isWindowsChineseLocale() {
 			return CN
 		}
+		if isWindowsPortugueseLocale() {
+			return PT_BR
+		}
 	} else if isUnixChineseLocale() {
 		return CN
+	} else if isUnixPortugueseLocale() {
+		return PT_BR
 	}
 
 	return EN
@@ -98,6 +112,19 @@ func isChineseEnvVar() bool {
 	for _, envVar := range []string{"LANG", "LANGUAGE", "LC_ALL"} {
 		if lang := os.Getenv(envVar); lang != "" && strings.Contains(strings.ToLower(lang), "zh") {
 			return true
+		}
+	}
+	return false
+}
+
+func isPortugueseEnvVar() bool {
+	for _, envVar := range []string{"LANG", "LANGUAGE", "LC_ALL"} {
+		if lang := os.Getenv(envVar); lang != "" {
+			langLower := strings.ToLower(lang)
+			if strings.Contains(langLower, "pt_br") || strings.Contains(langLower, "pt-br") || 
+			   strings.Contains(langLower, "portuguese") || strings.Contains(langLower, "brasil") {
+				return true
+			}
 		}
 	}
 	return false
@@ -122,10 +149,38 @@ func isWindowsChineseLocale() bool {
 	return err == nil && strings.Contains(string(output), "2052")
 }
 
+func isWindowsPortugueseLocale() bool {
+	// Check Windows UI culture for Portuguese (Brazil)
+	cmd := exec.Command("powershell", "-Command",
+		"[System.Globalization.CultureInfo]::CurrentUICulture.Name")
+	output, err := cmd.Output()
+	if err == nil {
+		cultureLower := strings.ToLower(strings.TrimSpace(string(output)))
+		if strings.HasPrefix(cultureLower, "pt-br") || strings.HasPrefix(cultureLower, "pt_br") {
+			return true
+		}
+	}
+
+	// Check Windows locale for Brazilian Portuguese (1046)
+	cmd = exec.Command("wmic", "os", "get", "locale")
+	output, err = cmd.Output()
+	return err == nil && strings.Contains(string(output), "1046")
+}
+
 func isUnixChineseLocale() bool {
 	cmd := exec.Command("locale")
 	output, err := cmd.Output()
 	return err == nil && strings.Contains(strings.ToLower(string(output)), "zh_cn")
+}
+
+func isUnixPortugueseLocale() bool {
+	cmd := exec.Command("locale")
+	output, err := cmd.Output()
+	if err == nil {
+		outputLower := strings.ToLower(string(output))
+		return strings.Contains(outputLower, "pt_br") || strings.Contains(outputLower, "pt-br")
+	}
+	return false
 }
 
 // texts contains all translations
@@ -156,6 +211,10 @@ var texts = map[Language]TextResource{
 
 		// Info messages
 		ConfigLocation: "配置文件位置:",
+		
+		// Application messages
+		RequestingAdminPrivileges: "\n请求管理员权限...",
+		OperationCompleted:        "操作完成！",
 	},
 	EN: {
 		// Success messages
@@ -183,5 +242,40 @@ var texts = map[Language]TextResource{
 
 		// Info messages
 		ConfigLocation: "Config file location:",
+		
+		// Application messages
+		RequestingAdminPrivileges: "\nRequesting administrator privileges...",
+		OperationCompleted:        "Operation completed!",
+	},
+	PT_BR: {
+		// Success messages
+		SuccessMessage: "[√] Arquivo de configuração atualizado com sucesso!",
+		RestartMessage: "[!] Por favor, reinicie o Cursor manualmente para que as alterações tenham efeito",
+
+		// Progress messages
+		ReadingConfig:     "Lendo arquivo de configuração...",
+		GeneratingIds:     "Gerando novos identificadores...",
+		CheckingProcesses: "Verificando instâncias do Cursor em execução...",
+		ClosingProcesses:  "Fechando instâncias do Cursor...",
+		ProcessesClosed:   "Todas as instâncias do Cursor foram fechadas",
+		PleaseWait:        "Por favor, aguarde...",
+
+		// Error messages
+		ErrorPrefix:    "O programa encontrou um erro grave: %v",
+		PrivilegeError: "\n[!] Erro: Privilégios de administrador necessários",
+
+		// Instructions
+		RunAsAdmin:         "Por favor, clique com o botão direito e selecione 'Executar como Administrador'",
+		RunWithSudo:        "Por favor, execute este programa com sudo",
+		SudoExample:        "Exemplo: sudo %s",
+		PressEnterToExit:   "\nPressione Enter para sair...",
+		SetReadOnlyMessage: "Definir storage.json como somente leitura, o que causará problemas como perda de registros do workspace",
+
+		// Info messages
+		ConfigLocation: "Localização do arquivo de configuração:",
+		
+		// Application messages
+		RequestingAdminPrivileges: "\nSolicitando privilégios de administrador...",
+		OperationCompleted:        "Operação concluída!",
 	},
 }
