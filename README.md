@@ -74,7 +74,7 @@ When running the reset tool, the script will ask if you want to disable auto-upd
 1) Yes - Disable auto-update
 ```
 
-Select `1` to automatically complete the disable operation.
+Select  `1`  to automatically complete the disable operation.
 
 #### Method 2: Manual Disable
 
