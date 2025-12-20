@@ -344,11 +344,11 @@ ensure_cursor_directory_permissions() {
         log_warn "⚠️  [3/4] chmod Application Support/Cursor 失败"
     fi
 
-    # 命令4: chmod -R u+w ~/.cursor/extensions
-    if chmod -R u+w "$cursor_home_dir/extensions" 2>/dev/null; then
-        log_info "✅ [4/4] chmod .cursor/extensions 成功"
+    # 命令4: chmod -R u+w ~/.cursor (修复整个目录，不仅仅是extensions子目录)
+    if chmod -R u+w "$cursor_home_dir" 2>/dev/null; then
+        log_info "✅ [4/4] chmod .cursor 成功"
     else
-        log_warn "⚠️  [4/4] chmod .cursor/extensions 失败"
+        log_warn "⚠️  [4/4] chmod .cursor 失败"
     fi
 
     log_info "✅ [完成] 核心权限修复命令执行完成"
