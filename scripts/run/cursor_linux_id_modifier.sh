@@ -539,17 +539,84 @@ generate_new_config() {
             # 生成并设置新的设备ID
             local new_device_id=$(generate_uuid)
             local new_machine_id=$(generate_uuid) # 使用 UUID 作为 Machine ID 更常见
+            # 🔧 新增: serviceMachineId (用于 storage.serviceMachineId)
+            local new_service_machine_id=$(generate_uuid)
+            # 🔧 新增: firstSessionDate (重置首次会话日期)
+            local new_first_session_date=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+            # 🔧 新增: macMachineId 和 sqmId
+            local new_mac_machine_id=$(openssl rand -hex 32 2>/dev/null || head -c 32 /dev/urandom | xxd -p | tr -d '\n')
+            local new_sqm_id="{$(generate_uuid | tr '[:lower:]' '[:upper:]')}"
 
             log_info "正在设置新的设备和机器ID..."
             log_debug "新设备ID: $new_device_id"
             log_debug "新机器ID: $new_machine_id"
-            
+            log_debug "新serviceMachineId: $new_service_machine_id"
+            log_debug "新firstSessionDate: $new_first_session_date"
+
             # 修改配置文件
-            if modify_or_add_config "deviceId" "$new_device_id" "$STORAGE_FILE" && \
-               modify_or_add_config "machineId" "$new_machine_id" "$STORAGE_FILE"; then
-                log_info "配置文件中的 deviceId 和 machineId 修改成功"
+            # 🔧 修复: 添加 storage.serviceMachineId, telemetry.firstSessionDate, telemetry.macMachineId, telemetry.sqmId
+            local config_success=true
+            modify_or_add_config "deviceId" "$new_device_id" "$STORAGE_FILE" || config_success=false
+            modify_or_add_config "machineId" "$new_machine_id" "$STORAGE_FILE" || config_success=false
+            modify_or_add_config "telemetry.machineId" "$new_machine_id" "$STORAGE_FILE" || config_success=false
+            modify_or_add_config "telemetry.macMachineId" "$new_mac_machine_id" "$STORAGE_FILE" || config_success=false
+            modify_or_add_config "telemetry.devDeviceId" "$new_device_id" "$STORAGE_FILE" || config_success=false
+            modify_or_add_config "telemetry.sqmId" "$new_sqm_id" "$STORAGE_FILE" || config_success=false
+            modify_or_add_config "storage.serviceMachineId" "$new_service_machine_id" "$STORAGE_FILE" || config_success=false
+            modify_or_add_config "telemetry.firstSessionDate" "$new_first_session_date" "$STORAGE_FILE" || config_success=false
+
+            if [ "$config_success" = true ]; then
+                log_info "配置文件中的所有标识符修改成功"
+                log_info "📋 [详情] 已更新以下标识符："
+                echo "   🔹 deviceId: ${new_device_id:0:16}..."
+                echo "   🔹 machineId: ${new_machine_id:0:16}..."
+                echo "   🔹 macMachineId: ${new_mac_machine_id:0:16}..."
+                echo "   🔹 sqmId: $new_sqm_id"
+                echo "   🔹 serviceMachineId: $new_service_machine_id"
+                echo "   🔹 firstSessionDate: $new_first_session_date"
+
+                # 🔧 新增: 修改 machineid 文件
+                log_info "🔧 [machineid] 正在修改 machineid 文件..."
+                local machineid_file_path="$HOME/.config/Cursor/machineid"
+                if [ -f "$machineid_file_path" ]; then
+                    # 备份原始 machineid 文件
+                    local machineid_backup="$BACKUP_DIR/machineid.backup_$(date +%Y%m%d_%H%M%S)"
+                    cp "$machineid_file_path" "$machineid_backup" 2>/dev/null && \
+                        log_info "💾 [备份] machineid 文件已备份: $machineid_backup"
+                fi
+                # 写入新的 serviceMachineId 到 machineid 文件
+                if echo -n "$new_service_machine_id" > "$machineid_file_path" 2>/dev/null; then
+                    log_info "✅ [machineid] machineid 文件修改成功: $new_service_machine_id"
+                    # 设置 machineid 文件为只读
+                    chmod 444 "$machineid_file_path" 2>/dev/null && \
+                        log_info "🔒 [保护] machineid 文件已设置为只读"
+                else
+                    log_warn "⚠️  [machineid] machineid 文件修改失败"
+                    log_info "💡 [提示] 可手动修改文件: $machineid_file_path"
+                fi
+
+                # 🔧 新增: 修改 .updaterId 文件（更新器设备标识符）
+                log_info "🔧 [updaterId] 正在修改 .updaterId 文件..."
+                local updater_id_file_path="$HOME/.config/Cursor/.updaterId"
+                if [ -f "$updater_id_file_path" ]; then
+                    # 备份原始 .updaterId 文件
+                    local updater_id_backup="$BACKUP_DIR/.updaterId.backup_$(date +%Y%m%d_%H%M%S)"
+                    cp "$updater_id_file_path" "$updater_id_backup" 2>/dev/null && \
+                        log_info "💾 [备份] .updaterId 文件已备份: $updater_id_backup"
+                fi
+                # 生成新的 updaterId（UUID格式）
+                local new_updater_id=$(generate_uuid)
+                if echo -n "$new_updater_id" > "$updater_id_file_path" 2>/dev/null; then
+                    log_info "✅ [updaterId] .updaterId 文件修改成功: $new_updater_id"
+                    # 设置 .updaterId 文件为只读
+                    chmod 444 "$updater_id_file_path" 2>/dev/null && \
+                        log_info "🔒 [保护] .updaterId 文件已设置为只读"
+                else
+                    log_warn "⚠️  [updaterId] .updaterId 文件修改失败"
+                    log_info "💡 [提示] 可手动修改文件: $updater_id_file_path"
+                fi
             else
-                log_error "配置文件中的 deviceId 或 machineId 修改失败"
+                log_error "配置文件中的部分标识符修改失败"
                 # 注意：即使失败，备份仍在，但配置文件可能已部分修改
                 return 1 # 返回错误状态
             fi
@@ -675,6 +742,8 @@ modify_cursor_js_files() {
     local mac_machine_id=$(openssl rand -hex 32)
     local sqm_id=$(generate_uuid)
     local session_id=$(generate_uuid)
+    # 🔧 新增: 生成 firstSessionDate 用于替换 someValue.firstSessionDate
+    local first_session_date=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
 
     log_info "🔑 [生成] 已生成新的设备标识符"
     log_info "   machineId: ${machine_id:0:16}..."
@@ -779,6 +848,13 @@ modify_cursor_js_files() {
         if grep -q 'someValue\.sessionId' "$file"; then
             sed -i "s/someValue\.sessionId/${session_id}/g" "$file"
             log_info "   ✓ [方案A] 替换 someValue.sessionId"
+            replaced=true
+        fi
+
+        # 🔧 新增: 替换 someValue.firstSessionDate（首次会话日期）
+        if grep -q 'someValue\.firstSessionDate' "$file"; then
+            sed -i "s/someValue\.firstSessionDate/${first_session_date}/g" "$file"
+            log_info "   ✓ [方案A] 替换 someValue.firstSessionDate"
             replaced=true
         fi
 

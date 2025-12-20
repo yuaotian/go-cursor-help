@@ -196,6 +196,14 @@ function Modify-CursorJSFiles {
                 $replaced = $true
             }
 
+            # 🔧 新增: 替换 someValue.firstSessionDate
+            $firstSessionDateValue = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+            if ($content -match 'someValue\.firstSessionDate') {
+                $content = $content -replace 'someValue\.firstSessionDate', $firstSessionDateValue
+                Write-Host "   $GREEN✓$NC [方案A] 替换 someValue.firstSessionDate"
+                $replaced = $true
+            }
+
             # ========== 方法B: IIFE运行时劫持（crypto.randomUUID） ==========
             # 使用IIFE包装，兼容webpack打包的bundle文件
             # 在支持 require 的环境中劫持 crypto.randomUUID；在 ESM 环境中安全降级为 no-op，避免 require 抛错
@@ -880,10 +888,14 @@ function Modify-MachineCodeConfig {
             $rng.Dispose()
             $MACHINE_ID = "${prefixHex}${randomPart}"
             $SQM_ID = "{$([System.Guid]::NewGuid().ToString().ToUpper())}"
+            # 🔧 新增: serviceMachineId (用于 storage.serviceMachineId)
+            $SERVICE_MACHINE_ID = [System.Guid]::NewGuid().ToString()
+            # 🔧 新增: firstSessionDate (重置首次会话日期)
+            $FIRST_SESSION_DATE = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
 
-            Write-Host "$GREEN✅ [进度]$NC 1/6 - 设备标识符生成完成"
+            Write-Host "$GREEN✅ [进度]$NC 1/7 - 设备标识符生成完成"
 
-            Write-Host "$BLUE⏳ [进度]$NC 2/6 - 创建备份目录..."
+            Write-Host "$BLUE⏳ [进度]$NC 2/7 - 创建备份目录..."
 
             # 备份原始值（增强版）
             $backupDir = "$env:APPDATA\Cursor\User\globalStorage\backups"
@@ -894,7 +906,7 @@ function Modify-MachineCodeConfig {
             $backupName = "storage.json.backup_$(Get-Date -Format 'yyyyMMdd_HHmmss')_retry$retryCount"
             $backupPath = "$backupDir\$backupName"
 
-            Write-Host "$BLUE⏳ [进度]$NC 3/6 - 备份原始配置..."
+            Write-Host "$BLUE⏳ [进度]$NC 3/7 - 备份原始配置..."
             Copy-Item $configPath $backupPath -ErrorAction Stop
 
             # 验证备份是否成功
@@ -902,7 +914,7 @@ function Modify-MachineCodeConfig {
                 $backupSize = (Get-Item $backupPath).Length
                 $originalSize = (Get-Item $configPath).Length
                 if ($backupSize -eq $originalSize) {
-                    Write-Host "$GREEN✅ [进度]$NC 3/6 - 配置备份成功: $backupName"
+                    Write-Host "$GREEN✅ [进度]$NC 3/7 - 配置备份成功: $backupName"
                 } else {
                     Write-Host "$YELLOW⚠️  [警告]$NC 备份文件大小不匹配，但继续执行"
                 }
@@ -910,20 +922,23 @@ function Modify-MachineCodeConfig {
                 throw "备份文件创建失败"
             }
 
-            Write-Host "$BLUE⏳ [进度]$NC 4/6 - 读取原始配置到内存..."
+            Write-Host "$BLUE⏳ [进度]$NC 4/7 - 读取原始配置到内存..."
 
             # 原子性操作：读取原始内容到内存
             $originalContent = Get-Content $configPath -Raw -Encoding UTF8 -ErrorAction Stop
             $config = $originalContent | ConvertFrom-Json -ErrorAction Stop
 
-            Write-Host "$BLUE⏳ [进度]$NC 5/6 - 在内存中更新配置..."
+            Write-Host "$BLUE⏳ [进度]$NC 5/7 - 在内存中更新配置..."
 
             # 更新配置值（安全方式，确保属性存在）
+            # 🔧 修复: 添加 storage.serviceMachineId 和 telemetry.firstSessionDate
             $propertiesToUpdate = @{
                 'telemetry.machineId' = $MACHINE_ID
                 'telemetry.macMachineId' = $MAC_MACHINE_ID
                 'telemetry.devDeviceId' = $UUID
                 'telemetry.sqmId' = $SQM_ID
+                'storage.serviceMachineId' = $SERVICE_MACHINE_ID
+                'telemetry.firstSessionDate' = $FIRST_SESSION_DATE
             }
 
             foreach ($property in $propertiesToUpdate.GetEnumerator()) {
@@ -942,7 +957,7 @@ function Modify-MachineCodeConfig {
                 }
             }
 
-            Write-Host "$BLUE⏳ [进度]$NC 6/6 - 原子性写入新配置文件..."
+            Write-Host "$BLUE⏳ [进度]$NC 6/7 - 原子性写入新配置文件..."
 
             # 原子性操作：删除原文件，写入新文件
             $tempPath = "$configPath.tmp"
@@ -983,7 +998,7 @@ function Modify-MachineCodeConfig {
             $file.IsReadOnly = $false  # 保持可写，便于后续修改
 
             # 最终验证修改结果
-            Write-Host "$BLUE🔍 [最终验证]$NC 验证新配置文件..."
+            Write-Host "$BLUE⏳ [进度]$NC 7/7 - 验证新配置文件..."
 
             $verifyContent = Get-Content $configPath -Raw -Encoding UTF8
             $verifyConfig = $verifyContent | ConvertFrom-Json
@@ -1020,8 +1035,57 @@ function Modify-MachineCodeConfig {
                 Write-Host "   🔹 macMachineId: $MAC_MACHINE_ID"
                 Write-Host "   🔹 devDeviceId: $UUID"
                 Write-Host "   🔹 sqmId: $SQM_ID"
+                Write-Host "   🔹 serviceMachineId: $SERVICE_MACHINE_ID"
+                Write-Host "   🔹 firstSessionDate: $FIRST_SESSION_DATE"
                 Write-Host ""
                 Write-Host "$GREEN💾 [备份]$NC 原配置已备份至: $backupName"
+
+                # 🔧 新增: 修改 machineid 文件
+                Write-Host "$BLUE🔧 [machineid]$NC 正在修改 machineid 文件..."
+                $machineIdFilePath = "$env:APPDATA\Cursor\machineid"
+                try {
+                    if (Test-Path $machineIdFilePath) {
+                        # 备份原始 machineid 文件
+                        $machineIdBackup = "$backupDir\machineid.backup_$(Get-Date -Format 'yyyyMMdd_HHmmss')"
+                        Copy-Item $machineIdFilePath $machineIdBackup -Force
+                        Write-Host "$GREEN💾 [备份]$NC machineid 文件已备份: $machineIdBackup"
+                    }
+                    # 写入新的 serviceMachineId 到 machineid 文件
+                    [System.IO.File]::WriteAllText($machineIdFilePath, $SERVICE_MACHINE_ID, [System.Text.Encoding]::UTF8)
+                    Write-Host "$GREEN✅ [machineid]$NC machineid 文件修改成功: $SERVICE_MACHINE_ID"
+
+                    # 设置 machineid 文件为只读
+                    $machineIdFile = Get-Item $machineIdFilePath
+                    $machineIdFile.IsReadOnly = $true
+                    Write-Host "$GREEN🔒 [保护]$NC machineid 文件已设置为只读"
+                } catch {
+                    Write-Host "$YELLOW⚠️  [machineid]$NC machineid 文件修改失败: $($_.Exception.Message)"
+                    Write-Host "$BLUE💡 [提示]$NC 可手动修改文件: $machineIdFilePath"
+                }
+
+                # 🔧 新增: 修改 .updaterId 文件（更新器设备标识符）
+                Write-Host "$BLUE🔧 [updaterId]$NC 正在修改 .updaterId 文件..."
+                $updaterIdFilePath = "$env:APPDATA\Cursor\.updaterId"
+                try {
+                    if (Test-Path $updaterIdFilePath) {
+                        # 备份原始 .updaterId 文件
+                        $updaterIdBackup = "$backupDir\.updaterId.backup_$(Get-Date -Format 'yyyyMMdd_HHmmss')"
+                        Copy-Item $updaterIdFilePath $updaterIdBackup -Force
+                        Write-Host "$GREEN💾 [备份]$NC .updaterId 文件已备份: $updaterIdBackup"
+                    }
+                    # 生成新的 updaterId（UUID格式）
+                    $newUpdaterId = [System.Guid]::NewGuid().ToString()
+                    [System.IO.File]::WriteAllText($updaterIdFilePath, $newUpdaterId, [System.Text.Encoding]::UTF8)
+                    Write-Host "$GREEN✅ [updaterId]$NC .updaterId 文件修改成功: $newUpdaterId"
+
+                    # 设置 .updaterId 文件为只读
+                    $updaterIdFile = Get-Item $updaterIdFilePath
+                    $updaterIdFile.IsReadOnly = $true
+                    Write-Host "$GREEN🔒 [保护]$NC .updaterId 文件已设置为只读"
+                } catch {
+                    Write-Host "$YELLOW⚠️  [updaterId]$NC .updaterId 文件修改失败: $($_.Exception.Message)"
+                    Write-Host "$BLUE💡 [提示]$NC 可手动修改文件: $updaterIdFilePath"
+                }
 
                 # 🔒 添加配置文件保护机制
                 Write-Host "$BLUE🔒 [保护]$NC 正在设置配置文件保护..."

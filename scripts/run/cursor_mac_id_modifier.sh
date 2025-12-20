@@ -445,6 +445,10 @@ except Exception as e:
     local UUID=$(uuidgen | tr '[:upper:]' '[:lower:]')
     local MACHINE_ID="auth0|user_$(openssl rand -hex 32)"
     local SQM_ID="{$(uuidgen | tr '[:lower:]' '[:upper:]')}"
+    # 🔧 新增: serviceMachineId (用于 storage.serviceMachineId)
+    local SERVICE_MACHINE_ID=$(uuidgen | tr '[:upper:]' '[:lower:]')
+    # 🔧 新增: firstSessionDate (重置首次会话日期)
+    local FIRST_SESSION_DATE=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
 
     log_info "✅ [进度] 1/5 - 设备标识符生成完成"
 
@@ -492,11 +496,14 @@ try:
         config = json.load(f)
 
     # 安全更新配置，确保属性存在
+    # 🔧 修复: 添加 storage.serviceMachineId 和 telemetry.firstSessionDate
     properties_to_update = {
         'telemetry.machineId': '$MACHINE_ID',
         'telemetry.macMachineId': '$MAC_MACHINE_ID',
         'telemetry.devDeviceId': '$UUID',
-        'telemetry.sqmId': '$SQM_ID'
+        'telemetry.sqmId': '$SQM_ID',
+        'storage.serviceMachineId': '$SERVICE_MACHINE_ID',
+        'telemetry.firstSessionDate': '$FIRST_SESSION_DATE'
     }
 
     for key, value in properties_to_update.items():
@@ -549,11 +556,14 @@ try:
     with open('$config_path', 'r', encoding='utf-8') as f:
         config = json.load(f)
 
+    # 🔧 修复: 添加 storage.serviceMachineId 和 telemetry.firstSessionDate 验证
     properties_to_check = {
         'telemetry.machineId': '$MACHINE_ID',
         'telemetry.macMachineId': '$MAC_MACHINE_ID',
         'telemetry.devDeviceId': '$UUID',
-        'telemetry.sqmId': '$SQM_ID'
+        'telemetry.sqmId': '$SQM_ID',
+        'storage.serviceMachineId': '$SERVICE_MACHINE_ID',
+        'telemetry.firstSessionDate': '$FIRST_SESSION_DATE'
     }
 
     verification_passed = True
@@ -594,8 +604,52 @@ except Exception as e:
             echo "   🔹 macMachineId: $MAC_MACHINE_ID"
             echo "   🔹 devDeviceId: $UUID"
             echo "   🔹 sqmId: $SQM_ID"
+            echo "   🔹 serviceMachineId: $SERVICE_MACHINE_ID"
+            echo "   🔹 firstSessionDate: $FIRST_SESSION_DATE"
             echo
             log_info "💾 [备份] 原配置已备份至: $backup_name"
+
+            # 🔧 新增: 修改 machineid 文件
+            log_info "🔧 [machineid] 正在修改 machineid 文件..."
+            local machineid_file_path="$HOME/Library/Application Support/Cursor/machineid"
+            if [ -f "$machineid_file_path" ]; then
+                # 备份原始 machineid 文件
+                local machineid_backup="$backup_dir/machineid.backup_$(date +%Y%m%d_%H%M%S)"
+                cp "$machineid_file_path" "$machineid_backup" 2>/dev/null && \
+                    log_info "💾 [备份] machineid 文件已备份: $machineid_backup"
+            fi
+            # 写入新的 serviceMachineId 到 machineid 文件
+            if echo -n "$SERVICE_MACHINE_ID" > "$machineid_file_path" 2>/dev/null; then
+                log_info "✅ [machineid] machineid 文件修改成功: $SERVICE_MACHINE_ID"
+                # 设置 machineid 文件为只读
+                chmod 444 "$machineid_file_path" 2>/dev/null && \
+                    log_info "🔒 [保护] machineid 文件已设置为只读"
+            else
+                log_warn "⚠️  [machineid] machineid 文件修改失败"
+                log_info "💡 [提示] 可手动修改文件: $machineid_file_path"
+            fi
+
+            # 🔧 新增: 修改 .updaterId 文件（更新器设备标识符）
+            log_info "🔧 [updaterId] 正在修改 .updaterId 文件..."
+            local updater_id_file_path="$HOME/Library/Application Support/Cursor/.updaterId"
+            if [ -f "$updater_id_file_path" ]; then
+                # 备份原始 .updaterId 文件
+                local updater_id_backup="$backup_dir/.updaterId.backup_$(date +%Y%m%d_%H%M%S)"
+                cp "$updater_id_file_path" "$updater_id_backup" 2>/dev/null && \
+                    log_info "💾 [备份] .updaterId 文件已备份: $updater_id_backup"
+            fi
+            # 生成新的 updaterId（UUID格式）
+            local new_updater_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
+            if echo -n "$new_updater_id" > "$updater_id_file_path" 2>/dev/null; then
+                log_info "✅ [updaterId] .updaterId 文件修改成功: $new_updater_id"
+                # 设置 .updaterId 文件为只读
+                chmod 444 "$updater_id_file_path" 2>/dev/null && \
+                    log_info "🔒 [保护] .updaterId 文件已设置为只读"
+            else
+                log_warn "⚠️  [updaterId] .updaterId 文件修改失败"
+                log_info "💡 [提示] 可手动修改文件: $updater_id_file_path"
+            fi
+
             return 0
         else
             log_error "❌ [错误] 修改验证失败"
@@ -1442,6 +1496,8 @@ modify_cursor_js_files() {
     local sqm_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
     # 生成一个固定的session_id用于替换someValue.sessionId
     local session_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
+    # 🔧 新增: 生成 firstSessionDate 用于替换 someValue.firstSessionDate
+    local first_session_date=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
 
     log_info "🔑 [生成] 已生成新的设备标识符"
     log_info "   machineId: ${machine_id:0:16}..."
@@ -1551,6 +1607,13 @@ modify_cursor_js_files() {
         if grep -q 'someValue\.sessionId' "$file"; then
             sed -i.tmp "s/someValue\.sessionId/${session_id}/g" "$file"
             log_info "   ✓ [方案A] 替换 someValue.sessionId"
+            replaced=true
+        fi
+
+        # 🔧 新增: 替换 someValue.firstSessionDate（首次会话日期）
+        if grep -q 'someValue\.firstSessionDate' "$file"; then
+            sed -i.tmp "s/someValue\.firstSessionDate/${first_session_date}/g" "$file"
+            log_info "   ✓ [方案A] 替换 someValue.firstSessionDate"
             replaced=true
         fi
 
