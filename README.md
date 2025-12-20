@@ -8,7 +8,7 @@
 
 [🌟 English](README.md) | [🌏 中文](README_CN.md) | [🌏 日本語](README_JP.md)
 
-<img src="https://ai-cursor.com/wp-content/uploads/2024/09/logo-cursor-ai-png.webp" alt="Cursor Logo" width="120"/>
+<img src="/img/cursor.png" alt="Cursor Logo" width="120"/>
 
 </div>
 
