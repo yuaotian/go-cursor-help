@@ -1420,9 +1420,12 @@ backup_config() {
     fi
 }
 
-# 🔧 修改Cursor内核JS文件实现设备识别绕过（新增核心功能）
+# 🔧 修改Cursor内核JS文件实现设备识别绕过（A+B混合方案 - IIFE + someValue替换）
+# 方案A: someValue占位符替换 - 稳定锚点，不依赖混淆后的函数名
+# 方案B: IIFE运行时劫持 - 劫持crypto.randomUUID从源头拦截
 modify_cursor_js_files() {
     log_info "🔧 [内核修改] 开始修改Cursor内核JS文件实现设备识别绕过..."
+    log_info "💡 [方案] 使用A+B混合方案：someValue占位符替换 + IIFE运行时劫持"
     echo
 
     # 检查Cursor应用是否存在
@@ -1431,15 +1434,21 @@ modify_cursor_js_files() {
         return 1
     fi
 
-    # 生成新的设备标识符
+    # 生成新的设备标识符（使用固定格式确保兼容性）
     local new_uuid=$(uuidgen | tr '[:upper:]' '[:lower:]')
-    local machine_id="auth0|user_$(openssl rand -hex 16)"
+    local machine_id=$(openssl rand -hex 32)
     local device_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
     local mac_machine_id=$(openssl rand -hex 32)
+    local sqm_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
+    # 生成一个固定的session_id用于替换someValue.sessionId
+    local session_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
 
     log_info "🔑 [生成] 已生成新的设备标识符"
+    log_info "   machineId: ${machine_id:0:16}..."
+    log_info "   deviceId: ${device_id:0:16}..."
+    log_info "   macMachineId: ${mac_machine_id:0:16}..."
 
-    # 目标JS文件列表
+    # 目标JS文件列表（按优先级排序）
     local js_files=(
         "$CURSOR_APP_PATH/Contents/Resources/app/out/vs/workbench/api/node/extensionHostProcess.js"
         "$CURSOR_APP_PATH/Contents/Resources/app/out/main.js"
@@ -1449,7 +1458,7 @@ modify_cursor_js_files() {
     local modified_count=0
     local need_modification=false
 
-    # 检查是否需要修改
+    # 检查是否需要修改（使用统一标记）
     log_info "🔍 [检查] 检查JS文件修改状态..."
     for file in "${js_files[@]}"; do
         if [ ! -f "$file" ]; then
@@ -1457,12 +1466,12 @@ modify_cursor_js_files() {
             continue
         fi
 
-        if ! grep -q "return crypto.randomUUID()" "$file" 2>/dev/null; then
+        # 检查是否已经被修改过（使用统一标记 __cursor_patched__）
+        if grep -q "__cursor_patched__" "$file" 2>/dev/null; then
+            log_info "✅ [已修改] 文件已修改: ${file/$CURSOR_APP_PATH\//}"
+        else
             log_info "📝 [需要] 文件需要修改: ${file/$CURSOR_APP_PATH\//}"
             need_modification=true
-            break
-        else
-            log_info "✅ [已修改] 文件已修改: ${file/$CURSOR_APP_PATH\//}"
         fi
     done
 
@@ -1477,15 +1486,16 @@ modify_cursor_js_files() {
 
     # 创建备份
     local timestamp=$(date +%Y%m%d_%H%M%S)
-    local backup_app="/tmp/Cursor.app.backup_js_${timestamp}"
+    local backup_dir="/tmp/Cursor_JS_Backup_${timestamp}"
 
-    log_info "💾 [备份] 创建Cursor应用备份..."
-    if ! cp -R "$CURSOR_APP_PATH" "$backup_app"; then
-        log_error "❌ [错误] 创建备份失败"
-        return 1
-    fi
-
-    log_info "✅ [备份] 备份创建成功: $backup_app"
+    log_info "💾 [备份] 创建JS文件备份..."
+    mkdir -p "$backup_dir"
+    for file in "${js_files[@]}"; do
+        if [ -f "$file" ]; then
+            cp "$file" "$backup_dir/$(basename "$file")"
+        fi
+    done
+    log_info "✅ [备份] 备份创建成功: $backup_dir"
 
     # 修改JS文件
     log_info "🔧 [修改] 开始修改JS文件..."
@@ -1499,93 +1509,80 @@ modify_cursor_js_files() {
         log_info "📝 [处理] 正在处理: ${file/$CURSOR_APP_PATH\//}"
 
         # 检查是否已经修改过
-        if grep -q "return crypto.randomUUID()" "$file" || grep -q "// Cursor ID 修改工具注入" "$file"; then
+        if grep -q "__cursor_patched__" "$file"; then
             log_info "✅ [跳过] 文件已经被修改过"
             ((modified_count++))
             continue
         fi
 
-        # 方法1: 查找IOPlatformUUID相关函数
-        if grep -q "IOPlatformUUID" "$file"; then
-            log_info "🔍 [发现] 找到IOPlatformUUID关键字"
+        # ========== 方法A: someValue占位符替换（稳定锚点） ==========
+        # 这些字符串是固定的占位符，不会被混淆器修改，跨版本稳定
+        local replaced=false
 
-            # 针对不同的函数模式进行修改
-            if grep -q "function a\$" "$file"; then
-                if sed -i.tmp 's/function a\$(t){switch/function a\$(t){return crypto.randomUUID(); switch/' "$file"; then
-                    log_info "✅ [成功] 修改a$函数成功"
-                    ((modified_count++))
-                    continue
-                fi
-            fi
-
-            # 通用注入方法 - ES模块兼容版本
-            local inject_code="
-// Cursor ID 修改工具注入 - $(date) - ES模块兼容版本
-import crypto from 'crypto';
-
-// 保存原始函数引用
-const originalRandomUUID_$(date +%s) = crypto.randomUUID;
-
-// 重写crypto.randomUUID方法
-crypto.randomUUID = function() {
-    return '${new_uuid}';
-};
-
-// 覆盖所有可能的系统ID获取函数 - ES模块兼容版本
-globalThis.getMachineId = function() { return '${machine_id}'; };
-globalThis.getDeviceId = function() { return '${device_id}'; };
-globalThis.macMachineId = '${mac_machine_id}';
-
-// 确保在不同环境下都能访问
-if (typeof window !== 'undefined') {
-    window.getMachineId = globalThis.getMachineId;
-    window.getDeviceId = globalThis.getDeviceId;
-    window.macMachineId = globalThis.macMachineId;
-}
-
-// 确保模块顶层执行
-console.log('Cursor设备标识符已成功劫持 - ES模块版本 煎饼果子(86) 关注公众号【煎饼果子卷AI】一起交流更多Cursor技巧和AI知识(脚本免费、关注公众号加群有更多技巧和大佬)');
-"
-
-            # 替换变量
-            inject_code=${inject_code//\$\{new_uuid\}/$new_uuid}
-            inject_code=${inject_code//\$\{machine_id\}/$machine_id}
-            inject_code=${inject_code//\$\{device_id\}/$device_id}
-            inject_code=${inject_code//\$\{mac_machine_id\}/$mac_machine_id}
-
-            # 注入代码到文件开头
-            echo "$inject_code" > "${file}.new"
-            cat "$file" >> "${file}.new"
-            mv "${file}.new" "$file"
-
-            log_info "✅ [成功] 通用注入方法修改成功"
-            ((modified_count++))
-
-        # 方法2: 查找其他设备ID相关函数
-        elif grep -q "function t\$()" "$file" || grep -q "async function y5" "$file"; then
-            log_info "🔍 [发现] 找到设备ID相关函数"
-
-            # 修改MAC地址获取函数
-            if grep -q "function t\$()" "$file"; then
-                sed -i.tmp 's/function t\$(){/function t\$(){return "00:00:00:00:00:00";/' "$file"
-                log_info "✅ [成功] 修改MAC地址获取函数"
-            fi
-
-            # 修改设备ID获取函数
-            if grep -q "async function y5" "$file"; then
-                sed -i.tmp 's/async function y5(t){/async function y5(t){return crypto.randomUUID();/' "$file"
-                log_info "✅ [成功] 修改设备ID获取函数"
-            fi
-
-            ((modified_count++))
-        else
-            log_warn "⚠️  [警告] 未找到已知的设备ID函数模式，跳过此文件"
+        # 替换 someValue.machineId
+        if grep -q 'someValue\.machineId' "$file"; then
+            sed -i.tmp "s/someValue\.machineId/${machine_id}/g" "$file"
+            log_info "   ✓ [方案A] 替换 someValue.machineId"
+            replaced=true
         fi
+
+        # 替换 someValue.macMachineId
+        if grep -q 'someValue\.macMachineId' "$file"; then
+            sed -i.tmp "s/someValue\.macMachineId/${mac_machine_id}/g" "$file"
+            log_info "   ✓ [方案A] 替换 someValue.macMachineId"
+            replaced=true
+        fi
+
+        # 替换 someValue.devDeviceId
+        if grep -q 'someValue\.devDeviceId' "$file"; then
+            sed -i.tmp "s/someValue\.devDeviceId/${device_id}/g" "$file"
+            log_info "   ✓ [方案A] 替换 someValue.devDeviceId"
+            replaced=true
+        fi
+
+        # 替换 someValue.sqmId
+        if grep -q 'someValue\.sqmId' "$file"; then
+            sed -i.tmp "s/someValue\.sqmId/${sqm_id}/g" "$file"
+            log_info "   ✓ [方案A] 替换 someValue.sqmId"
+            replaced=true
+        fi
+
+        # 替换 someValue.sessionId（新增锚点）
+        if grep -q 'someValue\.sessionId' "$file"; then
+            sed -i.tmp "s/someValue\.sessionId/${session_id}/g" "$file"
+            log_info "   ✓ [方案A] 替换 someValue.sessionId"
+            replaced=true
+        fi
+
+        # ========== 方法B: IIFE运行时劫持（crypto.randomUUID） ==========
+        # 使用IIFE包装，兼容webpack打包的bundle文件，无需import语法
+        # 劫持crypto.randomUUID从源头拦截所有UUID生成
+        local inject_code=";(function(){/*__cursor_patched__*/var _cr=require('crypto'),_orig=_cr.randomUUID;_cr.randomUUID=function(){return'${new_uuid}';};if(typeof globalThis!=='undefined'){globalThis.__cursor_machine_id='${machine_id}';globalThis.__cursor_mac_machine_id='${mac_machine_id}';globalThis.__cursor_dev_device_id='${device_id}';globalThis.__cursor_sqm_id='${sqm_id}';}try{var _os=require('os'),_origNI=_os.networkInterfaces;_os.networkInterfaces=function(){var r=_origNI.call(_os);for(var k in r){if(r[k]){for(var i=0;i<r[k].length;i++){if(r[k][i].mac){r[k][i].mac='00:00:00:00:00:00';}}}}return r;};}catch(e){}console.log('[Cursor ID Modifier] 设备标识符已劫持 - 煎饼果子(86) 公众号【煎饼果子卷AI】');})();"
+
+        # 注入代码到文件开头
+        echo "$inject_code" > "${file}.new"
+        cat "$file" >> "${file}.new"
+        mv "${file}.new" "$file"
+
+        log_info "   ✓ [方案B] IIFE运行时劫持代码已注入"
+
+        # 清理临时文件
+        rm -f "${file}.tmp"
+
+        if [ "$replaced" = true ]; then
+            log_info "✅ [成功] A+B混合方案修改成功（someValue替换 + IIFE劫持）"
+        else
+            log_info "✅ [成功] 方案B修改成功（IIFE劫持）"
+        fi
+        ((modified_count++))
     done
 
     if [ $modified_count -gt 0 ]; then
         log_info "🎉 [完成] 成功修改 $modified_count 个JS文件"
-        log_info "💾 [备份] 原始文件备份位置: $backup_app"
+        log_info "💾 [备份] 原始文件备份位置: $backup_dir"
+        log_info "💡 [说明] 使用A+B混合方案："
+        log_info "   • 方案A: someValue占位符替换（稳定锚点，跨版本兼容）"
+        log_info "   • 方案B: IIFE运行时劫持（crypto.randomUUID + os.networkInterfaces）"
         return 0
     else
         log_error "❌ [失败] 没有成功修改任何文件"

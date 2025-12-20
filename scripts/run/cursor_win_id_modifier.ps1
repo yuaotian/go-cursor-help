@@ -24,10 +24,13 @@ function Generate-RandomString {
     return $result
 }
 
-# 修改Cursor内核JS文件实现设备识别绕过（从macOS版本移植）
+# 🔧 修改Cursor内核JS文件实现设备识别绕过（A+B混合方案 - IIFE + someValue替换）
+# 方案A: someValue占位符替换 - 稳定锚点，不依赖混淆后的函数名
+# 方案B: IIFE运行时劫持 - 劫持crypto.randomUUID从源头拦截
 function Modify-CursorJSFiles {
     Write-Host ""
     Write-Host "$BLUE🔧 [内核修改]$NC 开始修改Cursor内核JS文件实现设备识别绕过..."
+    Write-Host "$BLUE💡 [方案]$NC 使用A+B混合方案：someValue占位符替换 + IIFE运行时劫持"
     Write-Host ""
 
     # Windows版Cursor应用路径
@@ -56,15 +59,28 @@ function Modify-CursorJSFiles {
 
     Write-Host "$GREEN✅ [发现]$NC 找到Cursor安装路径: $cursorAppPath"
 
-    # 生成新的设备标识符
+    # 生成新的设备标识符（使用固定格式确保兼容性）
     $newUuid = [System.Guid]::NewGuid().ToString().ToLower()
-    $machineId = "auth0|user_$(Generate-RandomString -Length 32)"
+    $randomBytes = New-Object byte[] 32
+    $rng = [System.Security.Cryptography.RNGCryptoServiceProvider]::new()
+    $rng.GetBytes($randomBytes)
+    $machineId = [System.BitConverter]::ToString($randomBytes) -replace '-',''
+    $rng.Dispose()
     $deviceId = [System.Guid]::NewGuid().ToString().ToLower()
-    $macMachineId = Generate-RandomString -Length 64
+    $randomBytes2 = New-Object byte[] 32
+    $rng2 = [System.Security.Cryptography.RNGCryptoServiceProvider]::new()
+    $rng2.GetBytes($randomBytes2)
+    $macMachineId = [System.BitConverter]::ToString($randomBytes2) -replace '-',''
+    $rng2.Dispose()
+    $sqmId = [System.Guid]::NewGuid().ToString().ToLower()
+    $sessionId = [System.Guid]::NewGuid().ToString().ToLower()
 
     Write-Host "$GREEN🔑 [生成]$NC 已生成新的设备标识符"
+    Write-Host "   machineId: $($machineId.Substring(0,16))..."
+    Write-Host "   deviceId: $($deviceId.Substring(0,16))..."
+    Write-Host "   macMachineId: $($macMachineId.Substring(0,16))..."
 
-    # 目标JS文件列表（Windows路径）
+    # 目标JS文件列表（Windows路径，按优先级排序）
     $jsFiles = @(
         "$cursorAppPath\resources\app\out\vs\workbench\api\node\extensionHostProcess.js",
         "$cursorAppPath\resources\app\out\main.js",
@@ -74,7 +90,7 @@ function Modify-CursorJSFiles {
     $modifiedCount = 0
     $needModification = $false
 
-    # 检查是否需要修改
+    # 检查是否需要修改（使用统一标记 __cursor_patched__）
     Write-Host "$BLUE🔍 [检查]$NC 检查JS文件修改状态..."
     foreach ($file in $jsFiles) {
         if (-not (Test-Path $file)) {
@@ -83,12 +99,11 @@ function Modify-CursorJSFiles {
         }
 
         $content = Get-Content $file -Raw -ErrorAction SilentlyContinue
-        if ($content -and $content -notmatch "return crypto\.randomUUID\(\)") {
+        if ($content -and $content -match "__cursor_patched__") {
+            Write-Host "$GREEN✅ [已修改]$NC 文件已修改: $(Split-Path $file -Leaf)"
+        } else {
             Write-Host "$BLUE📝 [需要]$NC 文件需要修改: $(Split-Path $file -Leaf)"
             $needModification = $true
-            break
-        } else {
-            Write-Host "$GREEN✅ [已修改]$NC 文件已修改: $(Split-Path $file -Leaf)"
         }
     }
 
@@ -134,88 +149,72 @@ function Modify-CursorJSFiles {
         try {
             $content = Get-Content $file -Raw -Encoding UTF8
 
-            # 检查是否已经修改过
-            if ($content -match "return crypto\.randomUUID\(\)" -or $content -match "// Cursor ID 修改工具注入") {
+            # 检查是否已经修改过（使用统一标记）
+            if ($content -match "__cursor_patched__") {
                 Write-Host "$GREEN✅ [跳过]$NC 文件已经被修改过"
                 $modifiedCount++
                 continue
             }
 
-            # ES模块兼容的JavaScript注入代码
-            $timestampVar = [DateTimeOffset]::Now.ToUnixTimeSeconds()
-            $injectCode = @"
-// Cursor ID 修改工具注入 - $(Get-Date) - ES模块兼容版本
-import crypto from 'crypto';
+            $replaced = $false
 
-// 保存原始函数引用
-const originalRandomUUID_${timestampVar} = crypto.randomUUID;
+            # ========== 方法A: someValue占位符替换（稳定锚点） ==========
+            # 这些字符串是固定的占位符，不会被混淆器修改，跨版本稳定
 
-// 重写crypto.randomUUID方法
-crypto.randomUUID = function() {
-    return '${newUuid}';
-};
-
-// 覆盖所有可能的系统ID获取函数 - ES模块兼容版本
-globalThis.getMachineId = function() { return '${machineId}'; };
-globalThis.getDeviceId = function() { return '${deviceId}'; };
-globalThis.macMachineId = '${macMachineId}';
-
-// 确保在不同环境下都能访问
-if (typeof window !== 'undefined') {
-    window.getMachineId = globalThis.getMachineId;
-    window.getDeviceId = globalThis.getDeviceId;
-    window.macMachineId = globalThis.macMachineId;
-}
-
-// 确保模块顶层执行
-console.log('Cursor设备标识符已成功劫持 - ES模块版本 煎饼果子(86) 关注公众号【煎饼果子卷AI】一起交流更多Cursor技巧和AI知识(脚本免费、关注公众号加群有更多技巧和大佬)');
-
-"@
-
-            # 方法1: 查找IOPlatformUUID相关函数
-            if ($content -match "IOPlatformUUID") {
-                Write-Host "$BLUE🔍 [发现]$NC 找到IOPlatformUUID关键字"
-
-                # 针对不同的函数模式进行修改
-                if ($content -match "function a\$") {
-                    $content = $content -replace "function a\$\(t\)\{switch", "function a`$(t){return crypto.randomUUID(); switch"
-                    Write-Host "$GREEN✅ [成功]$NC 修改a`$函数成功"
-                    $modifiedCount++
-                    continue
-                }
-
-                # 通用注入方法
-                $content = $injectCode + $content
-                Write-Host "$GREEN✅ [成功]$NC 通用注入方法修改成功"
-                $modifiedCount++
+            # 替换 someValue.machineId
+            if ($content -match 'someValue\.machineId') {
+                $content = $content -replace 'someValue\.machineId', $machineId
+                Write-Host "   $GREEN✓$NC [方案A] 替换 someValue.machineId"
+                $replaced = $true
             }
-            # 方法2: 查找其他设备ID相关函数
-            elseif ($content -match "function t\$\(\)" -or $content -match "async function y5") {
-                Write-Host "$BLUE🔍 [发现]$NC 找到设备ID相关函数"
 
-                # 修改MAC地址获取函数
-                if ($content -match "function t\$\(\)") {
-                    $content = $content -replace "function t\$\(\)\{", "function t`$(){return `"00:00:00:00:00:00`";"
-                    Write-Host "$GREEN✅ [成功]$NC 修改MAC地址获取函数"
-                }
-
-                # 修改设备ID获取函数
-                if ($content -match "async function y5") {
-                    $content = $content -replace "async function y5\(t\)\{", "async function y5(t){return crypto.randomUUID();"
-                    Write-Host "$GREEN✅ [成功]$NC 修改设备ID获取函数"
-                }
-
-                $modifiedCount++
+            # 替换 someValue.macMachineId
+            if ($content -match 'someValue\.macMachineId') {
+                $content = $content -replace 'someValue\.macMachineId', $macMachineId
+                Write-Host "   $GREEN✓$NC [方案A] 替换 someValue.macMachineId"
+                $replaced = $true
             }
-            else {
-                Write-Host "$YELLOW⚠️  [警告]$NC 未找到已知的设备ID函数模式，使用通用注入"
-                $content = $injectCode + $content
-                $modifiedCount++
+
+            # 替换 someValue.devDeviceId
+            if ($content -match 'someValue\.devDeviceId') {
+                $content = $content -replace 'someValue\.devDeviceId', $deviceId
+                Write-Host "   $GREEN✓$NC [方案A] 替换 someValue.devDeviceId"
+                $replaced = $true
             }
+
+            # 替换 someValue.sqmId
+            if ($content -match 'someValue\.sqmId') {
+                $content = $content -replace 'someValue\.sqmId', $sqmId
+                Write-Host "   $GREEN✓$NC [方案A] 替换 someValue.sqmId"
+                $replaced = $true
+            }
+
+            # 替换 someValue.sessionId（新增锚点）
+            if ($content -match 'someValue\.sessionId') {
+                $content = $content -replace 'someValue\.sessionId', $sessionId
+                Write-Host "   $GREEN✓$NC [方案A] 替换 someValue.sessionId"
+                $replaced = $true
+            }
+
+            # ========== 方法B: IIFE运行时劫持（crypto.randomUUID） ==========
+            # 使用IIFE包装，兼容webpack打包的bundle文件，无需import语法
+            # 劫持crypto.randomUUID从源头拦截所有UUID生成
+            $injectCode = ";(function(){/*__cursor_patched__*/var _cr=require('crypto'),_orig=_cr.randomUUID;_cr.randomUUID=function(){return'$newUuid';};if(typeof globalThis!=='undefined'){globalThis.__cursor_machine_id='$machineId';globalThis.__cursor_mac_machine_id='$macMachineId';globalThis.__cursor_dev_device_id='$deviceId';globalThis.__cursor_sqm_id='$sqmId';}try{var _os=require('os'),_origNI=_os.networkInterfaces;_os.networkInterfaces=function(){var r=_origNI.call(_os);for(var k in r){if(r[k]){for(var i=0;i<r[k].length;i++){if(r[k][i].mac){r[k][i].mac='00:00:00:00:00:00';}}}}return r;};}catch(e){}console.log('[Cursor ID Modifier] 设备标识符已劫持 - 煎饼果子(86) 公众号【煎饼果子卷AI】');})();"
+
+            # 注入代码到文件开头
+            $content = $injectCode + "`n" + $content
+
+            Write-Host "   $GREEN✓$NC [方案B] IIFE运行时劫持代码已注入"
 
             # 写入修改后的内容
             Set-Content -Path $file -Value $content -Encoding UTF8 -NoNewline
-            Write-Host "$GREEN✅ [完成]$NC 文件修改完成: $(Split-Path $file -Leaf)"
+
+            if ($replaced) {
+                Write-Host "$GREEN✅ [成功]$NC A+B混合方案修改成功（someValue替换 + IIFE劫持）"
+            } else {
+                Write-Host "$GREEN✅ [成功]$NC 方案B修改成功（IIFE劫持）"
+            }
+            $modifiedCount++
 
         } catch {
             Write-Host "$RED❌ [错误]$NC 修改文件失败: $($_.Exception.Message)"
@@ -233,7 +232,9 @@ console.log('Cursor设备标识符已成功劫持 - ES模块版本 煎饼果子(
         Write-Host ""
         Write-Host "$GREEN🎉 [完成]$NC 成功修改 $modifiedCount 个JS文件"
         Write-Host "$BLUE💾 [备份]$NC 原始文件备份位置: $backupPath"
-        Write-Host "$BLUE💡 [说明]$NC JavaScript注入功能已启用，实现设备识别绕过"
+        Write-Host "$BLUE💡 [说明]$NC 使用A+B混合方案："
+        Write-Host "   • 方案A: someValue占位符替换（稳定锚点，跨版本兼容）"
+        Write-Host "   • 方案B: IIFE运行时劫持（crypto.randomUUID + os.networkInterfaces）"
         return $true
     } else {
         Write-Host "$RED❌ [失败]$NC 没有成功修改任何文件"

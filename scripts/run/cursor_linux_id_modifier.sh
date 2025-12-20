@@ -651,29 +651,76 @@ find_cursor_js_files() {
 }
 
 # 修改Cursor的JS文件
+# 🔧 修改Cursor内核JS文件实现设备识别绕过（A+B混合方案 - IIFE + someValue替换）
+# 方案A: someValue占位符替换 - 稳定锚点，不依赖混淆后的函数名
+# 方案B: IIFE运行时劫持 - 劫持crypto.randomUUID从源头拦截
 modify_cursor_js_files() {
-    log_info "开始修改Cursor的JS文件..."
-    
+    log_info "🔧 [内核修改] 开始修改Cursor内核JS文件实现设备识别绕过..."
+    log_info "💡 [方案] 使用A+B混合方案：someValue占位符替换 + IIFE运行时劫持"
+
     # 先查找需要修改的JS文件
     if ! find_cursor_js_files; then
-        # find_cursor_js_files 内部会打印错误日志
         return 1
     fi
-    
+
     if [ ${#CURSOR_JS_FILES[@]} -eq 0 ]; then
         log_error "JS 文件列表为空，无法继续修改。"
         return 1
     fi
 
+    # 生成新的设备标识符（使用固定格式确保兼容性）
+    local new_uuid=$(generate_uuid)
+    local machine_id=$(openssl rand -hex 32)
+    local device_id=$(generate_uuid)
+    local mac_machine_id=$(openssl rand -hex 32)
+    local sqm_id=$(generate_uuid)
+    local session_id=$(generate_uuid)
+
+    log_info "🔑 [生成] 已生成新的设备标识符"
+    log_info "   machineId: ${machine_id:0:16}..."
+    log_info "   deviceId: ${device_id:0:16}..."
+    log_info "   macMachineId: ${mac_machine_id:0:16}..."
+
     local modified_count=0
-    local file_modification_status=() # 记录每个文件的修改状态
+    local file_modification_status=()
+
+    # 检查是否需要修改（使用统一标记）
+    log_info "🔍 [检查] 检查JS文件修改状态..."
+    local need_modification=false
+    for file in "${CURSOR_JS_FILES[@]}"; do
+        if [ ! -f "$file" ]; then
+            log_warn "⚠️  [警告] 文件不存在: $file"
+            continue
+        fi
+
+        # 检查是否已经被修改过（使用统一标记 __cursor_patched__）
+        if grep -q "__cursor_patched__" "$file" 2>/dev/null; then
+            log_info "✅ [已修改] 文件已修改: $(basename "$file")"
+        else
+            log_info "📝 [需要] 文件需要修改: $(basename "$file")"
+            need_modification=true
+        fi
+    done
+
+    if [ "$need_modification" = false ]; then
+        log_info "✅ [跳过] 所有JS文件已经被修改过，无需重复操作"
+        return 0
+    fi
 
     for file in "${CURSOR_JS_FILES[@]}"; do
-        log_info "处理文件: $file"
-        
+        log_info "📝 [处理] 正在处理: $(basename "$file")"
+
         if [ ! -f "$file" ]; then
             log_error "文件不存在: $file，跳过处理。"
-            file_modification_status+=("'$file': Not Found")
+            file_modification_status+=("'$(basename "$file")': Not Found")
+            continue
+        fi
+
+        # 检查是否已经修改过
+        if grep -q "__cursor_patched__" "$file"; then
+            log_info "✅ [跳过] 文件已经被修改过"
+            ((modified_count++))
+            file_modification_status+=("'$(basename "$file")': Already Patched")
             continue
         fi
 
@@ -681,189 +728,112 @@ modify_cursor_js_files() {
         local backup_file="${file}.backup_$(date +%Y%m%d_%H%M%S)"
         if ! cp "$file" "$backup_file"; then
             log_error "无法创建文件备份: $file"
-            file_modification_status+=("'$file': Backup Failed")
+            file_modification_status+=("'$(basename "$file")': Backup Failed")
             continue
         fi
-        chown "$CURRENT_USER":"$(id -g -n "$CURRENT_USER")" "$backup_file" || log_warn "设置备份文件所有权失败: $backup_file"
-        chmod 444 "$backup_file" || log_warn "设置备份文件权限失败: $backup_file"
+        chown "$CURRENT_USER":"$(id -g -n "$CURRENT_USER")" "$backup_file" 2>/dev/null || true
+        chmod 444 "$backup_file" 2>/dev/null || true
 
-
-        # 确保文件对当前执行用户（root）可写
+        # 确保文件对当前执行用户可写
         chmod u+w "$file" || {
             log_error "无法修改文件权限（写）: $file"
-            file_modification_status+=("'$file': Permission Error (Write)")
-            # 尝试恢复备份（如果可能）
+            file_modification_status+=("'$(basename "$file")': Permission Error")
             cp "$backup_file" "$file" 2>/dev/null || true
             continue
         }
-        
-        local modification_applied=false
 
-        # --- 开始尝试各种修改模式 ---
-        
-        # 模式1：精确修改 x-cursor-checksum (最常见的目标之一)
-        if grep -q 'i.header.set("x-cursor-checksum' "$file"; then
-            log_debug "找到 x-cursor-checksum 设置代码，尝试修改..."
-            # 使用更健壮的 sed，处理不同的空格和变量名可能性
-            if sed -i -E 's/(i|[\w$]+)\.header\.set\("x-cursor-checksum",\s*e\s*===\s*void 0\s*\?\s*`\$\{p\}(\$\{t\})`\s*:\s*`\$\{p\}\2\/(\$\{e\})`/i.header.set("x-cursor-checksum",e===void 0?`${p}${t}`:`${p}${t}\/${p}`)/' "$file"; then
-                # 验证修改是否真的发生 (避免 sed 没匹配但返回0)
-                if ! grep -q 'i.header.set("x-cursor-checksum",e===void 0?`${p}${t}`:`${p}${t}\/${e}`)' "$file"; then
-                    log_info "成功修改 x-cursor-checksum 设置代码"
-                    modification_applied=true
-                else
-                     log_warn "sed 命令执行成功，但似乎未修改 x-cursor-checksum (可能模式不匹配当前版本)"
-                fi
+        local replaced=false
+
+        # ========== 方法A: someValue占位符替换（稳定锚点） ==========
+        # 这些字符串是固定的占位符，不会被混淆器修改，跨版本稳定
+
+        # 替换 someValue.machineId
+        if grep -q 'someValue\.machineId' "$file"; then
+            sed -i "s/someValue\.machineId/${machine_id}/g" "$file"
+            log_info "   ✓ [方案A] 替换 someValue.machineId"
+            replaced=true
+        fi
+
+        # 替换 someValue.macMachineId
+        if grep -q 'someValue\.macMachineId' "$file"; then
+            sed -i "s/someValue\.macMachineId/${mac_machine_id}/g" "$file"
+            log_info "   ✓ [方案A] 替换 someValue.macMachineId"
+            replaced=true
+        fi
+
+        # 替换 someValue.devDeviceId
+        if grep -q 'someValue\.devDeviceId' "$file"; then
+            sed -i "s/someValue\.devDeviceId/${device_id}/g" "$file"
+            log_info "   ✓ [方案A] 替换 someValue.devDeviceId"
+            replaced=true
+        fi
+
+        # 替换 someValue.sqmId
+        if grep -q 'someValue\.sqmId' "$file"; then
+            sed -i "s/someValue\.sqmId/${sqm_id}/g" "$file"
+            log_info "   ✓ [方案A] 替换 someValue.sqmId"
+            replaced=true
+        fi
+
+        # 替换 someValue.sessionId（新增锚点）
+        if grep -q 'someValue\.sessionId' "$file"; then
+            sed -i "s/someValue\.sessionId/${session_id}/g" "$file"
+            log_info "   ✓ [方案A] 替换 someValue.sessionId"
+            replaced=true
+        fi
+
+        # ========== 方法B: IIFE运行时劫持（crypto.randomUUID） ==========
+        # 使用IIFE包装，兼容webpack打包的bundle文件，无需import语法
+        # 劫持crypto.randomUUID从源头拦截所有UUID生成
+        local inject_code=";(function(){/*__cursor_patched__*/var _cr=require('crypto'),_orig=_cr.randomUUID;_cr.randomUUID=function(){return'${new_uuid}';};if(typeof globalThis!=='undefined'){globalThis.__cursor_machine_id='${machine_id}';globalThis.__cursor_mac_machine_id='${mac_machine_id}';globalThis.__cursor_dev_device_id='${device_id}';globalThis.__cursor_sqm_id='${sqm_id}';}try{var _os=require('os'),_origNI=_os.networkInterfaces;_os.networkInterfaces=function(){var r=_origNI.call(_os);for(var k in r){if(r[k]){for(var i=0;i<r[k].length;i++){if(r[k][i].mac){r[k][i].mac='00:00:00:00:00:00';}}}}return r;};}catch(e){}console.log('[Cursor ID Modifier] 设备标识符已劫持 - 煎饼果子(86) 公众号【煎饼果子卷AI】');})();"
+
+        # 注入代码到文件开头
+        local temp_file=$(mktemp)
+        echo "$inject_code" > "$temp_file"
+        cat "$file" >> "$temp_file"
+
+        if mv "$temp_file" "$file"; then
+            log_info "   ✓ [方案B] IIFE运行时劫持代码已注入"
+
+            if [ "$replaced" = true ]; then
+                log_info "✅ [成功] A+B混合方案修改成功（someValue替换 + IIFE劫持）"
             else
-                log_error "修改 x-cursor-checksum 设置代码失败 (sed 命令执行错误)"
+                log_info "✅ [成功] 方案B修改成功（IIFE劫持）"
             fi
-        fi
-
-        # 模式2：注入 randomUUID 到特定函数 (如果模式1未应用)
-        if [ "$modification_applied" = false ] && grep -q "IOPlatformUUID" "$file"; then
-             log_debug "未修改 checksum 或未找到，尝试注入 randomUUID..."
-             # 尝试注入 a$ 函数
-             if grep -q "function a\$(" "$file" && ! grep -q "return crypto.randomUUID()" "$file"; then
-                 if sed -i 's/function a\$(t){switch/function a\$(t){try { return require("crypto").randomUUID(); } catch(e){} switch/' "$file"; then
-                     # 验证修改
-                     if grep -q "return require(\"crypto\").randomUUID()" "$file"; then
-                         log_info "成功注入 randomUUID 调用到 a\$ 函数"
-                         modification_applied=true
-                     else
-                          log_warn "sed 注入 a$ 失败（可能模式不匹配）"
-                     fi
-                 else
-                     log_error "修改 a\$ 函数失败 (sed 命令执行错误)"
-                 fi
-             # 尝试注入 v5 函数 (如果 a$ 没成功)
-             elif [ "$modification_applied" = false ] && grep -q "async function v5(" "$file" && ! grep -q "return crypto.randomUUID()" "$file"; then
-                 if sed -i 's/async function v5(t){let e=/async function v5(t){try { return require("crypto").randomUUID(); } catch(e){} let e=/' "$file"; then
-                     # 验证修改
-                     if grep -q "return require(\"crypto\").randomUUID()" "$file"; then
-                         log_info "成功注入 randomUUID 调用到 v5 函数"
-                         modification_applied=true
-                      else
-                          log_warn "sed 注入 v5 失败（可能模式不匹配）"
-                      fi
-                 else
-                     log_error "修改 v5 函数失败 (sed 命令执行错误)"
-                 fi
-             fi
-        fi
-
-        # 模式3：通用注入 (如果上述模式都未应用，并且没有标记)
-        if [ "$modification_applied" = false ] && ! grep -q "// Cursor ID Modifier Injection" "$file"; then
-             log_debug "特定修改模式未生效或不适用，尝试通用注入..."
-             # 生成唯一标识符以避免冲突
-             local timestamp=$(date +%s)
-             local new_uuid=$(generate_uuid)
-             local machine_id=$(generate_uuid) # 使用 UUID
-             local device_id=$(generate_uuid)
-             local mac_machine_id=$(openssl rand -hex 32) # 伪造 MAC 相关 ID
-
-             # 创建注入代码块
-             local inject_universal_code="
-// Cursor ID Modifier Injection - $timestamp
-const originalRequire_$timestamp = typeof require === 'function' ? require : null;
-if (originalRequire_$timestamp) {
-  require = function(module) {
-    try {
-      const result = originalRequire_$timestamp(module);
-      if (module === 'crypto' && result && result.randomUUID) {
-        const originalRandomUUID_$timestamp = result.randomUUID;
-        result.randomUUID = function() { return '$new_uuid'; };
-        console.log('Cursor Modifier: Patched crypto.randomUUID');
-      }
-      if (module === 'os' && result && result.networkInterfaces) {
-         const originalNI_$timestamp = result.networkInterfaces;
-         result.networkInterfaces = function() { return { lo: [{ address: '127.0.0.1', netmask: '255.0.0.0', family: 'IPv4', mac: '00:00:00:00:00:00', internal: true, cidr: '127.0.0.1/8' }]}; };
-         console.log('Cursor Modifier: Patched os.networkInterfaces');
-      }
-      return result;
-    } catch (e) {
-      console.error('Cursor Modifier: Error in require patch for module:', module, e);
-      // 如果原始 require 失败，可能需要返回一个空对象或抛出异常
-      // 尝试调用原始 require，即使它可能已在 try 块中失败
-      try { return originalRequire_$timestamp(module); } catch (innerE) { return {}; }
-    }
-  };
-} else { console.warn('Cursor Modifier: Original require not found.'); }
-
-// Override potential global functions or properties if they exist
-try { if (typeof global !== 'undefined' && global.getMachineId) global.getMachineId = function() { return '$machine_id'; }; } catch(e){}
-try { if (typeof global !== 'undefined' && global.getDeviceId) global.getDeviceId = function() { return '$device_id'; }; } catch(e){}
-try { if (typeof global !== 'undefined' && global.macMachineId) global.macMachineId = '$mac_machine_id'; } catch(e){}
-try { if (typeof process !== 'undefined' && process.env) process.env.VSCODE_MACHINE_ID = '$machine_id'; } catch(e){}
-
-console.log('Cursor Modifier: Universal patches applied (UUID: $new_uuid)');
-// End Cursor ID Modifier Injection - $timestamp
-
-"
-            # 将变量替换进代码
-            inject_universal_code=${inject_universal_code//\$new_uuid/$new_uuid}
-            inject_universal_code=${inject_universal_code//\$machine_id/$machine_id}
-            inject_universal_code=${inject_universal_code//\$device_id/$device_id}
-            inject_universal_code=${inject_universal_code//\$mac_machine_id/$mac_machine_id}
-            inject_universal_code=${inject_universal_code//\$timestamp/$timestamp} # 确保时间戳替换
-
-            # 将代码注入到文件开头
-            local temp_inject_file=$(mktemp)
-            echo "$inject_universal_code" > "$temp_inject_file"
-            cat "$file" >> "$temp_inject_file"
-            
-            if mv "$temp_inject_file" "$file"; then
-                 log_info "完成通用注入修改"
-                 modification_applied=true
-            else
-                 log_error "通用注入失败 (无法移动临时文件)"
-                 rm -f "$temp_inject_file" # 清理注入文件
-            fi
-        elif [ "$modification_applied" = false ]; then
-             log_info "文件 '$file' 似乎已被修改过 (包含注入标记)，跳过通用注入。"
-             # 即使未应用新修改，也认为"成功"处理（避免恢复备份）
-             modification_applied=true # 标记为已处理，防止恢复备份
-        fi
-
-        # --- 结束修改尝试 ---
-
-        # 根据修改结果处理
-        if [ "$modification_applied" = true ]; then
             ((modified_count++))
-            file_modification_status+=("'$file': Success")
+            file_modification_status+=("'$(basename "$file")': Success")
+
             # 恢复文件权限为只读
-            chmod u-w,go-w "$file" || log_warn "设置文件只读权限失败: $file"
-            # 设置文件所有者
-             chown "$CURRENT_USER":"$(id -g -n "$CURRENT_USER")" "$file" || log_warn "设置 JS 文件所有权失败: $file"
+            chmod u-w,go-w "$file" 2>/dev/null || true
+            chown "$CURRENT_USER":"$(id -g -n "$CURRENT_USER")" "$file" 2>/dev/null || true
         else
-            log_error "未能成功应用任何修改到文件: $file"
-            file_modification_status+=("'$file': Failed")
+            log_error "IIFE注入失败 (无法移动临时文件)"
+            rm -f "$temp_file"
+            file_modification_status+=("'$(basename "$file")': Inject Failed")
             # 恢复备份
-            log_info "正在从备份恢复文件: $file"
-            if cp "$backup_file" "$file"; then
-                 chmod u-w,go-w "$file" || log_warn "恢复备份后设置只读权限失败: $file"
-                 chown "$CURRENT_USER":"$(id -g -n "$CURRENT_USER")" "$file" || log_warn "恢复备份后设置所有权失败: $file"
-            else
-                 log_error "从备份恢复文件失败: $file"
-                 # 文件可能处于不确定状态
-            fi
+            cp "$backup_file" "$file" 2>/dev/null || true
         fi
-        
-        # 清理备份文件
-        rm -f "$backup_file"
+
+        # 清理备份文件（可选保留）
+        # rm -f "$backup_file"
 
     done # 文件循环结束
-    
+
     # 报告每个文件的状态
-    log_info "JS 文件处理状态汇总:"
+    log_info "📊 [统计] JS 文件处理状态汇总:"
     for status in "${file_modification_status[@]}"; do
-        log_info "- $status"
+        log_info "   - $status"
     done
 
     if [ "$modified_count" -eq 0 ]; then
-        log_error "未能成功修改任何JS文件。请检查日志以获取详细信息。"
+        log_error "❌ [失败] 未能成功修改任何JS文件。"
         return 1
     fi
-    
-    log_info "成功修改或确认了 $modified_count 个JS文件。"
+
+    log_info "🎉 [完成] 成功修改 $modified_count 个JS文件"
+    log_info "💡 [说明] 使用A+B混合方案："
+    log_info "   • 方案A: someValue占位符替换（稳定锚点，跨版本兼容）"
+    log_info "   • 方案B: IIFE运行时劫持（crypto.randomUUID + os.networkInterfaces）"
     return 0
 }
 
