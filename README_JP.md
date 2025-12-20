@@ -10,7 +10,37 @@
 
 <img src="https://ai-cursor.com/wp-content/uploads/2024/09/logo-cursor-ai-png.webp" alt="Cursor Logo" width="120"/>
 
+</div>
 
+---
+
+<div align="center">
+
+## 💰 Cursor 公式チャージ済みアカウント
+
+⚡️ **月額使い捨て | 専用アカウント | 最高のコスパ**
+
+| プラン | 価格 | 定価 | 特典内容 |
+|:---:|:---:|:---:|:---|
+| **Pro** | ¥65/月 | $20 (約¥145) | $20 基本枠 + ボーナス ≈ 総額 $65 |
+| **Pro+** | ¥265/月 | $60 (約¥435) | $70 基本枠 + ボーナス ≈ 総額 $130 |
+| **Ultra** | ¥888/月 | $200 (約¥1450) | $400 基本枠 + 大量ボーナス |
+
+> 📖 [公式料金ドキュメント](https://cursor.com/cn/docs/account/pricing) | 注: Cursor枠 = 基本枠 + 超過分 + 月末リセット
+
+⚠️ **購入時の注意**：正規チャージ、専用アカウント | 7日間保証、日割り返金 | 3台まで | 在庫品は27〜30日有効
+
+📱 **連絡先**：Telegram: [@yuaotian](https://t.me/yuaotian) | WeChat: `JavaRookie666`
+
+---
+
+### 📢 広告スペース
+
+> 🔥 **広告枠募集中** - パートナーシップのお問い合わせ歓迎
+>
+> 📧 連絡先: Telegram [@yuaotian](https://t.me/yuaotian) | WeChat: `JavaRookie666`
+
+---
 
 </div>
 
@@ -281,13 +311,13 @@ irm https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/
 **macOS**
 
 ```bash
-curl -fsSL https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_mac_id_modifier.sh -o ./cursor_mac_id_modifier.sh && sudo bash ./cursor_mac_id_modifier.sh && rm ./cursor_mac_id_modifier.sh
+curl -fsSL https://wget.la/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_mac_id_modifier.sh -o ./cursor_mac_id_modifier.sh && sudo bash ./cursor_mac_id_modifier.sh && rm ./cursor_mac_id_modifier.sh
 ```
 
 **Linux**
 
 ```bash
-curl -fsSL https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_linux_id_modifier.sh | sudo bash
+curl -fsSL https://wget.la/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_linux_id_modifier.sh | sudo bash
 ```
 
 > **Linuxユーザーへの注意：** スクリプトは、一般的なパス（`/usr/bin`, `/usr/local/bin`, `$HOME/.local/bin`, `/opt/cursor`, `/snap/bin`）の確認、`which cursor` コマンドの使用、および `/usr`、`/opt`、`$HOME/.local` ディレクトリ内の検索によって、Cursor のインストールを見つけようとします。Cursorが他の場所にインストールされているか、これらの方法で見つからない場合、スクリプトは失敗する可能性があります。これらの標準的な場所または方法のいずれかを通じてCursorにアクセスできることを確認してください。
@@ -295,13 +325,13 @@ curl -fsSL https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com
 **Windows**
 
 ```powershell
-irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
+irm https://wget.la/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
 ```
 
 **Windows (強化版)**
 
 ```powershell
-irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
+irm https://wget.la/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
 ```
 > デュアルモード操作とトライアルリセット機能を備えた強化版Cursorマシンコード修正ツール
 
@@ -330,12 +360,12 @@ irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaoti
    または開いたウィンドウに次のように入力します： Start-Process pwsh -Verb RunAs
 4. 管理者ターミナルにリセットスクリプトを入力します：
 
-irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
+irm https://wget.la/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
 ```
 
 強化版スクリプト：
 ```powershell
-irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
+irm https://wget.la/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
 ```
 
 ##### 方法3: 検索を使用する
@@ -346,12 +376,12 @@ irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaoti
 
 管理者ターミナルにリセットスクリプトを入力します：
 ```powershell
-irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
+irm https://wget.la/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
 ```
 
 強化版スクリプト：
 ```powershell
-irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
+irm https://wget.la/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
 ```
 
 ### 🔧 PowerShellインストールガイド

@@ -10,7 +10,37 @@
 
 <img src="https://ai-cursor.com/wp-content/uploads/2024/09/logo-cursor-ai-png.webp" alt="Cursor Logo" width="120"/>
 
+</div>
 
+---
+
+<div align="center">
+
+## 💰 Cursor Official Pre-charged Accounts
+
+⚡️ **Monthly Disposable | Exclusive Account | Best Value**
+
+| Plan | Price | Original | Benefits |
+|:---:|:---:|:---:|:---|
+| **Pro** | ¥65/mo | $20 (~¥145) | $20 base quota + bonus ≈ $65 total value |
+| **Pro+** | ¥265/mo | $60 (~¥435) | $70 base quota + bonus ≈ $130 total value |
+| **Ultra** | ¥888/mo | $200 (~¥1450) | $400 base quota + massive bonus |
+
+> 📖 [Official Pricing](https://cursor.com/cn/docs/account/pricing) | Note: Cursor quota = Base quota + Overdraft + Monthly reset
+
+⚠️ **Notice**: Genuine top-up, exclusive account | 7-day warranty, daily refund | Max 3 devices | Stock accounts valid 27-30 days
+
+📱 **Contact**: Telegram: [@yuaotian](https://t.me/yuaotian) | WeChat: `JavaRookie666`
+
+---
+
+### 📢 Advertising Space
+
+> 🔥 **Ad Space Available** - Contact for partnership opportunities
+>
+> 📧 Contact: Telegram [@yuaotian](https://t.me/yuaotian) | WeChat: `JavaRookie666`
+
+---
 
 </div>
 
@@ -250,7 +280,7 @@ If you see the "High Load" message for Claude 3.7 Sonnet, this indicates Cursor 
 
 ```bash
 # Method two
-curl -fsSL https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_mac_id_modifier.sh -o ./cursor_mac_id_modifier.sh && sudo bash ./cursor_mac_id_modifier.sh && rm ./cursor_mac_id_modifier.sh
+curl -fsSL https://wget.la/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_mac_id_modifier.sh -o ./cursor_mac_id_modifier.sh && sudo bash ./cursor_mac_id_modifier.sh && rm ./cursor_mac_id_modifier.sh
 ```
 
 **Linux**
@@ -286,25 +316,25 @@ irm https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/
 **macOS**
 
 ```bash
-curl -fsSL https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_mac_id_modifier.sh -o ./cursor_mac_id_modifier.sh && sudo bash ./cursor_mac_id_modifier.sh && rm ./cursor_mac_id_modifier.sh
+curl -fsSL https://wget.la/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_mac_id_modifier.sh -o ./cursor_mac_id_modifier.sh && sudo bash ./cursor_mac_id_modifier.sh && rm ./cursor_mac_id_modifier.sh
 ```
 
 **Linux**
 
 ```bash
-curl -fsSL https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_linux_id_modifier.sh | sudo bash
+curl -fsSL https://wget.la/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_linux_id_modifier.sh | sudo bash
 ```
 
 **Windows**
 
 ```powershell
-irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
+irm https://wget.la/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
 ```
 
 **Windows (Enhanced Version)**
 
 ```powershell
-irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
+irm https://wget.la/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
 ```
 > Enhanced Cursor machine code modifier with dual-mode operation and trial reset functionality
 
@@ -333,12 +363,12 @@ irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaoti
    or type in the opened window: Start-Process pwsh -Verb RunAs
 4. Enter the reset script in the administrator terminal:
 
-irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
+irm https://wget.la/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
 ```
 
 For the enhanced version:
 ```powershell
-irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
+irm https://wget.la/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
 ```
 
 ##### Method 3: Using Search
@@ -349,12 +379,12 @@ irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaoti
 
 Enter the reset script in the administrator terminal:
 ```powershell
-irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
+irm https://wget.la/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
 ```
 
 For the enhanced version:
 ```powershell
-irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
+irm https://wget.la/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
 ```
 
 ### 🔧 PowerShell Installation Guide 

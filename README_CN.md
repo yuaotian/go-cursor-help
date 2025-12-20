@@ -10,8 +10,40 @@
 
 <img src="https://ai-cursor.com/wp-content/uploads/2024/09/logo-cursor-ai-png.webp" alt="Cursor Logo" width="120"/>
 
+</div>
 
- 
+---
+
+<div align="center">
+
+## 💰 Cursor 官网正规成品号
+
+⚡️ **月抛号 | 独享账号 | 超高性价比**
+
+| 套餐 | 价格 | 原价 | 权益说明 |
+|:---:|:---:|:---:|:---|
+| **Pro** | ¥65/月 | $20 (约¥145) | 含 $20 基础额度 + 额外奖励 ≈ 总价值 $65 |
+| **Pro+** | ¥265/月 | $60 (约¥435) | 含 $70 基础额度 + 额外奖励 ≈ 总价值 $130 |
+| **Ultra** | ¥888/月 | $200 (约¥1450) | 含 $400 基础额度 + 海量额外奖励 |
+
+> 📖 [官网定价文档](https://cursor.com/cn/docs/account/pricing) | PS: Cursor额度 = 原套餐额度 + 账单透支 + 月末恢复原套餐额度
+
+⚠️ **购买须知**：正规真金充值，独享账号 | 七天质保，按天退款 | 请勿多人共享（限3台设备内）| 少量库存号有效期27~30天
+
+📱 **联系方式**：Telegram: [@yuaotian](https://t.me/yuaotian) | WeChat: `JavaRookie666`
+
+---
+
+### 📢 招聘广告位
+
+> 🔥 **广告位招租** - 欢迎联系洽谈合作
+>
+> 📧 联系方式：Telegram [@yuaotian](https://t.me/yuaotian) | WeChat: `JavaRookie666`
+
+---
+
+</div>
+
 > ⚠️ **重要提示**
 > 
 > 本工具当前支持版本：
@@ -188,13 +220,13 @@ We're experiencing high demand for Claude 3.7 Sonnet right now. Please upgrade t
 **macOS**
 
 ```bash
-curl -fsSL https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_mac_id_modifier.sh -o ./cursor_mac_id_modifier.sh && sudo bash ./cursor_mac_id_modifier.sh && rm ./cursor_mac_id_modifier.sh
+curl -fsSL https://wget.la/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_mac_id_modifier.sh -o ./cursor_mac_id_modifier.sh && sudo bash ./cursor_mac_id_modifier.sh && rm ./cursor_mac_id_modifier.sh
 ```
 
 **Linux**
 
 ```bash
-curl -fsSL https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_linux_id_modifier.sh | sudo bash
+curl -fsSL https://wget.la/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_linux_id_modifier.sh | sudo bash
 ```
 
 > **Linux 用户请注意：** 该脚本通过检查常用路径（`/usr/bin`, `/usr/local/bin`, `$HOME/.local/bin`, `/opt/cursor`, `/snap/bin`）、使用 `which cursor` 命令以及在 `/usr`、`/opt` 和 `$HOME/.local` 目录内搜索，来尝试定位您的 Cursor 安装。如果 Cursor 安装在其他位置或通过这些方法无法找到，脚本可能会失败。请确保可以通过这些标准位置或方法之一访问到 Cursor。
@@ -202,13 +234,13 @@ curl -fsSL https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com
 **Windows**
 
 ```powershell
-irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
+irm https://wget.la/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
 ```
 
 **Windows (增强版)**
 
 ```powershell
-irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
+irm https://wget.la/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
 ```
 > 增强版Cursor机器码修改工具，支持双模式操作和试用重置功能
 <div align="center">
@@ -239,12 +271,12 @@ irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaoti
    或在打开的窗口中输入: Start-Process pwsh -Verb RunAs
 4. 在管理员终端中输入以下重置脚本:
 
-irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
+irm https://wget.la/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
 ```
 
 增强版脚本：
 ```powershell
-irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
+irm https://wget.la/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
 ```
 
 ##### 方法三：通过搜索启动
@@ -255,12 +287,12 @@ irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaoti
 
 在管理员终端中输入重置脚本:
 ```powershell
-irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
+irm https://wget.la/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
 ```
 
 增强版脚本：
 ```powershell
-irm https://aizaozao.com/accelerate.php/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
+irm https://wget.la/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
 ```
 
 ### 🔧 PowerShell 安装指南
