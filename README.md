@@ -47,229 +47,12 @@
 > ⚠️ **IMPORTANT NOTICE**
 > 
 > This tool currently supports:
-> - ✅ Windows: Latest 1.0.x versions (Supported)
-> - ✅ Mac/Linux: Latest 1.0.x versions (Supported, feedback welcome)
+> - ✅ Windows: Latest 2.x.x versions (Supported)
+> - ✅ Mac/Linux: Latest 2.x.x versions (Supported, feedback welcome)
 >
 > Please check your Cursor version before using this tool.
 
-<details open>
-<summary><b>📦 Version History & Downloads</b></summary>
-
-<div class="version-card" style="background: linear-gradient(135deg, #6e8efb, #a777e3); border-radius: 8px; padding: 15px; margin: 10px 0; color: white;">
-
-### 🌟 Latest Versions
-
-[View Full Version History]([CursorHistoryDown.md](https://github.com/oslook/cursor-ai-downloads?tab=readme-ov-file))
-
-</div>
-
-
-
-</details>
-
-⚠️ **General Solutions for Cursor**
-> 1.  Close Cursor, log out of your account, and delete your account in the official website Settings (refresh IP node: Japan, Singapore, USA, Hong Kong, prioritizing low latency - not necessarily required but change if conditions allow; Windows users are recommended to refresh DNS cache: `ipconfig /flushdns`)
-> Go to the Cursor official website to delete your current account
-> Steps: User avatar -> Setting -> Advanced▼ in the bottom left -> Delete Account
->
-> 2.  Run the machine code refresh script, see the script address below, available in China
-> 
-> 3.  Re-register an account, log in, and open Cursor to resume normal use.
->
-> 4.  Alternative solution: If still unusable after step [**3**], or if you encounter problems such as account registration failure or inability to delete an account, this usually means your browser has been identified or restricted by the target website (risk control). In this case, try switching browsers, such as: Edge, Google Chrome, Firefox. (Or, consider using a browser that can modify or randomize browser fingerprint information).
-
-
 ---
-
-⚠️ **MAC Address Modification Warning**
-> 
-> For Mac users: This script includes a MAC address modification feature that will:
-> - Modify your network interface's MAC address
-> - Backup original MAC addresses before modification
-> - This modification may temporarily affect network connectivity
-> - You can skip this step when prompted during execution
->
-
-<details >
-<summary><b>🔒 Disable Auto-Update Feature</b></summary>
-
-> To prevent Cursor from automatically updating to unsupported new versions, you can choose to disable the auto-update feature.
-
-#### Method 1: Using Built-in Script (Recommended)
-
-When running the reset tool, the script will ask if you want to disable auto-updates:
-```text
-[Question] Do you want to disable Cursor auto-update feature?
-0) No - Keep default settings (Press Enter)
-1) Yes - Disable auto-update
-```
-
-Select `1` to automatically complete the disable operation.
-
-#### Method 2: Manual Disable
-
-**Windows:**
-1. Close all Cursor processes
-2. Delete directory: `%LOCALAPPDATA%\cursor-updater`
-3. Create a file with the same name (without extension) in the same location
-
-**macOS:**
-```bash
-# NOTE: As tested, this method only works for version 0.45.11 and below.
-# Close Cursor
-pkill -f "Cursor"
-# Replacing app-update.yml with a blank/read-only file
-cd /Applications/Cursor.app/Contents/Resources
-mv app-update.yml app-update.yml.bak
-touch app-update.yml
-chmod 444 app-update.yml
-
-# Go to Settings -> Application -> Update, set Mode to none.
-# This must be done to prevent Cursor from checking for updates.
-
-# NOTE: The cursor-updater modification method may no longer be effective
-# In any case, remove update directory and create blocking file
-rm -rf ~/Library/Application\ Support/Caches/cursor-updater
-touch ~/Library/Application\ Support/Caches/cursor-updater
-```
-
-**Linux:**
-```bash
-# Close Cursor
-pkill -f "Cursor"
-# Remove update directory and create blocking file
-rm -rf ~/.config/cursor-updater
-touch ~/.config/cursor-updater
-```
-
-> ⚠️ **Note:** After disabling auto-updates, you'll need to manually download and install new versions. It's recommended to update only after confirming the new version is compatible.
-
-
-</details>
-
----
-
-### 📝 Description
-
-> When you encounter any of these messages:
-
-#### Issue 1: Trial Account Limit <p align="right"><a href="#issue1"><img src="https://img.shields.io/badge/Move%20to%20Solution-Blue?style=plastic" alt="Back To Top"></a></p>
-
-```text
-Too many free trial accounts used on this machine.
-Please upgrade to pro. We have this limit in place
-to prevent abuse. Please let us know if you believe
-this is a mistake.
-```
-
-#### Issue 2: API Key Limitation <p align="right"><a href="#issue2"><img src="https://img.shields.io/badge/Move%20to%20Solution-green?style=plastic" alt="Back To Top"></a></p>
-
-```text
-[New Issue]
-
-Composer relies on custom models that cannot be billed to an API key.
-Please disable API keys and use a Pro or Business subscription.
-Request ID: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-```
-
-#### Issue 3: Trial Request Limit
-
-> This indicates you've reached the usage limit during the VIP free trial period:
-
-```text
-You've reached your trial request limit.
-```
-
-#### Issue 4: Claude 3.7 High Load <p align="right"><a href="#issue4"><img src="https://img.shields.io/badge/Move%20to%20Solution-purple?style=plastic" alt="Back To Top"></a></p>
-
-```text
-High Load 
-We're experiencing high demand for Claude 3.7 Sonnet right now. Please upgrade to Pro, or switch to the
-'default' model, Claude 3.5 sonnet, another model, or try again in a few moments.
-```
-
-<br>
-
-<p id="issue2"></p>
-
-#### Solution : Uninstall Cursor Completely And Reinstall (API key Issue)
-
-1. Download [Geek.exe Uninstaller[Free]](https://geekuninstaller.com/download)
-2. Uninstall Cursor app completely
-3. Re-Install Cursor app
-4. Continue to Solution 1
-
-<br>
-
-<p id="issue1"></p>
-
-> Temporary Solution:
-
-#### Solution 1: Quick Reset (Recommended)
-
-1. Close Cursor application
-2. Run the machine code reset script (see installation instructions below)
-3. Reopen Cursor to continue using
-
-#### Solution 2: Account Switch
-
-1. File -> Cursor Settings -> Sign Out
-2. Close Cursor
-3. Run the machine code reset script
-4. Login with a new account
-
-#### Solution 3: Network Optimization
-
-If the above solutions don't work, try:
-
-- Switch to low-latency nodes (Recommended regions: Japan, Singapore, US, Hong Kong)
-- Ensure network stability
-- Clear browser cache and retry
-
-#### Solution 4: Claude 3.7 Access Issue (High Load)
-
-If you see the "High Load" message for Claude 3.7 Sonnet, this indicates Cursor is limiting free trial accounts from using the 3.7 model during certain times of the day. Try:
-
-1. Switch to a new account created with Gmail, possibly connecting through a different IP address
-2. Try accessing during off-peak hours (typically 5-10 AM or 3-7 PM when restrictions are often lighter)
-3. Consider upgrading to Pro for guaranteed access
-4. Use Claude 3.5 Sonnet as a fallback option
-
-> Note: These access patterns may change as Cursor adjusts their resource allocation policies.
-
-### 💻 System Support
-
-<table>
-<tr>
-<td>
-
-**Windows** ✅
-
-- x64 (64-bit)
-- x86 (32-bit)
-
-</td>
-<td>
-
-**macOS** ✅
-
-- Intel (x64)
-- Apple Silicon (M1/M2)
-
-</td>
-<td>
-
-**Linux** ✅
-
-- x64 (64-bit)
-- x86 (32-bit)
-- ARM64
-
-</td>
-</tr>
-</table>
-
-
 
 ### 🚀 One-Click Solution
 
@@ -279,8 +62,7 @@ If you see the "High Load" message for Claude 3.7 Sonnet, this indicates Cursor 
 **macOS**
 
 ```bash
-# Method two
-curl -fsSL https://wget.la/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_mac_id_modifier.sh -o ./cursor_mac_id_modifier.sh && sudo bash ./cursor_mac_id_modifier.sh && rm ./cursor_mac_id_modifier.sh
+curl -fsSL https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_mac_id_modifier.sh -o ./cursor_mac_id_modifier.sh && sudo bash ./cursor_mac_id_modifier.sh && rm ./cursor_mac_id_modifier.sh
 ```
 
 **Linux**
@@ -297,12 +79,6 @@ curl -fsSL https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/
 irm https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
 ```
 
-**Windows (Enhanced Version)**
-
-```powershell
-irm https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
-```
-> Enhanced Cursor machine code modifier with dual-mode operation and trial reset functionality
 
 <div align="center">
 <img src="img/run_success.png" alt="Run Success" width="600"/>
@@ -330,13 +106,6 @@ curl -fsSL https://wget.la/https://raw.githubusercontent.com/yuaotian/go-cursor-
 ```powershell
 irm https://wget.la/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
 ```
-
-**Windows (Enhanced Version)**
-
-```powershell
-irm https://wget.la/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
-```
-> Enhanced Cursor machine code modifier with dual-mode operation and trial reset functionality
 
 </details>
 
