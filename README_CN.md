@@ -110,11 +110,14 @@ curl -fsSL https://wget.la/https://raw.githubusercontent.com/yuaotian/go-cursor-
 irm https://wget.la/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
 ```
 
+
+</details>
+
 <div align="center">
 <img src="img/run_success.png" alt="运行成功" width="600"/>
 </div>
 
-</details>
+
 <details open>
 <summary><b>Windows 管理员终端运行和手动安装</b></summary>
 
