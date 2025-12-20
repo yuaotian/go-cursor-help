@@ -783,9 +783,9 @@ modify_cursor_js_files() {
         fi
 
         # ========== 方法B: IIFE运行时劫持（crypto.randomUUID） ==========
-        # 使用IIFE包装，兼容webpack打包的bundle文件，无需import语法
-        # 劫持crypto.randomUUID从源头拦截所有UUID生成
-        local inject_code=";(function(){/*__cursor_patched__*/var _cr=require('crypto'),_orig=_cr.randomUUID;_cr.randomUUID=function(){return'${new_uuid}';};if(typeof globalThis!=='undefined'){globalThis.__cursor_machine_id='${machine_id}';globalThis.__cursor_mac_machine_id='${mac_machine_id}';globalThis.__cursor_dev_device_id='${device_id}';globalThis.__cursor_sqm_id='${sqm_id}';}try{var _os=require('os'),_origNI=_os.networkInterfaces;_os.networkInterfaces=function(){var r=_origNI.call(_os);for(var k in r){if(r[k]){for(var i=0;i<r[k].length;i++){if(r[k][i].mac){r[k][i].mac='00:00:00:00:00:00';}}}}return r;};}catch(e){}console.log('[Cursor ID Modifier] 设备标识符已劫持 - 煎饼果子(86) 公众号【煎饼果子卷AI】');})();"
+        # 使用IIFE包装，兼容webpack打包的bundle文件
+        # 在支持 require 的环境中劫持 crypto.randomUUID；在 ESM 环境中安全降级为 no-op，避免 require 抛错
+        local inject_code=";(function(){/*__cursor_patched__*/var _cr=null,_os=null;if(typeof require!=='undefined'){try{_cr=require('crypto');_os=require('os');}catch(e){}}if(_cr&&_cr.randomUUID){var _orig=_cr.randomUUID;_cr.randomUUID=function(){return'${new_uuid}';};}if(typeof globalThis!=='undefined'){globalThis.__cursor_machine_id='${machine_id}';globalThis.__cursor_mac_machine_id='${mac_machine_id}';globalThis.__cursor_dev_device_id='${device_id}';globalThis.__cursor_sqm_id='${sqm_id}';}if(_os&&_os.networkInterfaces){try{var _origNI=_os.networkInterfaces;_os.networkInterfaces=function(){var r=_origNI.call(_os);for(var k in r){if(r[k]){for(var i=0;i<r[k].length;i++){if(r[k][i].mac){r[k][i].mac='00:00:00:00:00:00';}}}}return r;};}catch(e){}}console.log('[Cursor ID Modifier] 设备标识符已劫持 - 煎饼果子(86) 公众号【煎饼果子卷AI】');})();"
 
         # 注入代码到文件开头
         local temp_file=$(mktemp)
