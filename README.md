@@ -83,9 +83,6 @@ irm https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/
 
 </details>
 
-<div align="center">
-<img src="img/run_success.png" alt="Run Success" width="600"/>
-</div>
 
 <details open>
 <summary><b>China Users (Recommended)</b></summary>
@@ -109,6 +106,11 @@ irm https://wget.la/https://raw.githubusercontent.com/yuaotian/go-cursor-help/re
 ```
 
 </details>
+
+
+<div align="center">
+<img src="img/run_success.png" alt="Run Success" width="600"/>
+</div>
 
 <details open>
 <summary><b>Windows Terminal Run and Configuration</b></summary>
