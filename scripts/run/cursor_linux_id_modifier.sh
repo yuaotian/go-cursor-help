@@ -826,37 +826,54 @@ EOF
         local replaced=false
 
         # ========== 方法A: someValue占位符替换（稳定锚点） ==========
+        # 重要说明：
+        # 当前 Cursor 的 main.js 中占位符通常是以字符串字面量形式出现，例如：
+        #   this.machineId="someValue.machineId"
+        # 如果直接把 someValue.machineId 替换成 "\"<真实值>\""，会形成 ""<真实值>"" 导致 JS 语法错误。
+        # 因此这里优先替换完整的字符串字面量（包含外层引号），再兜底替换不带引号的占位符。
         if grep -q 'someValue\.machineId' "$file"; then
+            sed -i "s/\"someValue\.machineId\"/\"${machine_id}\"/g" "$file"
+            sed -i "s/'someValue\.machineId'/\"${machine_id}\"/g" "$file"
             sed -i "s/someValue\.machineId/\"${machine_id}\"/g" "$file"
             log_info "   ✓ [方案A] 替换 someValue.machineId"
             replaced=true
         fi
 
         if grep -q 'someValue\.macMachineId' "$file"; then
+            sed -i "s/\"someValue\.macMachineId\"/\"${mac_machine_id}\"/g" "$file"
+            sed -i "s/'someValue\.macMachineId'/\"${mac_machine_id}\"/g" "$file"
             sed -i "s/someValue\.macMachineId/\"${mac_machine_id}\"/g" "$file"
             log_info "   ✓ [方案A] 替换 someValue.macMachineId"
             replaced=true
         fi
 
         if grep -q 'someValue\.devDeviceId' "$file"; then
+            sed -i "s/\"someValue\.devDeviceId\"/\"${device_id}\"/g" "$file"
+            sed -i "s/'someValue\.devDeviceId'/\"${device_id}\"/g" "$file"
             sed -i "s/someValue\.devDeviceId/\"${device_id}\"/g" "$file"
             log_info "   ✓ [方案A] 替换 someValue.devDeviceId"
             replaced=true
         fi
 
         if grep -q 'someValue\.sqmId' "$file"; then
+            sed -i "s/\"someValue\.sqmId\"/\"${sqm_id}\"/g" "$file"
+            sed -i "s/'someValue\.sqmId'/\"${sqm_id}\"/g" "$file"
             sed -i "s/someValue\.sqmId/\"${sqm_id}\"/g" "$file"
             log_info "   ✓ [方案A] 替换 someValue.sqmId"
             replaced=true
         fi
 
         if grep -q 'someValue\.sessionId' "$file"; then
+            sed -i "s/\"someValue\.sessionId\"/\"${session_id}\"/g" "$file"
+            sed -i "s/'someValue\.sessionId'/\"${session_id}\"/g" "$file"
             sed -i "s/someValue\.sessionId/\"${session_id}\"/g" "$file"
             log_info "   ✓ [方案A] 替换 someValue.sessionId"
             replaced=true
         fi
 
         if grep -q 'someValue\.firstSessionDate' "$file"; then
+            sed -i "s/\"someValue\.firstSessionDate\"/\"${first_session_date}\"/g" "$file"
+            sed -i "s/'someValue\.firstSessionDate'/\"${first_session_date}\"/g" "$file"
             sed -i "s/someValue\.firstSessionDate/\"${first_session_date}\"/g" "$file"
             log_info "   ✓ [方案A] 替换 someValue.firstSessionDate"
             replaced=true
@@ -864,9 +881,22 @@ EOF
 
         # ========== 方法B: 增强版深度 Hook 注入 ==========
         local inject_code='// ========== Cursor Hook 注入开始 ==========
-;(function(){/*__cursor_patched__*/
+;(async function(){/*__cursor_patched__*/
 "use strict";
 if(globalThis.__cursor_patched__)return;
+
+// 兼容 ESM：确保可用的 require（部分版本 main.js 可能是纯 ESM，不保证存在 require）
+var __require__=typeof require==="function"?require:null;
+if(!__require__){
+    try{
+        var __m__=await import("module");
+        __require__=__m__.createRequire(import.meta.url);
+    }catch(e){
+        // 无法获得 require 时直接退出，避免影响主进程启动
+        return;
+    }
+}
+
 globalThis.__cursor_patched__=true;
 
 var __ids__={
@@ -879,7 +909,7 @@ var __ids__={
 
 globalThis.__cursor_ids__=__ids__;
 
-var Module=require("module");
+var Module=__require__("module");
 var _origReq=Module.prototype.require;
 var _hooked=new Map();
 

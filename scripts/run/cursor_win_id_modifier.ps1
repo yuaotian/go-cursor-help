@@ -1,4 +1,4 @@
-﻿# 设置输出编码为 UTF-8
+# 设置输出编码为 UTF-8
 $OutputEncoding = [System.Text.Encoding]::UTF8
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
@@ -178,48 +178,52 @@ function Modify-CursorJSFiles {
 
             # ========== 方法A: someValue占位符替换（稳定锚点） ==========
             # 这些字符串是固定的占位符，不会被混淆器修改，跨版本稳定
+            # 重要说明：
+            # 当前 Cursor 的 main.js 中占位符通常是以字符串字面量形式出现，例如：
+            #   this.machineId="someValue.machineId"
+            # 如果直接把 someValue.machineId 替换成 "\"<真实值>\""，会形成 ""<真实值>"" 导致 JS 语法错误（Invalid token）。
+            # 因此这里优先替换完整的字符串字面量（包含外层引号），并使用 JSON 字符串字面量确保转义安全。
 
-            # 替换 someValue.machineId
-            if ($content -match 'someValue\.machineId') {
-                $content = $content -replace 'someValue\.machineId', "`"$machineId`""
-                Write-Host "   $GREEN✓$NC [方案A] 替换 someValue.machineId"
-                $replaced = $true
-            }
-
-            # 替换 someValue.macMachineId
-            if ($content -match 'someValue\.macMachineId') {
-                $content = $content -replace 'someValue\.macMachineId', "`"$macMachineId`""
-                Write-Host "   $GREEN✓$NC [方案A] 替换 someValue.macMachineId"
-                $replaced = $true
-            }
-
-            # 替换 someValue.devDeviceId
-            if ($content -match 'someValue\.devDeviceId') {
-                $content = $content -replace 'someValue\.devDeviceId', "`"$deviceId`""
-                Write-Host "   $GREEN✓$NC [方案A] 替换 someValue.devDeviceId"
-                $replaced = $true
-            }
-
-            # 替换 someValue.sqmId
-            if ($content -match 'someValue\.sqmId') {
-                $content = $content -replace 'someValue\.sqmId', "`"$sqmId`""
-                Write-Host "   $GREEN✓$NC [方案A] 替换 someValue.sqmId"
-                $replaced = $true
-            }
-
-            # 替换 someValue.sessionId（新增锚点）
-            if ($content -match 'someValue\.sessionId') {
-                $content = $content -replace 'someValue\.sessionId', "`"$sessionId`""
-                Write-Host "   $GREEN✓$NC [方案A] 替换 someValue.sessionId"
-                $replaced = $true
-            }
-
-            # 🔧 新增: 替换 someValue.firstSessionDate
+            # 🔧 新增: firstSessionDate（重置首次会话日期）
             $firstSessionDateValue = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
-            if ($content -match 'someValue\.firstSessionDate') {
-                $content = $content -replace 'someValue\.firstSessionDate', $firstSessionDateValue
-                Write-Host "   $GREEN✓$NC [方案A] 替换 someValue.firstSessionDate"
-                $replaced = $true
+
+            $placeholders = @(
+                @{ Name = 'someValue.machineId';         Value = [string]$machineId },
+                @{ Name = 'someValue.macMachineId';      Value = [string]$macMachineId },
+                @{ Name = 'someValue.devDeviceId';       Value = [string]$deviceId },
+                @{ Name = 'someValue.sqmId';             Value = [string]$sqmId },
+                @{ Name = 'someValue.sessionId';         Value = [string]$sessionId },
+                @{ Name = 'someValue.firstSessionDate';  Value = [string]$firstSessionDateValue }
+            )
+
+            foreach ($ph in $placeholders) {
+                $name = $ph.Name
+                $jsonValue = ($ph.Value | ConvertTo-Json -Compress)  # 生成带双引号的 JSON 字符串字面量
+
+                $changed = $false
+
+                # 优先替换带引号的占位符字面量，避免出现 ""abc"" 破坏语法
+                $doubleLiteral = '"' + $name + '"'
+                if ($content.Contains($doubleLiteral)) {
+                    $content = $content.Replace($doubleLiteral, $jsonValue)
+                    $changed = $true
+                }
+                $singleLiteral = "'" + $name + "'"
+                if ($content.Contains($singleLiteral)) {
+                    $content = $content.Replace($singleLiteral, $jsonValue)
+                    $changed = $true
+                }
+
+                # 兜底：如果占位符以非字符串字面量形式出现，则替换为 JSON 字符串字面量（自带引号）
+                if (-not $changed -and $content.Contains($name)) {
+                    $content = $content.Replace($name, $jsonValue)
+                    $changed = $true
+                }
+
+                if ($changed) {
+                    Write-Host "   $GREEN✓$NC [方案A] 替换 $name"
+                    $replaced = $true
+                }
             }
 
             # ========== 方法B: 增强版深度 Hook 注入 ==========
@@ -234,9 +238,22 @@ function Modify-CursorJSFiles {
 
             $injectCode = @"
 // ========== Cursor Hook 注入开始 ==========
-;(function(){/*__cursor_patched__*/
+;(async function(){/*__cursor_patched__*/
 'use strict';
 if(globalThis.__cursor_patched__)return;
+
+// 兼容 ESM：确保可用的 require（部分版本 main.js 可能是纯 ESM，不保证存在 require）
+var __require__=typeof require==='function'?require:null;
+if(!__require__){
+    try{
+        var __m__=await import('module');
+        __require__=__m__.createRequire(import.meta.url);
+    }catch(e){
+        // 无法获得 require 时直接退出，避免影响主进程启动
+        return;
+    }
+}
+
 globalThis.__cursor_patched__=true;
 
 // 固定的设备标识符
@@ -252,7 +269,7 @@ var __ids__={
 globalThis.__cursor_ids__=__ids__;
 
 // Hook Module.prototype.require
-var Module=require('module');
+var Module=__require__('module');
 var _origReq=Module.prototype.require;
 var _hooked=new Map();
 
