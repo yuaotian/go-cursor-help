@@ -11,10 +11,10 @@
 # - 确保Cursor能正常启动
 #
 # 🚨 如果遇到权限错误，脚本会自动执行：
-# - sudo chown -R $(whoami) ~/Library/"Application Support"/Cursor
-# - sudo chown -R $(whoami) ~/.cursor
-# - chmod -R u+w ~/Library/"Application Support"/Cursor
-# - chmod -R u+w ~/.cursor/extensions
+# - sudo chown -R "$TARGET_USER" "$TARGET_HOME/Library/Application Support/Cursor"
+# - sudo chown -R "$TARGET_USER" "$TARGET_HOME/.cursor"
+# - chmod -R u+rwX "$TARGET_HOME/Library/Application Support/Cursor"
+# - chmod -R u+rwX "$TARGET_HOME/.cursor"
 #
 # ========================================
 
@@ -77,8 +77,8 @@ remove_cursor_trial_folders() {
 
     # 定义需要删除的文件夹路径
     local folders_to_delete=(
-        "$HOME/Library/Application Support/Cursor"
-        "$HOME/.cursor"
+        "$TARGET_HOME/Library/Application Support/Cursor"
+        "$TARGET_HOME/.cursor"
     )
 
     log_info "📂 [检测] 将检查以下文件夹："
@@ -163,7 +163,7 @@ restart_cursor_and_wait() {
     sleep 15
 
     # 检查配置文件是否生成
-    local config_path="$HOME/Library/Application Support/Cursor/User/globalStorage/storage.json"
+    local config_path="$TARGET_HOME/Library/Application Support/Cursor/User/globalStorage/storage.json"
     local max_wait=30
     local waited=0
 
@@ -205,8 +205,8 @@ test_cursor_environment() {
     echo
     log_info "🔍 [环境检查] 正在检查Cursor环境..."
 
-    local config_path="$HOME/Library/Application Support/Cursor/User/globalStorage/storage.json"
-    local cursor_app_data="$HOME/Library/Application Support/Cursor"
+    local config_path="$TARGET_HOME/Library/Application Support/Cursor/User/globalStorage/storage.json"
+    local cursor_app_data="$TARGET_HOME/Library/Application Support/Cursor"
     local cursor_app_path="/Applications/Cursor.app"
     local issues=()
 
@@ -286,7 +286,7 @@ start_cursor_to_generate_config() {
     log_info "💡 [提示] 您可以在Cursor完全加载后手动关闭它"
 
     # 等待配置文件生成
-    local config_path="$HOME/Library/Application Support/Cursor/User/globalStorage/storage.json"
+    local config_path="$TARGET_HOME/Library/Application Support/Cursor/User/globalStorage/storage.json"
     local max_wait=60
     local waited=0
 
@@ -313,8 +313,10 @@ start_cursor_to_generate_config() {
 ensure_cursor_directory_permissions() {
     log_info "🛡️ [权限修复] 执行核心权限修复命令..."
 
-    local cursor_support_dir="$HOME/Library/Application Support/Cursor"
-    local cursor_home_dir="$HOME/.cursor"
+    # ⚠️ 关键：不要用 $(whoami) 当作目标用户！在 sudo 场景下 whoami= root，会把用户目录 chown 成 root，导致 Cursor 启动 EACCES
+    local target_user="${TARGET_USER:-${SUDO_USER:-$USER}}"
+    local cursor_support_dir="$TARGET_HOME/Library/Application Support/Cursor"
+    local cursor_home_dir="$TARGET_HOME/.cursor"
 
     # 确保目录存在
     mkdir -p "$cursor_support_dir" 2>/dev/null || true
@@ -323,29 +325,30 @@ ensure_cursor_directory_permissions() {
     # 🔧 执行用户验证有效的4个核心权限修复命令
     log_info "🔧 [修复] 执行4个核心权限修复命令..."
 
-    # 命令1: sudo chown -R $(whoami) ~/Library/"Application Support"/Cursor
-    if sudo chown -R "$(whoami)" "$cursor_support_dir" 2>/dev/null; then
+    # 命令1: sudo chown -R <真实用户> ~/Library/"Application Support"/Cursor
+    if sudo chown -R "$target_user" "$cursor_support_dir" 2>/dev/null; then
         log_info "✅ [1/4] sudo chown Application Support/Cursor 成功"
     else
         log_warn "⚠️  [1/4] sudo chown Application Support/Cursor 失败"
     fi
 
-    # 命令2: sudo chown -R $(whoami) ~/.cursor
-    if sudo chown -R "$(whoami)" "$cursor_home_dir" 2>/dev/null; then
+    # 命令2: sudo chown -R <真实用户> ~/.cursor
+    if sudo chown -R "$target_user" "$cursor_home_dir" 2>/dev/null; then
         log_info "✅ [2/4] sudo chown .cursor 成功"
     else
         log_warn "⚠️  [2/4] sudo chown .cursor 失败"
     fi
 
-    # 命令3: chmod -R u+w ~/Library/"Application Support"/Cursor
-    if chmod -R u+w "$cursor_support_dir" 2>/dev/null; then
+    # 命令3: chmod -R u+rwX ~/Library/"Application Support"/Cursor
+    # - X：仅对目录（或原本有可执行位的文件）补 x，避免破坏文件权限
+    if chmod -R u+rwX "$cursor_support_dir" 2>/dev/null; then
         log_info "✅ [3/4] chmod Application Support/Cursor 成功"
     else
         log_warn "⚠️  [3/4] chmod Application Support/Cursor 失败"
     fi
 
-    # 命令4: chmod -R u+w ~/.cursor (修复整个目录，不仅仅是extensions子目录)
-    if chmod -R u+w "$cursor_home_dir" 2>/dev/null; then
+    # 命令4: chmod -R u+rwX ~/.cursor (修复整个目录，不仅仅是extensions子目录)
+    if chmod -R u+rwX "$cursor_home_dir" 2>/dev/null; then
         log_info "✅ [4/4] chmod .cursor 成功"
     else
         log_warn "⚠️  [4/4] chmod .cursor 失败"
@@ -378,7 +381,7 @@ modify_machine_code_config() {
     echo
     log_info "🛠️  [配置] 正在修改机器码配置..."
 
-    local config_path="$HOME/Library/Application Support/Cursor/User/globalStorage/storage.json"
+    local config_path="$TARGET_HOME/Library/Application Support/Cursor/User/globalStorage/storage.json"
 
     # 增强的配置文件检查
     if [ ! -f "$config_path" ]; then
@@ -455,7 +458,7 @@ except Exception as e:
     log_info "⏳ [进度] 2/5 - 创建备份目录..."
 
     # 备份原始配置（增强版）
-    local backup_dir="$HOME/Library/Application Support/Cursor/User/globalStorage/backups"
+    local backup_dir="$TARGET_HOME/Library/Application Support/Cursor/User/globalStorage/backups"
     if ! mkdir -p "$backup_dir"; then
         log_error "❌ [错误] 无法创建备份目录: $backup_dir"
         return 1
@@ -611,7 +614,7 @@ except Exception as e:
 
             # 🔧 新增: 修改 machineid 文件
             log_info "🔧 [machineid] 正在修改 machineid 文件..."
-            local machineid_file_path="$HOME/Library/Application Support/Cursor/machineid"
+            local machineid_file_path="$TARGET_HOME/Library/Application Support/Cursor/machineid"
             if [ -f "$machineid_file_path" ]; then
                 # 备份原始 machineid 文件
                 local machineid_backup="$backup_dir/machineid.backup_$(date +%Y%m%d_%H%M%S)"
@@ -631,7 +634,7 @@ except Exception as e:
 
             # 🔧 新增: 修改 .updaterId 文件（更新器设备标识符）
             log_info "🔧 [updaterId] 正在修改 .updaterId 文件..."
-            local updater_id_file_path="$HOME/Library/Application Support/Cursor/.updaterId"
+            local updater_id_file_path="$TARGET_HOME/Library/Application Support/Cursor/.updaterId"
             if [ -f "$updater_id_file_path" ]; then
                 # 备份原始 .updaterId 文件
                 local updater_id_backup="$backup_dir/.updaterId.backup_$(date +%Y%m%d_%H%M%S)"
@@ -699,15 +702,48 @@ get_current_user() {
     fi
 }
 
+# 获取指定用户的 Home 目录（用于 sudo 环境下仍能定位到真实用户目录）
+get_user_home_dir() {
+    local user="$1"
+    local home_dir=""
+
+    if [ -z "$user" ]; then
+        echo ""
+        return 1
+    fi
+
+    # macOS：优先使用 dscl，避免 sudo -H / env_reset 影响 $HOME
+    if command -v dscl >/dev/null 2>&1; then
+        home_dir=$(dscl . -read "/Users/$user" NFSHomeDirectory 2>/dev/null | awk '{print $2}')
+    fi
+
+    # 回退：使用 shell 的 ~ 展开（某些环境 dscl 读取可能失败）
+    if [ -z "$home_dir" ]; then
+        home_dir=$(eval echo "~$user" 2>/dev/null)
+    fi
+
+    # 最终回退：当前环境的 $HOME（至少保证脚本不因空值崩溃）
+    if [ -z "$home_dir" ]; then
+        home_dir="$HOME"
+    fi
+
+    echo "$home_dir"
+    return 0
+}
+
 CURRENT_USER=$(get_current_user)
 if [ -z "$CURRENT_USER" ]; then
     log_error "无法获取用户名"
     exit 1
 fi
 
+# 🎯 统一“目标用户/目标 Home”：后续所有 Cursor 用户数据路径均基于该 Home
+TARGET_USER="$CURRENT_USER"
+TARGET_HOME="$(get_user_home_dir "$TARGET_USER")"
+
 # 定义配置文件路径
-STORAGE_FILE="$HOME/Library/Application Support/Cursor/User/globalStorage/storage.json"
-BACKUP_DIR="$HOME/Library/Application Support/Cursor/User/globalStorage/backups"
+STORAGE_FILE="$TARGET_HOME/Library/Application Support/Cursor/User/globalStorage/storage.json"
+BACKUP_DIR="$TARGET_HOME/Library/Application Support/Cursor/User/globalStorage/backups"
 
 # 定义 Cursor 应用程序路径
 CURSOR_APP_PATH="/Applications/Cursor.app"
@@ -2192,7 +2228,7 @@ console.log('Cursor全局设备标识符拦截已激活 - ES模块版本');
     sudo chown -R "$CURRENT_USER:staff" "$CURSOR_APP_PATH"
     sudo chmod -R 755 "$CURSOR_APP_PATH"
 
-    log_info "Cursor 主程序文件修改完成！原版备份在: ${backup_app/$HOME/\~}"
+    log_info "Cursor 主程序文件修改完成！原版备份在: $backup_app"
     return 0
 }
 
@@ -2233,7 +2269,7 @@ show_follow_info() {
 
 # 禁用自动更新
 disable_auto_update() {
-    local updater_path="$HOME/Library/Application Support/Caches/cursor-updater"
+    local updater_path="$TARGET_HOME/Library/Application Support/Caches/cursor-updater"
     local app_update_yml="/Applications/Cursor.app/Contents/Resources/app-update.yml"
 
     echo
