@@ -24,13 +24,14 @@ function Generate-RandomString {
     return $result
 }
 
-# 🔧 修改Cursor内核JS文件实现设备识别绕过（A+B混合方案 - IIFE + someValue替换）
+# 🔧 修改Cursor内核JS文件实现设备识别绕过（增强版 Hook 方案）
 # 方案A: someValue占位符替换 - 稳定锚点，不依赖混淆后的函数名
-# 方案B: IIFE运行时劫持 - 劫持crypto.randomUUID从源头拦截
+# 方案B: 深度 Hook 注入 - 从底层拦截所有设备标识符生成
+# 方案C: Module.prototype.require 劫持 - 拦截 child_process, crypto, os 等模块
 function Modify-CursorJSFiles {
     Write-Host ""
     Write-Host "$BLUE🔧 [内核修改]$NC 开始修改Cursor内核JS文件实现设备识别绕过..."
-    Write-Host "$BLUE💡 [方案]$NC 使用A+B混合方案：someValue占位符替换 + IIFE运行时劫持"
+    Write-Host "$BLUE💡 [方案]$NC 使用增强版 Hook 方案：深度模块劫持 + someValue替换"
     Write-Host ""
 
     # Windows版Cursor应用路径
@@ -72,19 +73,37 @@ function Modify-CursorJSFiles {
     $rng2.GetBytes($randomBytes2)
     $macMachineId = [System.BitConverter]::ToString($randomBytes2) -replace '-',''
     $rng2.Dispose()
-    $sqmId = [System.Guid]::NewGuid().ToString().ToLower()
+    $sqmId = "{" + [System.Guid]::NewGuid().ToString().ToUpper() + "}"
     $sessionId = [System.Guid]::NewGuid().ToString().ToLower()
+    $macAddress = "00:11:22:33:44:55"
 
     Write-Host "$GREEN🔑 [生成]$NC 已生成新的设备标识符"
     Write-Host "   machineId: $($machineId.Substring(0,16))..."
     Write-Host "   deviceId: $($deviceId.Substring(0,16))..."
     Write-Host "   macMachineId: $($macMachineId.Substring(0,16))..."
+    Write-Host "   sqmId: $sqmId"
+
+    # 保存 ID 配置到用户目录（供 Hook 读取）
+    # 每次执行都删除旧配置并重新生成，确保获得新的设备标识符
+    $idsConfigPath = "$env:USERPROFILE\.cursor_ids.json"
+    if (Test-Path $idsConfigPath) {
+        Remove-Item -Path $idsConfigPath -Force
+        Write-Host "$YELLOW🗑️  [清理]$NC 已删除旧的 ID 配置文件"
+    }
+    $idsConfig = @{
+        machineId = $machineId
+        macMachineId = $macMachineId
+        devDeviceId = $deviceId
+        sqmId = $sqmId
+        macAddress = $macAddress
+        createdAt = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+    }
+    $idsConfig | ConvertTo-Json | Set-Content -Path $idsConfigPath -Encoding UTF8
+    Write-Host "$GREEN💾 [保存]$NC 新的 ID 配置已保存到: $idsConfigPath"
 
     # 目标JS文件列表（Windows路径，按优先级排序）
     $jsFiles = @(
-        "$cursorAppPath\resources\app\out\vs\workbench\api\node\extensionHostProcess.js",
-        "$cursorAppPath\resources\app\out\main.js",
-        "$cursorAppPath\resources\app\out\vs\code\node\cliProcessMain.js"
+        "$cursorAppPath\resources\app\out\main.js"
     )
 
     $modifiedCount = 0
@@ -118,18 +137,32 @@ function Modify-CursorJSFiles {
 
     # 创建备份
     $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
-    $backupPath = "$env:TEMP\Cursor_JS_Backup_$timestamp"
+    $backupPath = "$cursorAppPath\resources\app\out\backups"
 
     Write-Host "$BLUE💾 [备份]$NC 创建Cursor JS文件备份..."
     try {
         New-Item -ItemType Directory -Path $backupPath -Force | Out-Null
+
+        # 创建原始备份（如果不存在）
+        $originalBackup = "$backupPath\main.js.original"
+        if (-not (Test-Path $originalBackup)) {
+            foreach ($file in $jsFiles) {
+                if (Test-Path $file) {
+                    $fileName = Split-Path $file -Leaf
+                    Copy-Item $file "$backupPath\$fileName.original" -Force
+                }
+            }
+            Write-Host "$GREEN✅ [备份]$NC 原始备份创建成功"
+        }
+
+        # 创建时间戳备份
         foreach ($file in $jsFiles) {
             if (Test-Path $file) {
                 $fileName = Split-Path $file -Leaf
-                Copy-Item $file "$backupPath\$fileName" -Force
+                Copy-Item $file "$backupPath\$fileName.backup_$timestamp" -Force
             }
         }
-        Write-Host "$GREEN✅ [备份]$NC 备份创建成功: $backupPath"
+        Write-Host "$GREEN✅ [备份]$NC 时间戳备份创建成功: $backupPath"
     } catch {
         Write-Host "$RED❌ [错误]$NC 创建备份失败: $($_.Exception.Message)"
         return $false
@@ -163,35 +196,35 @@ function Modify-CursorJSFiles {
 
             # 替换 someValue.machineId
             if ($content -match 'someValue\.machineId') {
-                $content = $content -replace 'someValue\.machineId', $machineId
+                $content = $content -replace 'someValue\.machineId', "`"$machineId`""
                 Write-Host "   $GREEN✓$NC [方案A] 替换 someValue.machineId"
                 $replaced = $true
             }
 
             # 替换 someValue.macMachineId
             if ($content -match 'someValue\.macMachineId') {
-                $content = $content -replace 'someValue\.macMachineId', $macMachineId
+                $content = $content -replace 'someValue\.macMachineId', "`"$macMachineId`""
                 Write-Host "   $GREEN✓$NC [方案A] 替换 someValue.macMachineId"
                 $replaced = $true
             }
 
             # 替换 someValue.devDeviceId
             if ($content -match 'someValue\.devDeviceId') {
-                $content = $content -replace 'someValue\.devDeviceId', $deviceId
+                $content = $content -replace 'someValue\.devDeviceId', "`"$deviceId`""
                 Write-Host "   $GREEN✓$NC [方案A] 替换 someValue.devDeviceId"
                 $replaced = $true
             }
 
             # 替换 someValue.sqmId
             if ($content -match 'someValue\.sqmId') {
-                $content = $content -replace 'someValue\.sqmId', $sqmId
+                $content = $content -replace 'someValue\.sqmId', "`"$sqmId`""
                 Write-Host "   $GREEN✓$NC [方案A] 替换 someValue.sqmId"
                 $replaced = $true
             }
 
             # 替换 someValue.sessionId（新增锚点）
             if ($content -match 'someValue\.sessionId') {
-                $content = $content -replace 'someValue\.sessionId', $sessionId
+                $content = $content -replace 'someValue\.sessionId', "`"$sessionId`""
                 Write-Host "   $GREEN✓$NC [方案A] 替换 someValue.sessionId"
                 $replaced = $true
             }
@@ -204,23 +237,139 @@ function Modify-CursorJSFiles {
                 $replaced = $true
             }
 
-            # ========== 方法B: IIFE运行时劫持（crypto.randomUUID） ==========
-            # 使用IIFE包装，兼容webpack打包的bundle文件
-            # 在支持 require 的环境中劫持 crypto.randomUUID；在 ESM 环境中安全降级为 no-op，避免 require 抛错
-            $injectCode = ";(function(){/*__cursor_patched__*/var _cr=null,_os=null;if(typeof require!=='undefined'){try{_cr=require('crypto');_os=require('os');}catch(e){}}if(_cr&&_cr.randomUUID){var _orig=_cr.randomUUID;_cr.randomUUID=function(){return'$newUuid';};}if(typeof globalThis!=='undefined'){globalThis.__cursor_machine_id='$machineId';globalThis.__cursor_mac_machine_id='$macMachineId';globalThis.__cursor_dev_device_id='$deviceId';globalThis.__cursor_sqm_id='$sqmId';}if(_os&&_os.networkInterfaces){try{var _origNI=_os.networkInterfaces;_os.networkInterfaces=function(){var r=_origNI.call(_os);for(var k in r){if(r[k]){for(var i=0;i<r[k].length;i++){if(r[k][i].mac){r[k][i].mac='00:00:00:00:00:00';}}}}return r;};}catch(e){}}console.log('[Cursor ID Modifier] 设备标识符已劫持 - 煎饼果子(86) 公众号【煎饼果子卷AI】');})();"
+            # ========== 方法B: 增强版深度 Hook 注入 ==========
+            # 从底层拦截所有设备标识符的生成：
+            # 1. Module.prototype.require 劫持 - 拦截 child_process, crypto, os 等模块
+            # 2. child_process.execSync - 拦截 REG.exe 查询 MachineGuid
+            # 3. crypto.createHash - 拦截 SHA256 哈希计算
+            # 4. crypto.randomUUID - 拦截 UUID 生成
+            # 5. os.networkInterfaces - 拦截 MAC 地址获取
+            # 6. @vscode/deviceid - 拦截 devDeviceId 获取
+            # 7. @vscode/windows-registry - 拦截注册表读取
 
-            # 注入代码到文件开头
-            $content = $injectCode + "`n" + $content
+            $injectCode = @"
+// ========== Cursor Hook 注入开始 ==========
+;(function(){/*__cursor_patched__*/
+'use strict';
+if(globalThis.__cursor_patched__)return;
+globalThis.__cursor_patched__=true;
 
-            Write-Host "   $GREEN✓$NC [方案B] IIFE运行时劫持代码已注入"
+// 固定的设备标识符
+var __ids__={
+    machineId:'$machineId',
+    macMachineId:'$macMachineId',
+    devDeviceId:'$deviceId',
+    sqmId:'$sqmId',
+    macAddress:'$macAddress'
+};
+
+// 暴露到全局
+globalThis.__cursor_ids__=__ids__;
+
+// Hook Module.prototype.require
+var Module=require('module');
+var _origReq=Module.prototype.require;
+var _hooked=new Map();
+
+Module.prototype.require=function(id){
+    var result=_origReq.apply(this,arguments);
+    if(_hooked.has(id))return _hooked.get(id);
+    var hooked=result;
+
+    // Hook child_process
+    if(id==='child_process'){
+        var _origExecSync=result.execSync;
+        result.execSync=function(cmd,opts){
+            var cmdStr=String(cmd).toLowerCase();
+            if(cmdStr.includes('reg')&&cmdStr.includes('machineguid')){
+                return Buffer.from('\r\n    MachineGuid    REG_SZ    '+__ids__.machineId.substring(0,36)+'\r\n');
+            }
+            if(cmdStr.includes('ioreg')&&cmdStr.includes('ioplatformexpertdevice')){
+                return Buffer.from('"IOPlatformUUID" = "'+__ids__.machineId.substring(0,36).toUpperCase()+'"');
+            }
+            return _origExecSync.apply(this,arguments);
+        };
+        hooked=result;
+    }
+    // Hook os
+    else if(id==='os'){
+        var _origNI=result.networkInterfaces;
+        result.networkInterfaces=function(){
+            return{'Ethernet':[{address:'192.168.1.100',netmask:'255.255.255.0',family:'IPv4',mac:__ids__.macAddress,internal:false}]};
+        };
+        hooked=result;
+    }
+    // Hook crypto
+    else if(id==='crypto'){
+        var _origCreateHash=result.createHash;
+        var _origRandomUUID=result.randomUUID;
+        result.createHash=function(algo){
+            var hash=_origCreateHash.apply(this,arguments);
+            if(algo.toLowerCase()==='sha256'){
+                var _origDigest=hash.digest.bind(hash);
+                var _origUpdate=hash.update.bind(hash);
+                var inputData='';
+                hash.update=function(data,enc){inputData+=String(data);return _origUpdate(data,enc);};
+                hash.digest=function(enc){
+                    if(inputData.includes('MachineGuid')||inputData.includes('IOPlatformUUID')||(inputData.length>=32&&inputData.length<=40)){
+                        return enc==='hex'?__ids__.machineId:Buffer.from(__ids__.machineId,'hex');
+                    }
+                    return _origDigest(enc);
+                };
+            }
+            return hash;
+        };
+        if(_origRandomUUID){
+            var uuidCount=0;
+            result.randomUUID=function(){
+                uuidCount++;
+                if(uuidCount<=2)return __ids__.devDeviceId;
+                return _origRandomUUID.apply(this,arguments);
+            };
+        }
+        hooked=result;
+    }
+    // Hook @vscode/deviceid
+    else if(id==='@vscode/deviceid'){
+        hooked={...result,getDeviceId:async function(){return __ids__.devDeviceId;}};
+    }
+    // Hook @vscode/windows-registry
+    else if(id==='@vscode/windows-registry'){
+        var _origGetReg=result.GetStringRegKey;
+        hooked={...result,GetStringRegKey:function(hive,path,name){
+            if(name==='MachineId'||path.includes('SQMClient'))return __ids__.sqmId;
+            if(name==='MachineGuid'||path.includes('Cryptography'))return __ids__.machineId.substring(0,36);
+            return _origGetReg?_origGetReg.apply(this,arguments):'';
+        }};
+    }
+
+    if(hooked!==result)_hooked.set(id,hooked);
+    return hooked;
+};
+
+console.log('[Cursor ID Modifier] 增强版 Hook 已激活 - 煎饼果子(86) 公众号【煎饼果子卷AI】');
+})();
+// ========== Cursor Hook 注入结束 ==========
+
+"@
+
+            # 找到版权声明结束位置并在其后注入
+            if ($content -match '(\*/\s*\n)') {
+                $content = $content -replace '(\*/\s*\n)', "`$1$injectCode"
+                Write-Host "   $GREEN✓$NC [方案B] 增强版 Hook 代码已注入（版权声明后）"
+            } else {
+                # 如果没有找到版权声明，则注入到文件开头
+                $content = $injectCode + $content
+                Write-Host "   $GREEN✓$NC [方案B] 增强版 Hook 代码已注入（文件开头）"
+            }
 
             # 写入修改后的内容
             Set-Content -Path $file -Value $content -Encoding UTF8 -NoNewline
 
             if ($replaced) {
-                Write-Host "$GREEN✅ [成功]$NC A+B混合方案修改成功（someValue替换 + IIFE劫持）"
+                Write-Host "$GREEN✅ [成功]$NC 增强版混合方案修改成功（someValue替换 + 深度Hook）"
             } else {
-                Write-Host "$GREEN✅ [成功]$NC 方案B修改成功（IIFE劫持）"
+                Write-Host "$GREEN✅ [成功]$NC 增强版 Hook 修改成功"
             }
             $modifiedCount++
 
@@ -228,7 +377,7 @@ function Modify-CursorJSFiles {
             Write-Host "$RED❌ [错误]$NC 修改文件失败: $($_.Exception.Message)"
             # 尝试从备份恢复
             $fileName = Split-Path $file -Leaf
-            $backupFile = "$backupPath\$fileName"
+            $backupFile = "$backupPath\$fileName.original"
             if (Test-Path $backupFile) {
                 Copy-Item $backupFile $file -Force
                 Write-Host "$YELLOW🔄 [恢复]$NC 已从备份恢复文件"
@@ -240,9 +389,10 @@ function Modify-CursorJSFiles {
         Write-Host ""
         Write-Host "$GREEN🎉 [完成]$NC 成功修改 $modifiedCount 个JS文件"
         Write-Host "$BLUE💾 [备份]$NC 原始文件备份位置: $backupPath"
-        Write-Host "$BLUE💡 [说明]$NC 使用A+B混合方案："
+        Write-Host "$BLUE💡 [说明]$NC 使用增强版 Hook 方案："
         Write-Host "   • 方案A: someValue占位符替换（稳定锚点，跨版本兼容）"
-        Write-Host "   • 方案B: IIFE运行时劫持（crypto.randomUUID + os.networkInterfaces）"
+        Write-Host "   • 方案B: 深度模块劫持（child_process, crypto, os, @vscode/*）"
+        Write-Host "$BLUE📁 [配置]$NC ID 配置文件: $idsConfigPath"
         return $true
     } else {
         Write-Host "$RED❌ [失败]$NC 没有成功修改任何文件"

@@ -718,12 +718,13 @@ find_cursor_js_files() {
 }
 
 # 修改Cursor的JS文件
-# 🔧 修改Cursor内核JS文件实现设备识别绕过（A+B混合方案 - IIFE + someValue替换）
+# 🔧 修改Cursor内核JS文件实现设备识别绕过（增强版 Hook 方案）
 # 方案A: someValue占位符替换 - 稳定锚点，不依赖混淆后的函数名
-# 方案B: IIFE运行时劫持 - 劫持crypto.randomUUID从源头拦截
+# 方案B: 深度 Hook 注入 - 从底层拦截所有设备标识符生成
+# 方案C: Module.prototype.require 劫持 - 拦截 child_process, crypto, os 等模块
 modify_cursor_js_files() {
     log_info "🔧 [内核修改] 开始修改Cursor内核JS文件实现设备识别绕过..."
-    log_info "💡 [方案] 使用A+B混合方案：someValue占位符替换 + IIFE运行时劫持"
+    log_info "💡 [方案] 使用增强版 Hook 方案：深度模块劫持 + someValue替换"
 
     # 先查找需要修改的JS文件
     if ! find_cursor_js_files; then
@@ -740,15 +741,31 @@ modify_cursor_js_files() {
     local machine_id=$(openssl rand -hex 32)
     local device_id=$(generate_uuid)
     local mac_machine_id=$(openssl rand -hex 32)
-    local sqm_id=$(generate_uuid)
+    local sqm_id="{$(generate_uuid | tr '[:lower:]' '[:upper:]')}"
     local session_id=$(generate_uuid)
-    # 🔧 新增: 生成 firstSessionDate 用于替换 someValue.firstSessionDate
     local first_session_date=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+    local mac_address="00:11:22:33:44:55"
 
     log_info "🔑 [生成] 已生成新的设备标识符"
     log_info "   machineId: ${machine_id:0:16}..."
     log_info "   deviceId: ${device_id:0:16}..."
     log_info "   macMachineId: ${mac_machine_id:0:16}..."
+    log_info "   sqmId: $sqm_id"
+
+    # 保存 ID 配置到用户目录（供 Hook 读取）
+    local ids_config_path="$HOME/.cursor_ids.json"
+    cat > "$ids_config_path" << EOF
+{
+  "machineId": "$machine_id",
+  "macMachineId": "$mac_machine_id",
+  "devDeviceId": "$device_id",
+  "sqmId": "$sqm_id",
+  "macAddress": "$mac_address",
+  "createdAt": "$first_session_date"
+}
+EOF
+    chown "$CURRENT_USER":"$(id -g -n "$CURRENT_USER")" "$ids_config_path" 2>/dev/null || true
+    log_info "💾 [保存] ID 配置已保存到: $ids_config_path"
 
     local modified_count=0
     local file_modification_status=()
@@ -762,7 +779,6 @@ modify_cursor_js_files() {
             continue
         fi
 
-        # 检查是否已经被修改过（使用统一标记 __cursor_patched__）
         if grep -q "__cursor_patched__" "$file" 2>/dev/null; then
             log_info "✅ [已修改] 文件已修改: $(basename "$file")"
         else
@@ -785,7 +801,6 @@ modify_cursor_js_files() {
             continue
         fi
 
-        # 检查是否已经修改过
         if grep -q "__cursor_patched__" "$file"; then
             log_info "✅ [跳过] 文件已经被修改过"
             ((modified_count++))
@@ -793,8 +808,21 @@ modify_cursor_js_files() {
             continue
         fi
 
-        # 创建文件备份
-        local backup_file="${file}.backup_$(date +%Y%m%d_%H%M%S)"
+        # 创建备份目录
+        local backup_dir="$(dirname "$file")/backups"
+        mkdir -p "$backup_dir" 2>/dev/null || true
+
+        # 创建原始备份（如果不存在）
+        local original_backup="$backup_dir/$(basename "$file").original"
+        if [ ! -f "$original_backup" ]; then
+            cp "$file" "$original_backup"
+            chown "$CURRENT_USER":"$(id -g -n "$CURRENT_USER")" "$original_backup" 2>/dev/null || true
+            chmod 444 "$original_backup" 2>/dev/null || true
+            log_info "✅ [备份] 原始备份创建成功"
+        fi
+
+        # 创建时间戳备份
+        local backup_file="$backup_dir/$(basename "$file").backup_$(date +%Y%m%d_%H%M%S)"
         if ! cp "$file" "$backup_file"; then
             log_error "无法创建文件备份: $file"
             file_modification_status+=("'$(basename "$file")': Backup Failed")
@@ -803,99 +831,177 @@ modify_cursor_js_files() {
         chown "$CURRENT_USER":"$(id -g -n "$CURRENT_USER")" "$backup_file" 2>/dev/null || true
         chmod 444 "$backup_file" 2>/dev/null || true
 
-        # 确保文件对当前执行用户可写
         chmod u+w "$file" || {
             log_error "无法修改文件权限（写）: $file"
             file_modification_status+=("'$(basename "$file")': Permission Error")
-            cp "$backup_file" "$file" 2>/dev/null || true
             continue
         }
 
         local replaced=false
 
         # ========== 方法A: someValue占位符替换（稳定锚点） ==========
-        # 这些字符串是固定的占位符，不会被混淆器修改，跨版本稳定
-
-        # 替换 someValue.machineId
         if grep -q 'someValue\.machineId' "$file"; then
-            sed -i "s/someValue\.machineId/${machine_id}/g" "$file"
+            sed -i "s/someValue\.machineId/\"${machine_id}\"/g" "$file"
             log_info "   ✓ [方案A] 替换 someValue.machineId"
             replaced=true
         fi
 
-        # 替换 someValue.macMachineId
         if grep -q 'someValue\.macMachineId' "$file"; then
-            sed -i "s/someValue\.macMachineId/${mac_machine_id}/g" "$file"
+            sed -i "s/someValue\.macMachineId/\"${mac_machine_id}\"/g" "$file"
             log_info "   ✓ [方案A] 替换 someValue.macMachineId"
             replaced=true
         fi
 
-        # 替换 someValue.devDeviceId
         if grep -q 'someValue\.devDeviceId' "$file"; then
-            sed -i "s/someValue\.devDeviceId/${device_id}/g" "$file"
+            sed -i "s/someValue\.devDeviceId/\"${device_id}\"/g" "$file"
             log_info "   ✓ [方案A] 替换 someValue.devDeviceId"
             replaced=true
         fi
 
-        # 替换 someValue.sqmId
         if grep -q 'someValue\.sqmId' "$file"; then
-            sed -i "s/someValue\.sqmId/${sqm_id}/g" "$file"
+            sed -i "s/someValue\.sqmId/\"${sqm_id}\"/g" "$file"
             log_info "   ✓ [方案A] 替换 someValue.sqmId"
             replaced=true
         fi
 
-        # 替换 someValue.sessionId（新增锚点）
         if grep -q 'someValue\.sessionId' "$file"; then
-            sed -i "s/someValue\.sessionId/${session_id}/g" "$file"
+            sed -i "s/someValue\.sessionId/\"${session_id}\"/g" "$file"
             log_info "   ✓ [方案A] 替换 someValue.sessionId"
             replaced=true
         fi
 
-        # 🔧 新增: 替换 someValue.firstSessionDate（首次会话日期）
         if grep -q 'someValue\.firstSessionDate' "$file"; then
-            sed -i "s/someValue\.firstSessionDate/${first_session_date}/g" "$file"
+            sed -i "s/someValue\.firstSessionDate/\"${first_session_date}\"/g" "$file"
             log_info "   ✓ [方案A] 替换 someValue.firstSessionDate"
             replaced=true
         fi
 
-        # ========== 方法B: IIFE运行时劫持（crypto.randomUUID） ==========
-        # 使用IIFE包装，兼容webpack打包的bundle文件
-        # 在支持 require 的环境中劫持 crypto.randomUUID；在 ESM 环境中安全降级为 no-op，避免 require 抛错
-        local inject_code=";(function(){/*__cursor_patched__*/var _cr=null,_os=null;if(typeof require!=='undefined'){try{_cr=require('crypto');_os=require('os');}catch(e){}}if(_cr&&_cr.randomUUID){var _orig=_cr.randomUUID;_cr.randomUUID=function(){return'${new_uuid}';};}if(typeof globalThis!=='undefined'){globalThis.__cursor_machine_id='${machine_id}';globalThis.__cursor_mac_machine_id='${mac_machine_id}';globalThis.__cursor_dev_device_id='${device_id}';globalThis.__cursor_sqm_id='${sqm_id}';}if(_os&&_os.networkInterfaces){try{var _origNI=_os.networkInterfaces;_os.networkInterfaces=function(){var r=_origNI.call(_os);for(var k in r){if(r[k]){for(var i=0;i<r[k].length;i++){if(r[k][i].mac){r[k][i].mac='00:00:00:00:00:00';}}}}return r;};}catch(e){}}console.log('[Cursor ID Modifier] 设备标识符已劫持 - 煎饼果子(86) 公众号【煎饼果子卷AI】');})();"
+        # ========== 方法B: 增强版深度 Hook 注入 ==========
+        local inject_code='// ========== Cursor Hook 注入开始 ==========
+;(function(){/*__cursor_patched__*/
+"use strict";
+if(globalThis.__cursor_patched__)return;
+globalThis.__cursor_patched__=true;
 
-        # 注入代码到文件开头
+var __ids__={
+    machineId:"'"$machine_id"'",
+    macMachineId:"'"$mac_machine_id"'",
+    devDeviceId:"'"$device_id"'",
+    sqmId:"'"$sqm_id"'",
+    macAddress:"'"$mac_address"'"
+};
+
+globalThis.__cursor_ids__=__ids__;
+
+var Module=require("module");
+var _origReq=Module.prototype.require;
+var _hooked=new Map();
+
+Module.prototype.require=function(id){
+    var result=_origReq.apply(this,arguments);
+    if(_hooked.has(id))return _hooked.get(id);
+    var hooked=result;
+
+    if(id==="child_process"){
+        var _origExecSync=result.execSync;
+        result.execSync=function(cmd,opts){
+            var cmdStr=String(cmd).toLowerCase();
+            if(cmdStr.includes("machine-id")||cmdStr.includes("hostname")){
+                return Buffer.from(__ids__.machineId.substring(0,32));
+            }
+            return _origExecSync.apply(this,arguments);
+        };
+        hooked=result;
+    }
+    else if(id==="os"){
+        result.networkInterfaces=function(){
+            return{"eth0":[{address:"192.168.1.100",netmask:"255.255.255.0",family:"IPv4",mac:__ids__.macAddress,internal:false}]};
+        };
+        hooked=result;
+    }
+    else if(id==="crypto"){
+        var _origCreateHash=result.createHash;
+        var _origRandomUUID=result.randomUUID;
+        result.createHash=function(algo){
+            var hash=_origCreateHash.apply(this,arguments);
+            if(algo.toLowerCase()==="sha256"){
+                var _origDigest=hash.digest.bind(hash);
+                var _origUpdate=hash.update.bind(hash);
+                var inputData="";
+                hash.update=function(data,enc){inputData+=String(data);return _origUpdate(data,enc);};
+                hash.digest=function(enc){
+                    if(inputData.includes("machine-id")||(inputData.length>=32&&inputData.length<=40)){
+                        return enc==="hex"?__ids__.machineId:Buffer.from(__ids__.machineId,"hex");
+                    }
+                    return _origDigest(enc);
+                };
+            }
+            return hash;
+        };
+        if(_origRandomUUID){
+            var uuidCount=0;
+            result.randomUUID=function(){
+                uuidCount++;
+                if(uuidCount<=2)return __ids__.devDeviceId;
+                return _origRandomUUID.apply(this,arguments);
+            };
+        }
+        hooked=result;
+    }
+    else if(id==="@vscode/deviceid"){
+        hooked={...result,getDeviceId:async function(){return __ids__.devDeviceId;}};
+    }
+
+    if(hooked!==result)_hooked.set(id,hooked);
+    return hooked;
+};
+
+console.log("[Cursor ID Modifier] 增强版 Hook 已激活 - 煎饼果子(86) 公众号【煎饼果子卷AI】");
+})();
+// ========== Cursor Hook 注入结束 ==========
+
+'
+
+        # 在版权声明后注入代码
         local temp_file=$(mktemp)
-        echo "$inject_code" > "$temp_file"
-        cat "$file" >> "$temp_file"
+        if grep -q '\*/' "$file"; then
+            awk -v inject="$inject_code" '
+            /\*\// && !injected {
+                print
+                print ""
+                print inject
+                injected = 1
+                next
+            }
+            { print }
+            ' "$file" > "$temp_file"
+            log_info "   ✓ [方案B] 增强版 Hook 代码已注入（版权声明后）"
+        else
+            echo "$inject_code" > "$temp_file"
+            cat "$file" >> "$temp_file"
+            log_info "   ✓ [方案B] 增强版 Hook 代码已注入（文件开头）"
+        fi
 
         if mv "$temp_file" "$file"; then
-            log_info "   ✓ [方案B] IIFE运行时劫持代码已注入"
-
             if [ "$replaced" = true ]; then
-                log_info "✅ [成功] A+B混合方案修改成功（someValue替换 + IIFE劫持）"
+                log_info "✅ [成功] 增强版混合方案修改成功（someValue替换 + 深度Hook）"
             else
-                log_info "✅ [成功] 方案B修改成功（IIFE劫持）"
+                log_info "✅ [成功] 增强版 Hook 修改成功"
             fi
             ((modified_count++))
             file_modification_status+=("'$(basename "$file")': Success")
 
-            # 恢复文件权限为只读
             chmod u-w,go-w "$file" 2>/dev/null || true
             chown "$CURRENT_USER":"$(id -g -n "$CURRENT_USER")" "$file" 2>/dev/null || true
         else
-            log_error "IIFE注入失败 (无法移动临时文件)"
+            log_error "Hook注入失败 (无法移动临时文件)"
             rm -f "$temp_file"
             file_modification_status+=("'$(basename "$file")': Inject Failed")
-            # 恢复备份
-            cp "$backup_file" "$file" 2>/dev/null || true
+            cp "$original_backup" "$file" 2>/dev/null || true
         fi
 
-        # 清理备份文件（可选保留）
-        # rm -f "$backup_file"
+    done
 
-    done # 文件循环结束
-
-    # 报告每个文件的状态
     log_info "📊 [统计] JS 文件处理状态汇总:"
     for status in "${file_modification_status[@]}"; do
         log_info "   - $status"
@@ -907,9 +1013,10 @@ modify_cursor_js_files() {
     fi
 
     log_info "🎉 [完成] 成功修改 $modified_count 个JS文件"
-    log_info "💡 [说明] 使用A+B混合方案："
+    log_info "💡 [说明] 使用增强版 Hook 方案："
     log_info "   • 方案A: someValue占位符替换（稳定锚点，跨版本兼容）"
-    log_info "   • 方案B: IIFE运行时劫持（crypto.randomUUID + os.networkInterfaces）"
+    log_info "   • 方案B: 深度模块劫持（child_process, crypto, os, @vscode/*）"
+    log_info "📁 [配置] ID 配置文件: $ids_config_path"
     return 0
 }
 
