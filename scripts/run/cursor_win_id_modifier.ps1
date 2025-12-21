@@ -107,35 +107,12 @@ function Modify-CursorJSFiles {
     )
 
     $modifiedCount = 0
-    $needModification = $false
-
-    # 检查是否需要修改（使用统一标记 __cursor_patched__）
-    Write-Host "$BLUE🔍 [检查]$NC 检查JS文件修改状态..."
-    foreach ($file in $jsFiles) {
-        if (-not (Test-Path $file)) {
-            Write-Host "$YELLOW⚠️  [警告]$NC 文件不存在: $(Split-Path $file -Leaf)"
-            continue
-        }
-
-        $content = Get-Content $file -Raw -ErrorAction SilentlyContinue
-        if ($content -and $content -match "__cursor_patched__") {
-            Write-Host "$GREEN✅ [已修改]$NC 文件已修改: $(Split-Path $file -Leaf)"
-        } else {
-            Write-Host "$BLUE📝 [需要]$NC 文件需要修改: $(Split-Path $file -Leaf)"
-            $needModification = $true
-        }
-    }
-
-    if (-not $needModification) {
-        Write-Host "$GREEN✅ [跳过]$NC 所有JS文件已经被修改过，无需重复操作"
-        return $true
-    }
 
     # 关闭Cursor进程
     Write-Host "$BLUE🔄 [关闭]$NC 关闭Cursor进程以进行文件修改..."
     Stop-AllCursorProcesses -MaxRetries 3 -WaitSeconds 3 | Out-Null
 
-    # 创建备份
+    # 创建备份目录
     $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
     $backupPath = "$cursorAppPath\resources\app\out\backups"
 
@@ -143,19 +120,35 @@ function Modify-CursorJSFiles {
     try {
         New-Item -ItemType Directory -Path $backupPath -Force | Out-Null
 
-        # 创建原始备份（如果不存在）
+        # 检查是否存在原始备份
         $originalBackup = "$backupPath\main.js.original"
-        if (-not (Test-Path $originalBackup)) {
-            foreach ($file in $jsFiles) {
-                if (Test-Path $file) {
-                    $fileName = Split-Path $file -Leaf
-                    Copy-Item $file "$backupPath\$fileName.original" -Force
-                }
+
+        foreach ($file in $jsFiles) {
+            if (-not (Test-Path $file)) {
+                Write-Host "$YELLOW⚠️  [警告]$NC 文件不存在: $(Split-Path $file -Leaf)"
+                continue
             }
-            Write-Host "$GREEN✅ [备份]$NC 原始备份创建成功"
+
+            $fileName = Split-Path $file -Leaf
+            $fileOriginalBackup = "$backupPath\$fileName.original"
+
+            # 如果原始备份不存在，先创建
+            if (-not (Test-Path $fileOriginalBackup)) {
+                # 检查当前文件是否已被修改过
+                $content = Get-Content $file -Raw -ErrorAction SilentlyContinue
+                if ($content -and $content -match "__cursor_patched__") {
+                    Write-Host "$YELLOW⚠️  [警告]$NC 文件已被修改但无原始备份，将使用当前版本作为基础"
+                }
+                Copy-Item $file $fileOriginalBackup -Force
+                Write-Host "$GREEN✅ [备份]$NC 原始备份创建成功: $fileName"
+            } else {
+                # 从原始备份恢复，确保每次都是干净的注入
+                Write-Host "$BLUE🔄 [恢复]$NC 从原始备份恢复: $fileName"
+                Copy-Item $fileOriginalBackup $file -Force
+            }
         }
 
-        # 创建时间戳备份
+        # 创建时间戳备份（记录每次修改前的状态）
         foreach ($file in $jsFiles) {
             if (Test-Path $file) {
                 $fileName = Split-Path $file -Leaf
@@ -168,8 +161,8 @@ function Modify-CursorJSFiles {
         return $false
     }
 
-    # 修改JS文件
-    Write-Host "$BLUE🔧 [修改]$NC 开始修改JS文件..."
+    # 修改JS文件（每次都重新注入，因为已从原始备份恢复）
+    Write-Host "$BLUE🔧 [修改]$NC 开始修改JS文件（使用新的设备标识符）..."
 
     foreach ($file in $jsFiles) {
         if (-not (Test-Path $file)) {
@@ -181,14 +174,6 @@ function Modify-CursorJSFiles {
 
         try {
             $content = Get-Content $file -Raw -Encoding UTF8
-
-            # 检查是否已经修改过（使用统一标记）
-            if ($content -match "__cursor_patched__") {
-                Write-Host "$GREEN✅ [跳过]$NC 文件已经被修改过"
-                $modifiedCount++
-                continue
-            }
-
             $replaced = $false
 
             # ========== 方法A: someValue占位符替换（稳定锚点） ==========

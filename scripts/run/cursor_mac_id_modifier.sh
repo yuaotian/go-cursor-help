@@ -1542,7 +1542,12 @@ modify_cursor_js_files() {
     log_info "   sqmId: $sqm_id"
 
     # 保存 ID 配置到用户目录（供 Hook 读取）
+    # 每次执行都删除旧配置并重新生成，确保获得新的设备标识符
     local ids_config_path="$HOME/.cursor_ids.json"
+    if [ -f "$ids_config_path" ]; then
+        rm -f "$ids_config_path"
+        log_info "🗑️  [清理] 已删除旧的 ID 配置文件"
+    fi
     cat > "$ids_config_path" << EOF
 {
   "machineId": "$machine_id",
@@ -1553,7 +1558,7 @@ modify_cursor_js_files() {
   "createdAt": "$first_session_date"
 }
 EOF
-    log_info "💾 [保存] ID 配置已保存到: $ids_config_path"
+    log_info "💾 [保存] 新的 ID 配置已保存到: $ids_config_path"
 
     # 目标JS文件列表（只修改 main.js）
     local js_files=(
@@ -1561,52 +1566,44 @@ EOF
     )
 
     local modified_count=0
-    local need_modification=false
-
-    # 检查是否需要修改（使用统一标记）
-    log_info "🔍 [检查] 检查JS文件修改状态..."
-    for file in "${js_files[@]}"; do
-        if [ ! -f "$file" ]; then
-            log_warn "⚠️  [警告] 文件不存在: ${file/$CURSOR_APP_PATH\//}"
-            continue
-        fi
-
-        if grep -q "__cursor_patched__" "$file" 2>/dev/null; then
-            log_info "✅ [已修改] 文件已修改: ${file/$CURSOR_APP_PATH\//}"
-        else
-            log_info "📝 [需要] 文件需要修改: ${file/$CURSOR_APP_PATH\//}"
-            need_modification=true
-        fi
-    done
-
-    if [ "$need_modification" = false ]; then
-        log_info "✅ [跳过] 所有JS文件已经被修改过，无需重复操作"
-        return 0
-    fi
 
     # 关闭Cursor进程
     log_info "🔄 [关闭] 关闭Cursor进程以进行文件修改..."
     check_and_kill_cursor
 
-    # 创建备份
+    # 创建备份目录
     local timestamp=$(date +%Y%m%d_%H%M%S)
     local backup_dir="$CURSOR_APP_PATH/Contents/Resources/app/out/backups"
 
     log_info "💾 [备份] 创建JS文件备份..."
     mkdir -p "$backup_dir"
 
-    # 创建原始备份（如果不存在）
-    local original_backup="$backup_dir/main.js.original"
-    if [ ! -f "$original_backup" ]; then
-        for file in "${js_files[@]}"; do
-            if [ -f "$file" ]; then
-                cp "$file" "$backup_dir/$(basename "$file").original"
-            fi
-        done
-        log_info "✅ [备份] 原始备份创建成功"
-    fi
+    # 处理每个文件：创建原始备份或从原始备份恢复
+    for file in "${js_files[@]}"; do
+        if [ ! -f "$file" ]; then
+            log_warn "⚠️  [警告] 文件不存在: ${file/$CURSOR_APP_PATH\//}"
+            continue
+        fi
 
-    # 创建时间戳备份
+        local file_name=$(basename "$file")
+        local file_original_backup="$backup_dir/$file_name.original"
+
+        # 如果原始备份不存在，先创建
+        if [ ! -f "$file_original_backup" ]; then
+            # 检查当前文件是否已被修改过
+            if grep -q "__cursor_patched__" "$file" 2>/dev/null; then
+                log_warn "⚠️  [警告] 文件已被修改但无原始备份，将使用当前版本作为基础"
+            fi
+            cp "$file" "$file_original_backup"
+            log_info "✅ [备份] 原始备份创建成功: $file_name"
+        else
+            # 从原始备份恢复，确保每次都是干净的注入
+            log_info "🔄 [恢复] 从原始备份恢复: $file_name"
+            cp "$file_original_backup" "$file"
+        fi
+    done
+
+    # 创建时间戳备份（记录每次修改前的状态）
     for file in "${js_files[@]}"; do
         if [ -f "$file" ]; then
             cp "$file" "$backup_dir/$(basename "$file").backup_$timestamp"
@@ -1614,8 +1611,8 @@ EOF
     done
     log_info "✅ [备份] 时间戳备份创建成功: $backup_dir"
 
-    # 修改JS文件
-    log_info "🔧 [修改] 开始修改JS文件..."
+    # 修改JS文件（每次都重新注入，因为已从原始备份恢复）
+    log_info "🔧 [修改] 开始修改JS文件（使用新的设备标识符）..."
 
     for file in "${js_files[@]}"; do
         if [ ! -f "$file" ]; then
@@ -1624,13 +1621,6 @@ EOF
         fi
 
         log_info "📝 [处理] 正在处理: ${file/$CURSOR_APP_PATH\//}"
-
-        # 检查是否已经修改过
-        if grep -q "__cursor_patched__" "$file"; then
-            log_info "✅ [跳过] 文件已经被修改过"
-            ((modified_count++))
-            continue
-        fi
 
         # ========== 方法A: someValue占位符替换（稳定锚点） ==========
         local replaced=false

@@ -752,8 +752,12 @@ modify_cursor_js_files() {
     log_info "   macMachineId: ${mac_machine_id:0:16}..."
     log_info "   sqmId: $sqm_id"
 
-    # 保存 ID 配置到用户目录（供 Hook 读取）
+    # 每次执行都删除旧配置并重新生成，确保获得新的设备标识符
     local ids_config_path="$HOME/.cursor_ids.json"
+    if [ -f "$ids_config_path" ]; then
+        rm -f "$ids_config_path"
+        log_info "🗑️  [清理] 已删除旧的 ID 配置文件"
+    fi
     cat > "$ids_config_path" << EOF
 {
   "machineId": "$machine_id",
@@ -765,33 +769,12 @@ modify_cursor_js_files() {
 }
 EOF
     chown "$CURRENT_USER":"$(id -g -n "$CURRENT_USER")" "$ids_config_path" 2>/dev/null || true
-    log_info "💾 [保存] ID 配置已保存到: $ids_config_path"
+    log_info "💾 [保存] 新的 ID 配置已保存到: $ids_config_path"
 
     local modified_count=0
     local file_modification_status=()
 
-    # 检查是否需要修改（使用统一标记）
-    log_info "🔍 [检查] 检查JS文件修改状态..."
-    local need_modification=false
-    for file in "${CURSOR_JS_FILES[@]}"; do
-        if [ ! -f "$file" ]; then
-            log_warn "⚠️  [警告] 文件不存在: $file"
-            continue
-        fi
-
-        if grep -q "__cursor_patched__" "$file" 2>/dev/null; then
-            log_info "✅ [已修改] 文件已修改: $(basename "$file")"
-        else
-            log_info "📝 [需要] 文件需要修改: $(basename "$file")"
-            need_modification=true
-        fi
-    done
-
-    if [ "$need_modification" = false ]; then
-        log_info "✅ [跳过] 所有JS文件已经被修改过，无需重复操作"
-        return 0
-    fi
-
+    # 处理每个文件：创建原始备份或从原始备份恢复
     for file in "${CURSOR_JS_FILES[@]}"; do
         log_info "📝 [处理] 正在处理: $(basename "$file")"
 
@@ -801,28 +784,31 @@ EOF
             continue
         fi
 
-        if grep -q "__cursor_patched__" "$file"; then
-            log_info "✅ [跳过] 文件已经被修改过"
-            ((modified_count++))
-            file_modification_status+=("'$(basename "$file")': Already Patched")
-            continue
-        fi
-
         # 创建备份目录
         local backup_dir="$(dirname "$file")/backups"
         mkdir -p "$backup_dir" 2>/dev/null || true
 
-        # 创建原始备份（如果不存在）
-        local original_backup="$backup_dir/$(basename "$file").original"
+        local file_name=$(basename "$file")
+        local original_backup="$backup_dir/$file_name.original"
+
+        # 如果原始备份不存在，先创建
         if [ ! -f "$original_backup" ]; then
+            # 检查当前文件是否已被修改过
+            if grep -q "__cursor_patched__" "$file" 2>/dev/null; then
+                log_warn "⚠️  [警告] 文件已被修改但无原始备份，将使用当前版本作为基础"
+            fi
             cp "$file" "$original_backup"
             chown "$CURRENT_USER":"$(id -g -n "$CURRENT_USER")" "$original_backup" 2>/dev/null || true
             chmod 444 "$original_backup" 2>/dev/null || true
-            log_info "✅ [备份] 原始备份创建成功"
+            log_info "✅ [备份] 原始备份创建成功: $file_name"
+        else
+            # 从原始备份恢复，确保每次都是干净的注入
+            log_info "🔄 [恢复] 从原始备份恢复: $file_name"
+            cp "$original_backup" "$file"
         fi
 
-        # 创建时间戳备份
-        local backup_file="$backup_dir/$(basename "$file").backup_$(date +%Y%m%d_%H%M%S)"
+        # 创建时间戳备份（记录每次修改前的状态）
+        local backup_file="$backup_dir/$file_name.backup_$(date +%Y%m%d_%H%M%S)"
         if ! cp "$file" "$backup_file"; then
             log_error "无法创建文件备份: $file"
             file_modification_status+=("'$(basename "$file")': Backup Failed")
