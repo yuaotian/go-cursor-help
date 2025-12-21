@@ -22,9 +22,9 @@
 
 | Plan | Price | Original | Benefits |
 |:---:|:---:|:---:|:---|
-| **Pro** | ¥65/mo | $20 (~¥145) | $20 base quota + bonus ≈ $65 total value |
-| **Pro+** | ¥265/mo | $60 (~¥435) | $70 base quota + bonus ≈ $130 total value |
-| **Ultra** | ¥888/mo | $200 (~¥1450) | $400 base quota + massive bonus |
+| **Pro** | ¥65/RMB   | $20  | $20 base quota + bonus ≈ $65 total value |
+| **Pro+** | ¥265/RMB | $60  | $70 base quota + bonus ≈ $130 total value |
+| **Ultra** | ¥888/RMB| $20 | $400 base quota + massive bonus |
 
 > 📖 [Official Pricing](https://cursor.com/cn/docs/account/pricing) | Note: Cursor quota = Base quota + Overdraft + Monthly reset
 
