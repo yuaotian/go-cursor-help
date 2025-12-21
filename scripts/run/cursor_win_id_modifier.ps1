@@ -1885,6 +1885,7 @@ if ($executeMode -eq "MODIFY_ONLY") {
 Write-Host ""
 Write-Host "$GREEN================================$NC"
 Write-Host "$YELLOW📱  关注公众号【煎饼果子卷AI】一起交流更多Cursor技巧和AI知识(脚本免费、关注公众号加群有更多技巧和大佬)  $NC"
+Write-Host "$YELLOW⚡   [小小广告] Cursor官网正规成品号：Pro¥65 | Pro+¥265 | Ultra¥888 独享账号/7天质保，WeChat：JavaRookie666  $NC"
 Write-Host "$GREEN================================$NC"
 Write-Host ""
 
