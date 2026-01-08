@@ -16,19 +16,21 @@
 
 <div align="center">
 
-## 💰 Cursor 公式チャージ済みアカウント
+## ⚡️【フラッシュセール】Cursor 高クレジットアカウント
 
-⚡️ **月額使い捨て | 専用アカウント | 最高のコスパ**
+🔥 **月額使い捨て｜専用（共有なし）｜公式より大幅お得**
 
-| プラン | 価格 | 定価 | 特典内容 |
+| プラン | セール価格（月額） | 定価 | 総利用価値* |
 |:---:|:---:|:---:|:---|
-| **Pro** | ¥65/月 | $20 (約¥145) | $20 基本枠 + ボーナス ≈ 総額 $65 |
-| **Pro+** | ¥265/月 | $60 (約¥435) | $70 基本枠 + ボーナス ≈ 総額 $130 |
-| **Ultra** | ¥888/月 | $200 (約¥1450) | $400 基本枠 + 大量ボーナス |
+| **Pro** | **¥65/月**（≈ $9） | $20（約¥145/月） | $20 基本枠 + Rewards + Overdraft ≈ **$45–$65** |
+| **Pro+** | **¥265/月**（≈ $37） | $60（約¥435/月） | $70 基本枠 + Rewards + Overdraft ≈ **$95–$130** |
+| **Ultra** | **¥888/月**（≈ $123） | $200（約¥1450/月） | $400+ 基本枠 + 大量Rewards/Overdraft ≈ **$400+** |
 
-> 📖 [公式料金ドキュメント](https://cursor.com/cn/docs/account/pricing) | 注: Cursor枠 = 基本枠 + 超過分 + 月末リセット
+> 📖 [公式料金ドキュメント](https://cursor.com/cn/docs/account/pricing)
+>
+> *注：総利用価値 = Base Credits（基本枠）+ Rewards（報酬）+ Overdraft（超過分）。月次リセットあり。*
 
-⚠️ **購入時の注意**：正規チャージ、専用アカウント | 7日間保証、日割り返金 | 3台まで | 在庫品は27〜30日有効
+⚠️ **購入前に**：専用アカウント（共有なし） | 27〜30日有効 | 3台まで推奨 | 7日保証（交換 / 日割り返金）
 
 📱 **連絡先**：Telegram: [@yuaotian](https://t.me/yuaotian) | WeChat: `JavaRookie666`
 
@@ -558,7 +560,7 @@ macOS/Linuxユーザーはシステム内で同様の`cursor-updater`ディレ�
 </td>
 <td align="center">
 <b>WeChat</b><br>
-<img src="img/qun-20.jpg" width="500" alt="WeChat"><br>
+<img src="img/qun-21.jpg" width="500" alt="WeChat"><br>
 <em>二维码7天内(11月25日前前)有效，过期请加微信或者公众号`煎饼果子卷AI`</em>
 </td>
 <!-- <td align="center">
@@ -571,6 +573,13 @@ ETC: 0xa2745f4CD5d32310AC01694ABDB28bA32D125a6b
 </tr>
 </table>
 </div>
+
+### 💳 お支払い方法（寄付 / 広告削除）
+
+- 🪙 **USDT（Tether）**
+  - 🔴 TRC-20（Tron）：`TFbJnoY5Lep5ZrDwBbT8rV1i8xR4ZhX53k`
+  - 🟡 Polygon / BSC / Arbitrum：`0x44f8925b9f93b3d6da8d5ad26a3516e3e652cc88`
+- 🟦 **Litecoin（LTC）**：`LVrigKxtWfPymMRtRqL3z2eZxfncR3dPV7`
 
 ---
 

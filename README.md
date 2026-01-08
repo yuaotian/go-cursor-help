@@ -16,19 +16,21 @@
 
 <div align="center">
 
-## 💰 Cursor Official Pre-charged Accounts
+## ⚡️ [Flash Sale] Cursor Pro High‑Credit Accounts
 
-⚡️ **Monthly Disposable | Exclusive Account | Best Value**
+🔥 **Disposable monthly | Private & exclusive | Best value**
 
-| Plan | Price | Original | Benefits |
+| Tier | Sale (Monthly) | Official | Total Usage Value* |
 |:---:|:---:|:---:|:---|
-| **Pro** | ¥65/RMB   | $20  | $20 base quota + bonus ≈ $65 total value |
-| **Pro+** | ¥265/RMB | $60  | $70 base quota + bonus ≈ $130 total value |
-| **Ultra** | ¥888/RMB| $20 | $400 base quota + massive bonus |
+| **Pro** | **¥65 RMB** (≈ $9) | $20 | $20 Base + Rewards + Overdraft ≈ **$45–$65** |
+| **Pro+** | **¥265 RMB** (≈ $37) | $60 | $70 Base + Rewards + Overdraft ≈ **$95–$130** |
+| **Ultra** | **¥888 RMB** (≈ $123) | $200 | $400+ Base + massive rewards/overdraft ≈ **$400+** |
 
-> 📖 [Official Pricing](https://cursor.com/cn/docs/account/pricing) | Note: Cursor quota = Base quota + Overdraft + Monthly reset
+> 📖 [Official Pricing](https://cursor.com/cn/docs/account/pricing)
+>
+> *Value note: Total usage value = Base Credits + Rewards + Overdraft (monthly resets apply).*
 
-⚠️ **Notice**: Genuine top-up, exclusive account | 7-day warranty, daily refund | Max 3 devices | Stock accounts valid 27-30 days
+⚠️ **Before you buy**: Private (not shared) | Valid 27–30 days | Up to 3 devices | 7‑day warranty (replacement / pro‑rated refund)
 
 📱 **Contact**: Telegram: [@yuaotian](https://t.me/yuaotian) | WeChat: `JavaRookie666`
 
@@ -346,7 +348,7 @@ Your feedback helps us improve the tool for everyone. Feel free to open an issue
 </td>
 <td align="center">
 <b>WeChat</b><br>
-<img src="img/qun-20.jpg" width="500" alt="WeChat"><br>
+<img src="img/qun-21.jpg" width="500" alt="WeChat"><br>
 <em>二维码7天内(11月25日前前)有效，过期请加微信或者公众号`煎饼果子卷AI`</em>
 </td>
 <!-- <td align="center">
@@ -359,6 +361,13 @@ ETC: 0xa2745f4CD5d32310AC01694ABDB28bA32D125a6b
 </tr>
 </table>
 </div>
+
+### 💳 Payment Methods (Donate / Remove Ads)
+
+- 🪙 **USDT (Tether)**
+  - 🔴 TRC-20 (Tron): `TFbJnoY5Lep5ZrDwBbT8rV1i8xR4ZhX53k`
+  - 🟡 Polygon / BSC / Arbitrum: `0x44f8925b9f93b3d6da8d5ad26a3516e3e652cc88`
+- 🟦 **Litecoin (LTC)**: `LVrigKxtWfPymMRtRqL3z2eZxfncR3dPV7`
 
 ---
 
