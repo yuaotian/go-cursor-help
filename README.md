@@ -18,19 +18,21 @@
 
 ## ⚡️ [Flash Sale] Cursor Pro High‑Credit Accounts
 
-🔥 **Disposable monthly | Private & exclusive | Best value**
+🔥 **Private & Exclusive | Stable 30-Day | NOT a Cracked Trial**
 
-| Tier | Sale (Monthly) | Official | Total Usage Value* |
-|:---:|:---:|:---:|:---|
-| **Pro** | **¥65 RMB** (≈ $9) | $20 | $20 Base + Rewards + Overdraft ≈ **$45–$65** |
-| **Pro+** | **¥265 RMB** (≈ $37) | $60 | $70 Base + Rewards + Overdraft ≈ **$95–$130** |
-| **Ultra** | **¥888 RMB** (≈ $123) | $200 | $400+ Base + massive rewards/overdraft ≈ **$400+** |
+> 💡 Get **$65+** usage value for only **$10**!
+
+| | Tier | 🇨🇳 RMB | 🇺🇸 USD | Official | Total Usage Value* |
+|:---:|:---:|:---:|:---:|:---:|:---|
+| 1️⃣ | **Pro** 🔥 `HOT` | **¥65** | **$10** | $20 | $20 Base + Rewards + Overdraft ≈ **$45–$65** |
+| 2️⃣ | **Pro+** | **¥265** | **$40** | $60 | $70 Base + Rewards + Overdraft ≈ **$95–$130** |
+| 3️⃣ | **Ultra** 👑 | **¥888** | **$140** | $200 | $400+ Base + Massive Rewards ≈ **$400+** |
 
 > 📖 [Official Pricing](https://cursor.com/cn/docs/account/pricing)
 >
-> *Value note: Total usage value = Base Credits + Rewards + Overdraft (monthly resets apply).*
+> *ℹ️ Value note: Total usage value = Base Credits + Rewards + Overdraft (monthly resets apply).*
 
-⚠️ **Before you buy**: Private (not shared) | Valid 27–30 days | Up to 3 devices | 7‑day warranty (replacement / pro‑rated refund)
+⚠️ **Before you buy**: Private (not shared) | Valid 25–30 days | Up to 3 devices | 7‑day warranty (replacement / pro‑rated refund)
 
 📱 **Contact**: Telegram: [@yuaotian](https://t.me/yuaotian) | WeChat: `JavaRookie666`
 
