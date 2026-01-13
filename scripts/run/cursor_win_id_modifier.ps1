@@ -139,6 +139,11 @@ function Modify-CursorJSFiles {
         "https://gh-proxy.com/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/hook/cursor_hook.js",
         "https://gh.chjina.com/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/hook/cursor_hook.js"
     )
+    # 支持通过环境变量覆盖下载节点（逗号分隔）
+    if ($env:CURSOR_HOOK_DOWNLOAD_URLS) {
+        $hookDownloadUrls = $env:CURSOR_HOOK_DOWNLOAD_URLS -split '\s*,\s*' | Where-Object { $_ }
+        Write-Host "$BLUEℹ️  [Hook]$NC 检测到自定义下载节点列表，将优先使用"
+    }
     if ($hookSourcePath) {
         try {
             Copy-Item -Path $hookSourcePath -Destination $hookTargetPath -Force
@@ -148,17 +153,32 @@ function Modify-CursorJSFiles {
         }
     }
     if (-not (Test-Path $hookTargetPath)) {
-        foreach ($url in $hookDownloadUrls) {
-            try {
-                Invoke-WebRequest -Uri $url -OutFile $hookTargetPath -UseBasicParsing -ErrorAction Stop
-                Write-Host "$GREEN✅ [Hook]$NC 外置 Hook 已在线下载: $hookTargetPath"
-                break
-            } catch {
-                Write-Host "$YELLOW⚠️  [Hook]$NC 外置 Hook 下载失败: $url"
-                if (Test-Path $hookTargetPath) {
-                    Remove-Item -Path $hookTargetPath -Force
+        Write-Host "$BLUEℹ️  [Hook]$NC 正在下载外置 Hook，用于设备标识拦截..."
+        $originalProgressPreference = $ProgressPreference
+        $ProgressPreference = 'Continue'
+        try {
+            if ($hookDownloadUrls.Count -eq 0) {
+                Write-Host "$YELLOW⚠️  [Hook]$NC 下载节点列表为空，跳过在线下载"
+            } else {
+                $totalUrls = $hookDownloadUrls.Count
+                for ($i = 0; $i -lt $totalUrls; $i++) {
+                    $url = $hookDownloadUrls[$i]
+                    $attempt = $i + 1
+                    Write-Host "$BLUE⏳ [Hook]$NC ($attempt/$totalUrls) 当前下载节点: $url"
+                    try {
+                        Invoke-WebRequest -Uri $url -OutFile $hookTargetPath -UseBasicParsing -ErrorAction Stop
+                        Write-Host "$GREEN✅ [Hook]$NC 外置 Hook 已在线下载: $hookTargetPath"
+                        break
+                    } catch {
+                        Write-Host "$YELLOW⚠️  [Hook]$NC 外置 Hook 下载失败: $url"
+                        if (Test-Path $hookTargetPath) {
+                            Remove-Item -Path $hookTargetPath -Force
+                        }
+                    }
                 }
             }
+        } finally {
+            $ProgressPreference = $originalProgressPreference
         }
         if (-not (Test-Path $hookTargetPath)) {
             Write-Host "$YELLOW⚠️  [Hook]$NC 外置 Hook 全部下载失败"

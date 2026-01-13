@@ -1663,6 +1663,11 @@ EOF
         "https://gh-proxy.com/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/hook/cursor_hook.js"
         "https://gh.chjina.com/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/hook/cursor_hook.js"
     )
+    # 支持通过环境变量覆盖下载节点（逗号分隔）
+    if [ -n "$CURSOR_HOOK_DOWNLOAD_URLS" ]; then
+        IFS=',' read -r -a hook_download_urls <<< "$CURSOR_HOOK_DOWNLOAD_URLS"
+        log_info "ℹ️  [Hook] 检测到自定义下载节点列表，将优先使用"
+    fi
 
     if [ -f "$hook_source_path" ]; then
         if cp "$hook_source_path" "$hook_target_path"; then
@@ -1674,10 +1679,17 @@ EOF
     fi
 
     if [ ! -f "$hook_target_path" ]; then
+        log_info "ℹ️  [Hook] 正在下载外置 Hook，用于设备标识拦截..."
         local hook_downloaded=false
-        if command -v curl >/dev/null 2>&1; then
+        local total_urls=${#hook_download_urls[@]}
+        if [ "$total_urls" -eq 0 ]; then
+            log_warn "⚠️  [Hook] 下载节点列表为空，跳过在线下载"
+        elif command -v curl >/dev/null 2>&1; then
+            local index=0
             for url in "${hook_download_urls[@]}"; do
-                if curl -fsSL "$url" -o "$hook_target_path"; then
+                index=$((index + 1))
+                log_info "⏳ [Hook] ($index/$total_urls) 当前下载节点: $url"
+                if curl -fL --progress-bar "$url" -o "$hook_target_path"; then
                     chown "$TARGET_USER":"$(id -g -n "$TARGET_USER")" "$hook_target_path" 2>/dev/null || true
                     log_info "✅ [Hook] 外置 Hook 已在线下载: $hook_target_path"
                     hook_downloaded=true
@@ -1688,8 +1700,11 @@ EOF
                 fi
             done
         elif command -v wget >/dev/null 2>&1; then
+            local index=0
             for url in "${hook_download_urls[@]}"; do
-                if wget -qO "$hook_target_path" "$url"; then
+                index=$((index + 1))
+                log_info "⏳ [Hook] ($index/$total_urls) 当前下载节点: $url"
+                if wget --progress=bar:force -O "$hook_target_path" "$url"; then
                     chown "$TARGET_USER":"$(id -g -n "$TARGET_USER")" "$hook_target_path" 2>/dev/null || true
                     log_info "✅ [Hook] 外置 Hook 已在线下载: $hook_target_path"
                     hook_downloaded=true
