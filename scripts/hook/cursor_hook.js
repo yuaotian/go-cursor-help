@@ -110,9 +110,14 @@ var __cursor_hook_config__ = {
         if (process.env.CURSOR_MACHINE_ID) {
             ids = {
                 machineId: process.env.CURSOR_MACHINE_ID,
+                // machineGuid 用于模拟注册表 MachineGuid/IOPlatformUUID
+                machineGuid: process.env.CURSOR_MACHINE_GUID || generateUUID(),
                 macMachineId: process.env.CURSOR_MAC_MACHINE_ID || generateHex64(),
                 devDeviceId: process.env.CURSOR_DEV_DEVICE_ID || generateUUID(),
-                sqmId: process.env.CURSOR_SQM_ID || `{${generateUUID().toUpperCase()}}`
+                sqmId: process.env.CURSOR_SQM_ID || `{${generateUUID().toUpperCase()}}`,
+                macAddress: process.env.CURSOR_MAC_ADDRESS || generateMacAddress(),
+                sessionId: process.env.CURSOR_SESSION_ID || generateUUID(),
+                firstSessionDate: process.env.CURSOR_FIRST_SESSION_DATE || new Date().toISOString()
             };
             log('从环境变量加载 ID 配置');
             return ids;
@@ -123,6 +128,32 @@ var __cursor_hook_config__ = {
             if (fs.existsSync(configPath)) {
                 const content = fs.readFileSync(configPath, 'utf8');
                 ids = JSON.parse(content);
+                // 补全缺失字段，保持向后兼容
+                let updated = false;
+                if (!ids.machineGuid) {
+                    ids.machineGuid = generateUUID();
+                    updated = true;
+                }
+                if (!ids.macAddress) {
+                    ids.macAddress = generateMacAddress();
+                    updated = true;
+                }
+                if (!ids.sessionId) {
+                    ids.sessionId = generateUUID();
+                    updated = true;
+                }
+                if (!ids.firstSessionDate) {
+                    ids.firstSessionDate = new Date().toISOString();
+                    updated = true;
+                }
+                if (updated) {
+                    try {
+                        fs.writeFileSync(configPath, JSON.stringify(ids, null, 2), 'utf8');
+                        log('已补全并更新 ID 配置:', configPath);
+                    } catch (e) {
+                        log('补全配置文件失败:', e.message);
+                    }
+                }
                 log('从配置文件加载 ID 配置:', configPath);
                 return ids;
             }
@@ -133,10 +164,13 @@ var __cursor_hook_config__ = {
         // 生成新的 ID
         ids = {
             machineId: generateHex64(),
+            machineGuid: generateUUID(),
             macMachineId: generateHex64(),
             devDeviceId: generateUUID(),
             sqmId: `{${generateUUID().toUpperCase()}}`,
             macAddress: generateMacAddress(),
+            sessionId: generateUUID(),
+            firstSessionDate: new Date().toISOString(),
             createdAt: new Date().toISOString()
         };
 
@@ -153,6 +187,8 @@ var __cursor_hook_config__ = {
 
     // 加载 ID 配置
     const __cursor_ids__ = loadOrGenerateIds();
+    // 统一获取 MachineGuid，缺失时回退到 machineId 的前 36 位
+    const getMachineGuid = () => __cursor_ids__.machineGuid || __cursor_ids__.machineId.substring(0, 36);
     log('当前 ID 配置:', __cursor_ids__);
     
     // ==================== Module Hook ====================
@@ -164,42 +200,44 @@ var __cursor_hook_config__ = {
     const hookedModules = new Map();
     
     Module.prototype.require = function(id) {
+        // 兼容 node: 前缀
+        const normalizedId = (typeof id === 'string' && id.startsWith('node:')) ? id.slice(5) : id;
         const result = originalRequire.apply(this, arguments);
         
         // 如果已经 Hook 过，直接返回缓存
-        if (hookedModules.has(id)) {
-            return hookedModules.get(id);
+        if (hookedModules.has(normalizedId)) {
+            return hookedModules.get(normalizedId);
         }
         
         let hooked = result;
         
         // Hook child_process 模块
-        if (id === 'child_process') {
+        if (normalizedId === 'child_process') {
             hooked = hookChildProcess(result);
         }
         // Hook os 模块
-        else if (id === 'os') {
+        else if (normalizedId === 'os') {
             hooked = hookOs(result);
         }
         // Hook crypto 模块
-        else if (id === 'crypto') {
+        else if (normalizedId === 'crypto') {
             hooked = hookCrypto(result);
         }
         // Hook @vscode/deviceid 模块
-        else if (id === '@vscode/deviceid') {
+        else if (normalizedId === '@vscode/deviceid') {
             hooked = hookDeviceId(result);
         }
         // Hook @vscode/windows-registry 模块
-        else if (id === '@vscode/windows-registry') {
+        else if (normalizedId === '@vscode/windows-registry') {
             hooked = hookWindowsRegistry(result);
         }
 
         // 缓存 Hook 结果
         if (hooked !== result) {
-            hookedModules.set(id, hooked);
-            log(`已 Hook 模块: ${id}`);
+            hookedModules.set(normalizedId, hooked);
+            log(`已 Hook 模块: ${normalizedId}`);
         }
-
+        
         return hooked;
     };
 
@@ -207,6 +245,7 @@ var __cursor_hook_config__ = {
 
     function hookChildProcess(cp) {
         const originalExecSync = cp.execSync;
+        const originalExecFileSync = cp.execFileSync;
 
         cp.execSync = function(command, options) {
             const cmdStr = String(command).toLowerCase();
@@ -215,13 +254,13 @@ var __cursor_hook_config__ = {
             if (cmdStr.includes('reg') && cmdStr.includes('machineguid')) {
                 log('拦截 MachineGuid 查询');
                 // 返回格式化的注册表输出
-                return Buffer.from(`\r\n    MachineGuid    REG_SZ    ${__cursor_ids__.machineId.substring(0, 36)}\r\n`);
+                return Buffer.from(`\r\n    MachineGuid    REG_SZ    ${getMachineGuid()}\r\n`);
             }
 
             // 拦截 ioreg 命令 (macOS)
             if (cmdStr.includes('ioreg') && cmdStr.includes('ioplatformexpertdevice')) {
                 log('拦截 IOPlatformUUID 查询');
-                return Buffer.from(`"IOPlatformUUID" = "${__cursor_ids__.machineId.substring(0, 36).toUpperCase()}"`);
+                return Buffer.from(`"IOPlatformUUID" = "${getMachineGuid().toUpperCase()}"`);
             }
 
             // 拦截 machine-id 读取 (Linux)
@@ -232,6 +271,30 @@ var __cursor_hook_config__ = {
 
             return originalExecSync.apply(this, arguments);
         };
+
+        // 兼容 execFileSync（部分版本会直接调用可执行文件）
+        if (typeof originalExecFileSync === 'function') {
+            cp.execFileSync = function(file, args, options) {
+                const cmdStr = [file].concat(args || []).join(' ').toLowerCase();
+
+                if (cmdStr.includes('reg') && cmdStr.includes('machineguid')) {
+                    log('拦截 MachineGuid 查询(execFileSync)');
+                    return Buffer.from(`\r\n    MachineGuid    REG_SZ    ${getMachineGuid()}\r\n`);
+                }
+
+                if (cmdStr.includes('ioreg') && cmdStr.includes('ioplatformexpertdevice')) {
+                    log('拦截 IOPlatformUUID 查询(execFileSync)');
+                    return Buffer.from(`"IOPlatformUUID" = "${getMachineGuid().toUpperCase()}"`);
+                }
+
+                if (cmdStr.includes('machine-id') || cmdStr.includes('hostname')) {
+                    log('拦截 machine-id 查询(execFileSync)');
+                    return Buffer.from(__cursor_ids__.machineId.substring(0, 32));
+                }
+
+                return originalExecFileSync.apply(this, arguments);
+            };
+        }
 
         return cp;
     }
@@ -347,7 +410,7 @@ var __cursor_hook_config__ = {
                 // 拦截 MachineGuid 读取
                 if (name === 'MachineGuid' || path.includes('Cryptography')) {
                     log('拦截注册表 MachineGuid 读取');
-                    return __cursor_ids__.machineId.substring(0, 36);
+                    return getMachineGuid();
                 }
                 return originalGetStringRegKey?.apply(this, arguments) || '';
             }
@@ -439,7 +502,7 @@ var __cursor_hook_config__ = {
                 }
                 if (name === 'MachineGuid' || path?.includes('Cryptography')) {
                     log('动态导入: 拦截 MachineGuid');
-                    return __cursor_ids__.machineId.substring(0, 36);
+                    return getMachineGuid();
                 }
                 return originalGetStringRegKey?.apply(this, arguments) || '';
             }
@@ -459,6 +522,7 @@ var __cursor_hook_config__ = {
 
     log('Cursor Hook 初始化完成');
     log('machineId:', __cursor_ids__.machineId.substring(0, 16) + '...');
+    log('machineGuid:', getMachineGuid().substring(0, 16) + '...');
     log('devDeviceId:', __cursor_ids__.devDeviceId);
     log('sqmId:', __cursor_ids__.sqmId);
 
@@ -474,4 +538,3 @@ if (typeof module !== 'undefined' && module.exports) {
 if (typeof globalThis !== 'undefined') {
     globalThis.__cursor_hook_config__ = __cursor_hook_config__;
 }
-

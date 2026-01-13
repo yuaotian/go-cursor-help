@@ -72,6 +72,7 @@ BACKUP_DIR="$CURSOR_CONFIG_DIR/User/globalStorage/backups"
 
 # 共享ID（用于配置与JS注入保持一致）
 CURSOR_ID_MACHINE_ID=""
+CURSOR_ID_MACHINE_GUID=""
 CURSOR_ID_MAC_MACHINE_ID=""
 CURSOR_ID_DEVICE_ID=""
 CURSOR_ID_SQM_ID=""
@@ -529,6 +530,7 @@ PY
 # 仅用于JS注入的ID生成（不写配置）
 generate_ids_for_js_only() {
     CURSOR_ID_MACHINE_ID=$(openssl rand -hex 32)
+    CURSOR_ID_MACHINE_GUID=$(generate_uuid)
     CURSOR_ID_MAC_MACHINE_ID=$(openssl rand -hex 32)
     CURSOR_ID_DEVICE_ID=$(generate_uuid)
     CURSOR_ID_SQM_ID="{$(generate_uuid | tr '[:lower:]' '[:upper:]')}"
@@ -787,10 +789,12 @@ find_cursor_js_files() {
     local js_patterns=(
         "resources/app/out/vs/workbench/api/node/extensionHostProcess.js"
         "resources/app/out/main.js"
+        "resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js"
         "resources/app/out/vs/code/node/cliProcessMain.js"
         # 添加其他可能的路径模式
         "app/out/vs/workbench/api/node/extensionHostProcess.js" # 如果资源目录是 app 的父目录
         "app/out/main.js"
+        "app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js"
         "app/out/vs/code/node/cliProcessMain.js"
     )
     
@@ -841,13 +845,13 @@ find_cursor_js_files() {
 }
 
 # 修改Cursor的JS文件
-# 🔧 修改Cursor内核JS文件实现设备识别绕过（增强版 Hook 方案）
+# 🔧 修改Cursor内核JS文件实现设备识别绕过（增强版三重方案）
 # 方案A: someValue占位符替换 - 稳定锚点，不依赖混淆后的函数名
-# 方案B: 深度 Hook 注入 - 从底层拦截所有设备标识符生成
-# 方案C: Module.prototype.require 劫持 - 拦截 child_process, crypto, os 等模块
+# 方案B: b6 定点重写 - 机器码源函数直接返回固定值
+# 方案C: Loader Stub + 外置 Hook - 主/共享进程仅加载外置 Hook 文件
 modify_cursor_js_files() {
     log_info "🔧 [内核修改] 开始修改Cursor内核JS文件实现设备识别绕过..."
-    log_info "💡 [方案] 使用增强版 Hook 方案：深度模块劫持 + someValue替换"
+    log_info "💡 [方案] 使用增强版三重方案：占位符替换 + b6 定点重写 + Loader Stub + 外置 Hook"
 
     # 先查找需要修改的JS文件
     if ! find_cursor_js_files; then
@@ -861,6 +865,7 @@ modify_cursor_js_files() {
 
     # 生成或复用设备标识符（优先使用配置中读取的值）
     local machine_id="${CURSOR_ID_MACHINE_ID:-}"
+    local machine_guid="${CURSOR_ID_MACHINE_GUID:-}"
     local device_id="${CURSOR_ID_DEVICE_ID:-}"
     local mac_machine_id="${CURSOR_ID_MAC_MACHINE_ID:-}"
     local sqm_id="${CURSOR_ID_SQM_ID:-}"
@@ -871,6 +876,10 @@ modify_cursor_js_files() {
 
     if [ -z "$machine_id" ]; then
         machine_id=$(openssl rand -hex 32)
+        ids_missing=true
+    fi
+    if [ -z "$machine_guid" ]; then
+        machine_guid=$(generate_uuid)
         ids_missing=true
     fi
     if [ -z "$device_id" ]; then
@@ -901,6 +910,7 @@ modify_cursor_js_files() {
     fi
 
     CURSOR_ID_MACHINE_ID="$machine_id"
+    CURSOR_ID_MACHINE_GUID="$machine_guid"
     CURSOR_ID_DEVICE_ID="$device_id"
     CURSOR_ID_MAC_MACHINE_ID="$mac_machine_id"
     CURSOR_ID_SQM_ID="$sqm_id"
@@ -910,6 +920,7 @@ modify_cursor_js_files() {
 
     log_info "🔑 [准备] 设备标识符已就绪"
     log_info "   machineId: ${machine_id:0:16}..."
+    log_info "   machineGuid: ${machine_guid:0:16}..."
     log_info "   deviceId: ${device_id:0:16}..."
     log_info "   macMachineId: ${mac_machine_id:0:16}..."
     log_info "   sqmId: $sqm_id"
@@ -923,15 +934,74 @@ modify_cursor_js_files() {
     cat > "$ids_config_path" << EOF
 {
   "machineId": "$machine_id",
+  "machineGuid": "$machine_guid",
   "macMachineId": "$mac_machine_id",
   "devDeviceId": "$device_id",
   "sqmId": "$sqm_id",
   "macAddress": "$mac_address",
+  "sessionId": "$session_id",
+  "firstSessionDate": "$first_session_date",
   "createdAt": "$first_session_date"
 }
 EOF
     chown "$CURRENT_USER":"$(id -g -n "$CURRENT_USER")" "$ids_config_path" 2>/dev/null || true
     log_info "💾 [保存] 新的 ID 配置已保存到: $ids_config_path"
+
+    # 部署外置 Hook 文件（供 Loader Stub 加载，支持多域名备用下载）
+    local hook_target_path="$HOME/.cursor_hook.js"
+    local script_dir
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local hook_source_path="$script_dir/../hook/cursor_hook.js"
+    local hook_download_urls=(
+        "https://wget.la/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/hook/cursor_hook.js"
+        "https://down.npee.cn/?https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/hook/cursor_hook.js"
+        "https://xget.xi-xu.me/gh/yuaotian/go-cursor-help/refs/heads/master/scripts/hook/cursor_hook.js"
+        "https://gh-proxy.com/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/hook/cursor_hook.js"
+        "https://gh.chjina.com/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/hook/cursor_hook.js"
+    )
+
+    if [ -f "$hook_source_path" ]; then
+        if cp "$hook_source_path" "$hook_target_path"; then
+            chown "$CURRENT_USER":"$(id -g -n "$CURRENT_USER")" "$hook_target_path" 2>/dev/null || true
+            log_info "✅ [Hook] 外置 Hook 已部署: $hook_target_path"
+        else
+            log_warn "⚠️  [Hook] 本地 Hook 复制失败，尝试在线下载..."
+        fi
+    fi
+
+    if [ ! -f "$hook_target_path" ]; then
+        local hook_downloaded=false
+        if command -v curl >/dev/null 2>&1; then
+            for url in "${hook_download_urls[@]}"; do
+                if curl -fsSL "$url" -o "$hook_target_path"; then
+                    chown "$CURRENT_USER":"$(id -g -n "$CURRENT_USER")" "$hook_target_path" 2>/dev/null || true
+                    log_info "✅ [Hook] 外置 Hook 已在线下载: $hook_target_path"
+                    hook_downloaded=true
+                    break
+                else
+                    rm -f "$hook_target_path"
+                    log_warn "⚠️  [Hook] 外置 Hook 下载失败: $url"
+                fi
+            done
+        elif command -v wget >/dev/null 2>&1; then
+            for url in "${hook_download_urls[@]}"; do
+                if wget -qO "$hook_target_path" "$url"; then
+                    chown "$CURRENT_USER":"$(id -g -n "$CURRENT_USER")" "$hook_target_path" 2>/dev/null || true
+                    log_info "✅ [Hook] 外置 Hook 已在线下载: $hook_target_path"
+                    hook_downloaded=true
+                    break
+                else
+                    rm -f "$hook_target_path"
+                    log_warn "⚠️  [Hook] 外置 Hook 下载失败: $url"
+                fi
+            done
+        else
+            log_warn "⚠️  [Hook] 未检测到 curl/wget，无法在线下载 Hook"
+        fi
+        if [ "$hook_downloaded" != true ] && [ ! -f "$hook_target_path" ]; then
+            log_warn "⚠️  [Hook] 外置 Hook 全部下载失败"
+        fi
+    fi
 
     local modified_count=0
     local file_modification_status=()
@@ -1041,102 +1111,66 @@ EOF
             replaced=true
         fi
 
-        # ========== 方法B: 增强版深度 Hook 注入 ==========
-        local inject_code='// ========== Cursor Hook 注入开始 ==========
+        # ========== 方法B: b6 定点重写（机器码源函数，仅 main.js） ==========
+        local b6_patched=false
+        if [ "$(basename "$file")" = "main.js" ]; then
+            if command -v python3 >/dev/null 2>&1; then
+                local b6_result
+                b6_result=$(python3 - "$file" "$machine_guid" "$machine_id" <<'PY'
+import re, sys
+path, machine_guid, machine_id = sys.argv[1], sys.argv[2], sys.argv[3]
+with open(path, "r", encoding="utf-8") as f:
+    data = f.read()
+pattern = re.compile(r'async function (\\w+)\\((\\w+)\\)\\{.*?createHash\\(\"sha256\"\\).*?return \\w+\\?\\w+:\\w+\\}', re.S)
+def repl(m):
+    name = m.group(1)
+    param = m.group(2)
+    return f"async function {name}({param}){{return {param}?\\\"{machine_guid}\\\":\\\"{machine_id}\\\";}}"
+new_data, count = pattern.subn(repl, data, count=1)
+if count:
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(new_data)
+    print("PATCHED")
+else:
+    print("NOT_FOUND")
+PY
+)
+                if [ "$b6_result" = "PATCHED" ]; then
+                    log_info "   ✓ [方案B] 已重写 b6 特征函数"
+                    b6_patched=true
+                else
+                    log_warn "⚠️  [方案B] 未定位到 b6 特征函数"
+                fi
+            else
+                log_warn "⚠️  [方案B] 未检测到 python3，跳过 b6 定点重写"
+            fi
+        fi
+
+        # ========== 方法C: Loader Stub 注入 ==========
+        local inject_code='// ========== Cursor Hook Loader 开始 ==========
 ;(async function(){/*__cursor_patched__*/
 "use strict";
-if(globalThis.__cursor_patched__)return;
+if(globalThis.__cursor_hook_loaded__)return;
+globalThis.__cursor_hook_loaded__=true;
 
-// 兼容 ESM：确保可用的 require（部分版本 main.js 可能是纯 ESM，不保证存在 require）
-var __require__=typeof require==="function"?require:null;
-if(!__require__){
-    try{
+try{
+    var __require__=typeof require==="function"?require:null;
+    if(!__require__){
         var __m__=await import("module");
         __require__=__m__.createRequire(import.meta.url);
-    }catch(e){
-        // 无法获得 require 时直接退出，避免影响主进程启动
-        return;
     }
+    var fs=__require__("fs");
+    var path=__require__("path");
+    var os=__require__("os");
+    var hookPath=path.join(os.homedir(), ".cursor_hook.js");
+    if(fs.existsSync(hookPath)){
+        __require__(hookPath);
+    }
+}catch(e){
+    // 失败静默，避免影响启动
 }
-
-globalThis.__cursor_patched__=true;
-
-var __ids__={
-    machineId:"'"$machine_id"'",
-    macMachineId:"'"$mac_machine_id"'",
-    devDeviceId:"'"$device_id"'",
-    sqmId:"'"$sqm_id"'",
-    macAddress:"'"$mac_address"'"
-};
-
-globalThis.__cursor_ids__=__ids__;
-
-var Module=__require__("module");
-var _origReq=Module.prototype.require;
-var _hooked=new Map();
-
-Module.prototype.require=function(id){
-    var result=_origReq.apply(this,arguments);
-    if(_hooked.has(id))return _hooked.get(id);
-    var hooked=result;
-
-    if(id==="child_process"){
-        var _origExecSync=result.execSync;
-        result.execSync=function(cmd,opts){
-            var cmdStr=String(cmd).toLowerCase();
-            if(cmdStr.includes("machine-id")||cmdStr.includes("hostname")){
-                return Buffer.from(__ids__.machineId.substring(0,32));
-            }
-            return _origExecSync.apply(this,arguments);
-        };
-        hooked=result;
-    }
-    else if(id==="os"){
-        result.networkInterfaces=function(){
-            return{"eth0":[{address:"192.168.1.100",netmask:"255.255.255.0",family:"IPv4",mac:__ids__.macAddress,internal:false}]};
-        };
-        hooked=result;
-    }
-    else if(id==="crypto"){
-        var _origCreateHash=result.createHash;
-        var _origRandomUUID=result.randomUUID;
-        result.createHash=function(algo){
-            var hash=_origCreateHash.apply(this,arguments);
-            if(algo.toLowerCase()==="sha256"){
-                var _origDigest=hash.digest.bind(hash);
-                var _origUpdate=hash.update.bind(hash);
-                var inputData="";
-                hash.update=function(data,enc){inputData+=String(data);return _origUpdate(data,enc);};
-                hash.digest=function(enc){
-                    if(inputData.includes("machine-id")||(inputData.length>=32&&inputData.length<=40)){
-                        return enc==="hex"?__ids__.machineId:Buffer.from(__ids__.machineId,"hex");
-                    }
-                    return _origDigest(enc);
-                };
-            }
-            return hash;
-        };
-        if(_origRandomUUID){
-            var uuidCount=0;
-            result.randomUUID=function(){
-                uuidCount++;
-                if(uuidCount<=2)return __ids__.devDeviceId;
-                return _origRandomUUID.apply(this,arguments);
-            };
-        }
-        hooked=result;
-    }
-    else if(id==="@vscode/deviceid"){
-        hooked={...result,getDeviceId:async function(){return __ids__.devDeviceId;}};
-    }
-
-    if(hooked!==result)_hooked.set(id,hooked);
-    return hooked;
-};
-
-console.log("[Cursor ID Modifier] 增强版 Hook 已激活 - 煎饼果子(86) 公众号【煎饼果子卷AI】");
 })();
-// ========== Cursor Hook 注入结束 ==========
+// ========== Cursor Hook Loader 结束 ==========
 
 '
 
@@ -1153,19 +1187,22 @@ console.log("[Cursor ID Modifier] 增强版 Hook 已激活 - 煎饼果子(86) �
             }
             { print }
             ' "$file" > "$temp_file"
-            log_info "   ✓ [方案B] 增强版 Hook 代码已注入（版权声明后）"
+            log_info "   ✓ [方案C] Loader Stub 已注入（版权声明后）"
         else
             echo "$inject_code" > "$temp_file"
             cat "$file" >> "$temp_file"
-            log_info "   ✓ [方案B] 增强版 Hook 代码已注入（文件开头）"
+            log_info "   ✓ [方案C] Loader Stub 已注入（文件开头）"
         fi
 
         if mv "$temp_file" "$file"; then
+            local summary="Hook加载器"
             if [ "$replaced" = true ]; then
-                log_info "✅ [成功] 增强版混合方案修改成功（someValue替换 + 深度Hook）"
-            else
-                log_info "✅ [成功] 增强版 Hook 修改成功"
+                summary="someValue替换 + $summary"
             fi
+            if [ "$b6_patched" = true ]; then
+                summary="b6定点重写 + $summary"
+            fi
+            log_info "✅ [成功] 增强版方案修改成功（$summary）"
             ((modified_count++))
             file_modification_status+=("'$(basename "$file")': Success")
 
@@ -1191,9 +1228,10 @@ console.log("[Cursor ID Modifier] 增强版 Hook 已激活 - 煎饼果子(86) �
     fi
 
     log_info "🎉 [完成] 成功修改 $modified_count 个JS文件"
-    log_info "💡 [说明] 使用增强版 Hook 方案："
+    log_info "💡 [说明] 使用增强版三重方案："
     log_info "   • 方案A: someValue占位符替换（稳定锚点，跨版本兼容）"
-    log_info "   • 方案B: 深度模块劫持（child_process, crypto, os, @vscode/*）"
+    log_info "   • 方案B: b6 定点重写（机器码源函数）"
+    log_info "   • 方案C: Loader Stub + 外置 Hook（cursor_hook.js）"
     log_info "📁 [配置] ID 配置文件: $ids_config_path"
     return 0
 }

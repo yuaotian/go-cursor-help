@@ -27,11 +27,11 @@ function Generate-RandomString {
 # 🔧 修改Cursor内核JS文件实现设备识别绕过（增强版三重方案）
 # 方案A: someValue占位符替换 - 稳定锚点，不依赖混淆后的函数名
 # 方案B: b6 定点重写 - 机器码源函数直接返回固定值
-# 方案C: 深度 Hook + 共享进程注入 - 拦截 child_process/crypto/os/@vscode 等模块
+# 方案C: Loader Stub + 外置 Hook - 主/共享进程仅加载外置 Hook 文件
 function Modify-CursorJSFiles {
     Write-Host ""
     Write-Host "$BLUE🔧 [内核修改]$NC 开始修改Cursor内核JS文件实现设备识别绕过..."
-    Write-Host "$BLUE💡 [方案]$NC 使用增强版三重方案：占位符替换 + b6 定点重写 + 共享进程 Hook"
+    Write-Host "$BLUE💡 [方案]$NC 使用增强版三重方案：占位符替换 + b6 定点重写 + Loader Stub + 外置 Hook"
     Write-Host ""
 
     # Windows版Cursor应用路径
@@ -124,6 +124,46 @@ function Modify-CursorJSFiles {
     }
     $idsConfig | ConvertTo-Json | Set-Content -Path $idsConfigPath -Encoding UTF8
     Write-Host "$GREEN💾 [保存]$NC 新的 ID 配置已保存到: $idsConfigPath"
+
+    # 部署外置 Hook 文件（供 Loader Stub 加载，支持多域名备用下载）
+    $hookTargetPath = "$env:USERPROFILE\.cursor_hook.js"
+    $hookSourceCandidates = @(
+        (Join-Path $PSScriptRoot "..\hook\cursor_hook.js"),
+        (Join-Path (Get-Location) "scripts\hook\cursor_hook.js")
+    )
+    $hookSourcePath = $hookSourceCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+    $hookDownloadUrls = @(
+        "https://wget.la/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/hook/cursor_hook.js",
+        "https://down.npee.cn/?https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/hook/cursor_hook.js",
+        "https://xget.xi-xu.me/gh/yuaotian/go-cursor-help/refs/heads/master/scripts/hook/cursor_hook.js",
+        "https://gh-proxy.com/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/hook/cursor_hook.js",
+        "https://gh.chjina.com/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/hook/cursor_hook.js"
+    )
+    if ($hookSourcePath) {
+        try {
+            Copy-Item -Path $hookSourcePath -Destination $hookTargetPath -Force
+            Write-Host "$GREEN✅ [Hook]$NC 外置 Hook 已部署: $hookTargetPath"
+        } catch {
+            Write-Host "$YELLOW⚠️  [Hook]$NC 本地 Hook 复制失败，尝试在线下载..."
+        }
+    }
+    if (-not (Test-Path $hookTargetPath)) {
+        foreach ($url in $hookDownloadUrls) {
+            try {
+                Invoke-WebRequest -Uri $url -OutFile $hookTargetPath -UseBasicParsing -ErrorAction Stop
+                Write-Host "$GREEN✅ [Hook]$NC 外置 Hook 已在线下载: $hookTargetPath"
+                break
+            } catch {
+                Write-Host "$YELLOW⚠️  [Hook]$NC 外置 Hook 下载失败: $url"
+                if (Test-Path $hookTargetPath) {
+                    Remove-Item -Path $hookTargetPath -Force
+                }
+            }
+        }
+        if (-not (Test-Path $hookTargetPath)) {
+            Write-Host "$YELLOW⚠️  [Hook]$NC 外置 Hook 全部下载失败"
+        }
+    }
 
     # 目标JS文件列表（Windows路径，按优先级排序）
     $jsFiles = @(
@@ -258,7 +298,8 @@ function Modify-CursorJSFiles {
             # ========== 方法B: b6 定点重写（机器码源函数，仅 main.js） ==========
             # 说明：b6(t) 是 machineId 的核心生成函数，t=true 返回原始值，t=false 返回哈希
             if ((Split-Path $file -Leaf) -eq "main.js") {
-                $b6Pattern = '(?s)async function b6\(\w+\)\{.*?return \w+\?\w+:\w+\}'
+                # 使用特征锚点定位（createHash("sha256") + return t?e:i），避免依赖函数名
+                $b6Pattern = '(?s)async function \w+\(\w+\)\{.*?createHash\("sha256"\).*?return \w+\?\w+:\w+\}'
                 $b6Replacement = "async function b6(t){return t?'$machineGuid':'$machineId';}"
                 $b6Regex = [regex]::new($b6Pattern)
                 if ($b6Regex.IsMatch($content)) {
@@ -270,200 +311,45 @@ function Modify-CursorJSFiles {
                 }
             }
 
-            # ========== 方法C: 增强版深度 Hook 注入 ==========
-            # 从底层拦截所有设备标识符的生成：
-            # 1. Module.prototype.require 劫持 - 拦截 child_process, crypto, os 等模块
-            # 2. child_process.execSync - 拦截 REG.exe 查询 MachineGuid
-            # 3. crypto.createHash - 拦截 SHA256 哈希计算
-            # 4. crypto.randomUUID - 拦截 UUID 生成
-            # 5. os.networkInterfaces - 拦截 MAC 地址获取
-            # 6. @vscode/deviceid - 拦截 devDeviceId 获取
-            # 7. @vscode/windows-registry - 拦截注册表读取
+            # ========== 方法C: Loader Stub 注入 ==========
+            # 说明：主/共享进程仅注入加载器，具体 Hook 逻辑由外置 cursor_hook.js 维护
 
             $injectCode = @"
-// ========== Cursor Hook 注入开始 ==========
+// ========== Cursor Hook Loader 开始 ==========
 ;(async function(){/*__cursor_patched__*/
 'use strict';
-if (globalThis.__cursor_patched__) return;
-globalThis.__cursor_patched__ = true;
+if (globalThis.__cursor_hook_loaded__) return;
+globalThis.__cursor_hook_loaded__ = true;
 
 try {
-    // 固定的设备标识符（与 PowerShell 生成保持一致）
-    var __ids__ = {
-        machineId:'$machineId',
-        machineGuid:'$machineGuid',
-        macMachineId:'$macMachineId',
-        devDeviceId:'$deviceId',
-        sqmId:'$sqmId',
-        macAddress:'$macAddress',
-        sessionId:'$sessionId',
-        firstSessionDate:'$firstSessionDateValue'
-    };
-
-    // 暴露到全局，便于共享进程复用
-    globalThis.__cursor_ids__ = __ids__;
-
-    // 兼容 ESM：尝试获取 require
     var __require__ = typeof require === 'function' ? require : null;
     if (!__require__) {
-        try {
-            var __m__ = await import('module');
-            __require__ = __m__.createRequire(import.meta.url);
-        } catch (e) {
-            // 无法获得 require 时仅做全局 crypto 兜底，避免影响启动
-            if (globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function') {
-                var __origGlobalUUID__ = globalThis.crypto.randomUUID;
-                var __uuidCount__ = 0;
-                globalThis.crypto.randomUUID = function(){
-                    __uuidCount__++;
-                    if (__uuidCount__ <= 2) return __ids__.devDeviceId;
-                    return __origGlobalUUID__.apply(this, arguments);
-                };
-            }
-            return;
-        }
+        var __m__ = await import('module');
+        __require__ = __m__.createRequire(import.meta.url);
     }
-
-    // 处理 node: 前缀模块名
-    function __normalizeId__(id){
-        return (typeof id === 'string' && id.indexOf('node:') === 0) ? id.slice(5) : id;
+    var fs = __require__('fs');
+    var path = __require__('path');
+    var os = __require__('os');
+    var hookPath = path.join(os.homedir(), '.cursor_hook.js');
+    if (fs.existsSync(hookPath)) {
+        __require__(hookPath);
     }
-
-    // 先覆盖全局 crypto.randomUUID（满足直调用）
-    if (globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function') {
-        var __origGlobalUUID2__ = globalThis.crypto.randomUUID;
-        var __uuidCount2__ = 0;
-        globalThis.crypto.randomUUID = function(){
-            __uuidCount2__++;
-            if (__uuidCount2__ <= 2) return __ids__.devDeviceId;
-            return __origGlobalUUID2__.apply(this, arguments);
-        };
-    }
-
-    // Hook Module.prototype.require
-    var Module = __require__('module');
-    var _origReq = Module.prototype.require;
-    var _hooked = new Map();
-
-    Module.prototype.require = function(id){
-        var normalized = __normalizeId__(id);
-        var result = _origReq.apply(this, arguments);
-        if (_hooked.has(normalized)) return _hooked.get(normalized);
-        var hooked = result;
-
-        // Hook child_process（拦截注册表/平台查询）
-        if (normalized === 'child_process') {
-            var _origExecSync = result.execSync;
-            var _origExecFileSync = result.execFileSync;
-            if (typeof _origExecSync === 'function') {
-                result.execSync = function(cmd, opts){
-                    var cmdStr = String(cmd).toLowerCase();
-                    if (cmdStr.includes('reg') && cmdStr.includes('machineguid')) {
-                        return Buffer.from('\r\n    MachineGuid    REG_SZ    ' + __ids__.machineGuid + '\r\n');
-                    }
-                    if (cmdStr.includes('ioreg') && cmdStr.includes('ioplatformexpertdevice')) {
-                        return Buffer.from('\"IOPlatformUUID\" = \"' + __ids__.machineGuid.toUpperCase() + '\"');
-                    }
-                    return _origExecSync.apply(this, arguments);
-                };
-            }
-            if (typeof _origExecFileSync === 'function') {
-                result.execFileSync = function(file, args, opts){
-                    var cmdStr = [file].concat(args || []).join(' ').toLowerCase();
-                    if (cmdStr.includes('reg') && cmdStr.includes('machineguid')) {
-                        return Buffer.from('\r\n    MachineGuid    REG_SZ    ' + __ids__.machineGuid + '\r\n');
-                    }
-                    if (cmdStr.includes('ioreg') && cmdStr.includes('ioplatformexpertdevice')) {
-                        return Buffer.from('\"IOPlatformUUID\" = \"' + __ids__.machineGuid.toUpperCase() + '\"');
-                    }
-                    return _origExecFileSync.apply(this, arguments);
-                };
-            }
-            hooked = result;
-        }
-        // Hook os（MAC 地址）
-        else if (normalized === 'os') {
-            var _origNI = result.networkInterfaces;
-            result.networkInterfaces = function(){
-                return {'Ethernet':[{'address':'192.168.1.100','netmask':'255.255.255.0','family':'IPv4','mac':__ids__.macAddress,'internal':false}]};
-            };
-            hooked = result;
-        }
-        // Hook crypto（hash/uuid）
-        else if (normalized === 'crypto') {
-            var _origCreateHash = result.createHash;
-            var _origRandomUUID = result.randomUUID;
-            if (typeof _origCreateHash === 'function') {
-                result.createHash = function(algo){
-                    var hash = _origCreateHash.apply(this, arguments);
-                    var algoName = String(algo).toLowerCase();
-                    if (algoName === 'sha256') {
-                        var _origDigest = hash.digest.bind(hash);
-                        var _origUpdate = hash.update.bind(hash);
-                        var inputData = '';
-                        hash.update = function(data, enc){ inputData += String(data); return _origUpdate(data, enc); };
-                        hash.digest = function(enc){
-                            var text = inputData.toLowerCase();
-                            var looksGuid = /^[0-9a-f-]{32,36}$/.test(text);
-                            if (looksGuid || text.includes('machineguid') || text.includes('ioplatformuuid')) {
-                                return enc === 'hex' ? __ids__.machineId : Buffer.from(__ids__.machineId, 'hex');
-                            }
-                            return _origDigest(enc);
-                        };
-                    }
-                    return hash;
-                };
-            }
-            if (typeof _origRandomUUID === 'function') {
-                var uuidCount = 0;
-                result.randomUUID = function(){
-                    uuidCount++;
-                    if (uuidCount <= 2) return __ids__.devDeviceId;
-                    return _origRandomUUID.apply(this, arguments);
-                };
-            }
-            hooked = result;
-        }
-        // Hook @vscode/deviceid
-        else if (normalized === '@vscode/deviceid') {
-            hooked = Object.assign({}, result, {
-                getDeviceId: async function(){ return __ids__.devDeviceId; }
-            });
-        }
-        // Hook @vscode/windows-registry
-        else if (normalized === '@vscode/windows-registry') {
-            var _origGetReg = result.GetStringRegKey;
-            hooked = Object.assign({}, result, {
-                GetStringRegKey: function(hive, path, name){
-                    var p = String(path || '').toLowerCase();
-                    if (name === 'MachineId' || p.includes('sqmclient')) return __ids__.sqmId;
-                    if (name === 'MachineGuid' || p.includes('cryptography')) return __ids__.machineGuid;
-                    return _origGetReg ? _origGetReg.apply(this, arguments) : '';
-                }
-            });
-        }
-
-        if (hooked !== result) _hooked.set(normalized, hooked);
-        return hooked;
-    };
-
-    console.log('[Cursor ID Modifier] Hook 已激活（占位符 + b6 + 共享进程）');
 } catch (e) {
-    try { console.warn('[Cursor ID Modifier] 注入异常：' + (e && e.message ? e.message : e)); } catch (_) {}
+    // 失败静默，避免影响启动
 }
 })();
-// ========== Cursor Hook 注入结束 ==========
+// ========== Cursor Hook Loader 结束 ==========
 
 "@
 
             # 找到版权声明结束位置并在其后注入
             if ($content -match '(\*/\s*\n)') {
                 $content = $content -replace '(\*/\s*\n)', "`$1$injectCode"
-                Write-Host "   $GREEN✓$NC [方案C] 增强版 Hook 代码已注入（版权声明后）"
+                Write-Host "   $GREEN✓$NC [方案C] Loader Stub 已注入（版权声明后）"
             } else {
                 # 如果没有找到版权声明，则注入到文件开头
                 $content = $injectCode + $content
-                Write-Host "   $GREEN✓$NC [方案C] 增强版 Hook 代码已注入（文件开头）"
+                Write-Host "   $GREEN✓$NC [方案C] Loader Stub 已注入（文件开头）"
             }
 
             # 写入修改后的内容
@@ -473,7 +359,7 @@ try {
             $summaryParts = @()
             if ($replaced) { $summaryParts += "someValue替换" }
             if ($replacedB6) { $summaryParts += "b6定点重写" }
-            $summaryParts += "深度Hook"
+            $summaryParts += "Hook加载器"
             $summaryText = ($summaryParts -join " + ")
             Write-Host "$GREEN✅ [成功]$NC 增强版方案修改成功（$summaryText）"
             $modifiedCount++
@@ -497,7 +383,7 @@ try {
         Write-Host "$BLUE💡 [说明]$NC 使用增强版三重方案："
         Write-Host "   • 方案A: someValue占位符替换（稳定锚点，跨版本兼容）"
         Write-Host "   • 方案B: b6 定点重写（机器码源函数）"
-        Write-Host "   • 方案C: 深度模块劫持 + 共享进程注入（child_process/crypto/os/@vscode/*）"
+        Write-Host "   • 方案C: Loader Stub + 外置 Hook（cursor_hook.js）"
         Write-Host "$BLUE📁 [配置]$NC ID 配置文件: $idsConfigPath"
         return $true
     } else {
