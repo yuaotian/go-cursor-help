@@ -70,6 +70,15 @@ CURSOR_CONFIG_DIR="$HOME/.config/Cursor"
 STORAGE_FILE="$CURSOR_CONFIG_DIR/User/globalStorage/storage.json"
 BACKUP_DIR="$CURSOR_CONFIG_DIR/User/globalStorage/backups"
 
+# 共享ID（用于配置与JS注入保持一致）
+CURSOR_ID_MACHINE_ID=""
+CURSOR_ID_MAC_MACHINE_ID=""
+CURSOR_ID_DEVICE_ID=""
+CURSOR_ID_SQM_ID=""
+CURSOR_ID_FIRST_SESSION_DATE=""
+CURSOR_ID_SESSION_ID=""
+CURSOR_ID_MAC_ADDRESS="00:11:22:33:44:55"
+
 # --- 新增：安装相关变量 ---
 APPIMAGE_SEARCH_DIR="/opt/CursorInstall" # AppImage 搜索目录，可按需修改
 APPIMAGE_PATTERN="Cursor-*.AppImage"     # AppImage 文件名模式
@@ -432,6 +441,102 @@ generate_uuid() {
     fi
 }
 
+# 规范化 machineId（确保为十六进制字符串）
+normalize_machine_id() {
+    local raw="$1"
+    local cleaned
+    cleaned=$(echo "$raw" | tr -d '-' | tr '[:upper:]' '[:lower:]')
+    if [[ "$cleaned" =~ ^[0-9a-f]{32,}$ ]]; then
+        echo "$cleaned"
+        return 0
+    fi
+    return 1
+}
+
+# 从现有配置读取ID（用于JS注入保持一致）
+load_ids_from_storage() {
+    if [ ! -f "$STORAGE_FILE" ]; then
+        return 1
+    fi
+
+    if ! command -v python3 >/dev/null 2>&1; then
+        log_warn "未检测到 python3，无法从现有配置读取 ID"
+        return 1
+    fi
+
+    local output
+    output=$(python3 - "$STORAGE_FILE" <<'PY'
+import json, sys
+path = sys.argv[1]
+with open(path, "r", encoding="utf-8") as f:
+    data = json.load(f)
+
+def pick(keys):
+    for k in keys:
+        v = data.get(k)
+        if isinstance(v, str) and v:
+            return v
+    return ""
+
+items = {
+    "machineId": pick(["telemetry.machineId", "machineId"]),
+    "macMachineId": pick(["telemetry.macMachineId"]),
+    "devDeviceId": pick(["telemetry.devDeviceId", "deviceId"]),
+    "sqmId": pick(["telemetry.sqmId"]),
+    "firstSessionDate": pick(["telemetry.firstSessionDate"]),
+}
+
+for k, v in items.items():
+    print(f"{k}={v}")
+PY
+)
+    if [ $? -ne 0 ] || [ -z "$output" ]; then
+        return 1
+    fi
+
+    while IFS='=' read -r key value; do
+        case "$key" in
+            machineId) CURSOR_ID_MACHINE_ID="$value" ;;
+            macMachineId) CURSOR_ID_MAC_MACHINE_ID="$value" ;;
+            devDeviceId) CURSOR_ID_DEVICE_ID="$value" ;;
+            sqmId) CURSOR_ID_SQM_ID="$value" ;;
+            firstSessionDate) CURSOR_ID_FIRST_SESSION_DATE="$value" ;;
+        esac
+    done <<< "$output"
+
+    if [ -n "$CURSOR_ID_MACHINE_ID" ]; then
+        local normalized
+        if normalized=$(normalize_machine_id "$CURSOR_ID_MACHINE_ID"); then
+            if [ "$normalized" != "$CURSOR_ID_MACHINE_ID" ]; then
+                log_warn "machineId 非标准格式，JS 注入将使用去除连字符后的值"
+            fi
+            CURSOR_ID_MACHINE_ID="$normalized"
+        else
+            log_warn "machineId 无法识别为十六进制，JS 注入将改用新值"
+            CURSOR_ID_MACHINE_ID=""
+        fi
+    fi
+
+    CURSOR_ID_SESSION_ID=$(generate_uuid)
+    CURSOR_ID_MAC_ADDRESS="${CURSOR_ID_MAC_ADDRESS:-00:11:22:33:44:55}"
+
+    if [ -n "$CURSOR_ID_MACHINE_ID" ] && [ -n "$CURSOR_ID_MAC_MACHINE_ID" ] && [ -n "$CURSOR_ID_DEVICE_ID" ] && [ -n "$CURSOR_ID_SQM_ID" ]; then
+        return 0
+    fi
+    return 1
+}
+
+# 仅用于JS注入的ID生成（不写配置）
+generate_ids_for_js_only() {
+    CURSOR_ID_MACHINE_ID=$(openssl rand -hex 32)
+    CURSOR_ID_MAC_MACHINE_ID=$(openssl rand -hex 32)
+    CURSOR_ID_DEVICE_ID=$(generate_uuid)
+    CURSOR_ID_SQM_ID="{$(generate_uuid | tr '[:lower:]' '[:upper:]')}"
+    CURSOR_ID_FIRST_SESSION_DATE=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+    CURSOR_ID_SESSION_ID=$(generate_uuid)
+    CURSOR_ID_MAC_ADDRESS="${CURSOR_ID_MAC_ADDRESS:-00:11:22:33:44:55}"
+}
+
 # 修改现有文件
 modify_or_add_config() {
     local key="$1"
@@ -511,8 +616,10 @@ generate_new_config() {
     log_warn "机器码重置选项"
     
     # 使用菜单选择函数询问用户是否重置机器码
+    set +e
     select_menu_option "是否需要重置机器码? (通常情况下，只修改js文件即可)：" "不重置 - 仅修改js文件即可|重置 - 同时修改配置文件和机器码" 0
     reset_choice=$?
+    set -e
     
     # 记录日志以便调试
     echo "[INPUT_DEBUG] 机器码重置选项选择: $reset_choice" >> "$LOG_FILE"
@@ -538,7 +645,7 @@ generate_new_config() {
             
             # 生成并设置新的设备ID
             local new_device_id=$(generate_uuid)
-            local new_machine_id=$(generate_uuid) # 使用 UUID 作为 Machine ID 更常见
+            local new_machine_id=$(openssl rand -hex 32)
             # 🔧 新增: serviceMachineId (用于 storage.serviceMachineId)
             local new_service_machine_id=$(generate_uuid)
             # 🔧 新增: firstSessionDate (重置首次会话日期)
@@ -546,6 +653,14 @@ generate_new_config() {
             # 🔧 新增: macMachineId 和 sqmId
             local new_mac_machine_id=$(openssl rand -hex 32 2>/dev/null || head -c 32 /dev/urandom | xxd -p | tr -d '\n')
             local new_sqm_id="{$(generate_uuid | tr '[:lower:]' '[:upper:]')}"
+
+            CURSOR_ID_MACHINE_ID="$new_machine_id"
+            CURSOR_ID_MAC_MACHINE_ID="$new_mac_machine_id"
+            CURSOR_ID_DEVICE_ID="$new_device_id"
+            CURSOR_ID_SQM_ID="$new_sqm_id"
+            CURSOR_ID_FIRST_SESSION_DATE="$new_first_session_date"
+            CURSOR_ID_SESSION_ID=$(generate_uuid)
+            CURSOR_ID_MAC_ADDRESS="${CURSOR_ID_MAC_ADDRESS:-00:11:22:33:44:55}"
 
             log_info "正在设置新的设备和机器ID..."
             log_debug "新设备ID: $new_device_id"
@@ -634,8 +749,16 @@ generate_new_config() {
                  log_error "配置文件备份失败，中止操作。"
                  return 1 # 返回错误状态
             fi
+            if load_ids_from_storage; then
+                log_info "已从现有配置读取 ID，JS 注入将保持一致"
+            else
+                log_warn "无法从现有配置读取 ID，JS 注入将使用新生成的 ID（不会修改配置）"
+                generate_ids_for_js_only
+            fi
         else
             log_warn "未找到配置文件 '$STORAGE_FILE'，跳过备份。"
+            log_warn "无法读取现有ID，JS 注入将使用新生成的 ID（不会修改配置）"
+            generate_ids_for_js_only
         fi
     fi
     
@@ -736,17 +859,56 @@ modify_cursor_js_files() {
         return 1
     fi
 
-    # 生成新的设备标识符（使用固定格式确保兼容性）
-    local new_uuid=$(generate_uuid)
-    local machine_id=$(openssl rand -hex 32)
-    local device_id=$(generate_uuid)
-    local mac_machine_id=$(openssl rand -hex 32)
-    local sqm_id="{$(generate_uuid | tr '[:lower:]' '[:upper:]')}"
-    local session_id=$(generate_uuid)
-    local first_session_date=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
-    local mac_address="00:11:22:33:44:55"
+    # 生成或复用设备标识符（优先使用配置中读取的值）
+    local machine_id="${CURSOR_ID_MACHINE_ID:-}"
+    local device_id="${CURSOR_ID_DEVICE_ID:-}"
+    local mac_machine_id="${CURSOR_ID_MAC_MACHINE_ID:-}"
+    local sqm_id="${CURSOR_ID_SQM_ID:-}"
+    local session_id="${CURSOR_ID_SESSION_ID:-}"
+    local first_session_date="${CURSOR_ID_FIRST_SESSION_DATE:-}"
+    local mac_address="${CURSOR_ID_MAC_ADDRESS:-00:11:22:33:44:55}"
+    local ids_missing=false
 
-    log_info "🔑 [生成] 已生成新的设备标识符"
+    if [ -z "$machine_id" ]; then
+        machine_id=$(openssl rand -hex 32)
+        ids_missing=true
+    fi
+    if [ -z "$device_id" ]; then
+        device_id=$(generate_uuid)
+        ids_missing=true
+    fi
+    if [ -z "$mac_machine_id" ]; then
+        mac_machine_id=$(openssl rand -hex 32)
+        ids_missing=true
+    fi
+    if [ -z "$sqm_id" ]; then
+        sqm_id="{$(generate_uuid | tr '[:lower:]' '[:upper:]')}"
+        ids_missing=true
+    fi
+    if [ -z "$session_id" ]; then
+        session_id=$(generate_uuid)
+        ids_missing=true
+    fi
+    if [ -z "$first_session_date" ]; then
+        first_session_date=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+        ids_missing=true
+    fi
+
+    if [ "$ids_missing" = true ]; then
+        log_warn "部分 ID 未从配置获取，已生成新值用于 JS 注入"
+    else
+        log_info "已使用配置中的设备标识符进行 JS 注入"
+    fi
+
+    CURSOR_ID_MACHINE_ID="$machine_id"
+    CURSOR_ID_DEVICE_ID="$device_id"
+    CURSOR_ID_MAC_MACHINE_ID="$mac_machine_id"
+    CURSOR_ID_SQM_ID="$sqm_id"
+    CURSOR_ID_SESSION_ID="$session_id"
+    CURSOR_ID_FIRST_SESSION_DATE="$first_session_date"
+    CURSOR_ID_MAC_ADDRESS="$mac_address"
+
+    log_info "🔑 [准备] 设备标识符已就绪"
     log_info "   machineId: ${machine_id:0:16}..."
     log_info "   deviceId: ${device_id:0:16}..."
     log_info "   macMachineId: ${mac_machine_id:0:16}..."
@@ -1354,8 +1516,10 @@ main() {
     # 查找 Cursor 路径
     if ! find_cursor_path; then
         log_warn "系统中未找到现有的 Cursor 安装。"
+        set +e
         select_menu_option "是否尝试从 '$APPIMAGE_SEARCH_DIR' 目录中的 AppImage 文件安装 Cursor？" "是，安装 Cursor|否，退出脚本" 0
         install_choice=$?
+        set -e
         
         if [ "$install_choice" -eq 0 ]; then
             if ! install_cursor_appimage; then

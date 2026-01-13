@@ -60,24 +60,40 @@ function Modify-CursorJSFiles {
 
     Write-Host "$GREEN✅ [发现]$NC 找到Cursor安装路径: $cursorAppPath"
 
-    # 生成新的设备标识符（使用固定格式确保兼容性）
-    $newUuid = [System.Guid]::NewGuid().ToString().ToLower()
-    $randomBytes = New-Object byte[] 32
-    $rng = [System.Security.Cryptography.RNGCryptoServiceProvider]::new()
-    $rng.GetBytes($randomBytes)
-    $machineId = [System.BitConverter]::ToString($randomBytes) -replace '-',''
-    $rng.Dispose()
-    $deviceId = [System.Guid]::NewGuid().ToString().ToLower()
-    $randomBytes2 = New-Object byte[] 32
-    $rng2 = [System.Security.Cryptography.RNGCryptoServiceProvider]::new()
-    $rng2.GetBytes($randomBytes2)
-    $macMachineId = [System.BitConverter]::ToString($randomBytes2) -replace '-',''
-    $rng2.Dispose()
-    $sqmId = "{" + [System.Guid]::NewGuid().ToString().ToUpper() + "}"
-    $sessionId = [System.Guid]::NewGuid().ToString().ToLower()
-    $macAddress = "00:11:22:33:44:55"
+    # 生成或复用设备标识符（优先使用配置中生成的值）
+    $useConfigIds = $false
+    if ($global:CursorIds -and $global:CursorIds.machineId -and $global:CursorIds.macMachineId -and $global:CursorIds.devDeviceId -and $global:CursorIds.sqmId) {
+        $machineId = [string]$global:CursorIds.machineId
+        $macMachineId = [string]$global:CursorIds.macMachineId
+        $deviceId = [string]$global:CursorIds.devDeviceId
+        $sqmId = [string]$global:CursorIds.sqmId
+        $sessionId = if ($global:CursorIds.sessionId) { [string]$global:CursorIds.sessionId } else { [System.Guid]::NewGuid().ToString().ToLower() }
+        $firstSessionDateValue = if ($global:CursorIds.firstSessionDate) { [string]$global:CursorIds.firstSessionDate } else { (Get-Date).ToString("yyyy-MM-ddTHH:mm:ss.fffZ") }
+        $macAddress = if ($global:CursorIds.macAddress) { [string]$global:CursorIds.macAddress } else { "00:11:22:33:44:55" }
+        $useConfigIds = $true
+    } else {
+        $randomBytes = New-Object byte[] 32
+        $rng = [System.Security.Cryptography.RNGCryptoServiceProvider]::new()
+        $rng.GetBytes($randomBytes)
+        $machineId = [System.BitConverter]::ToString($randomBytes) -replace '-',''
+        $rng.Dispose()
+        $deviceId = [System.Guid]::NewGuid().ToString().ToLower()
+        $randomBytes2 = New-Object byte[] 32
+        $rng2 = [System.Security.Cryptography.RNGCryptoServiceProvider]::new()
+        $rng2.GetBytes($randomBytes2)
+        $macMachineId = [System.BitConverter]::ToString($randomBytes2) -replace '-',''
+        $rng2.Dispose()
+        $sqmId = "{" + [System.Guid]::NewGuid().ToString().ToUpper() + "}"
+        $sessionId = [System.Guid]::NewGuid().ToString().ToLower()
+        $firstSessionDateValue = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+        $macAddress = "00:11:22:33:44:55"
+    }
 
-    Write-Host "$GREEN🔑 [生成]$NC 已生成新的设备标识符"
+    if ($useConfigIds) {
+        Write-Host "$GREEN🔑 [准备]$NC 已使用配置中的设备标识符"
+    } else {
+        Write-Host "$GREEN🔑 [生成]$NC 已生成新的设备标识符"
+    }
     Write-Host "   machineId: $($machineId.Substring(0,16))..."
     Write-Host "   deviceId: $($deviceId.Substring(0,16))..."
     Write-Host "   macMachineId: $($macMachineId.Substring(0,16))..."
@@ -96,7 +112,7 @@ function Modify-CursorJSFiles {
         devDeviceId = $deviceId
         sqmId = $sqmId
         macAddress = $macAddress
-        createdAt = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+        createdAt = $firstSessionDateValue
     }
     $idsConfig | ConvertTo-Json | Set-Content -Path $idsConfigPath -Encoding UTF8
     Write-Host "$GREEN💾 [保存]$NC 新的 ID 配置已保存到: $idsConfigPath"
@@ -162,7 +178,7 @@ function Modify-CursorJSFiles {
     }
 
     # 修改JS文件（每次都重新注入，因为已从原始备份恢复）
-    Write-Host "$BLUE🔧 [修改]$NC 开始修改JS文件（使用新的设备标识符）..."
+    Write-Host "$BLUE🔧 [修改]$NC 开始修改JS文件（使用设备标识符）..."
 
     foreach ($file in $jsFiles) {
         if (-not (Test-Path $file)) {
@@ -185,7 +201,9 @@ function Modify-CursorJSFiles {
             # 因此这里优先替换完整的字符串字面量（包含外层引号），并使用 JSON 字符串字面量确保转义安全。
 
             # 🔧 新增: firstSessionDate（重置首次会话日期）
-            $firstSessionDateValue = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+            if (-not $firstSessionDateValue) {
+                $firstSessionDateValue = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+            }
 
             $placeholders = @(
                 @{ Name = 'someValue.machineId';         Value = [string]$machineId },
@@ -871,6 +889,100 @@ function Update-MachineGuid {
     }
 }
 
+# 🚫 禁用 Cursor 自动更新（Windows）
+function Disable-CursorAutoUpdate {
+    Write-Host ""
+    Write-Host "$BLUE🚫 [禁用更新]$NC 正在尝试禁用 Cursor 自动更新..."
+
+    # 检测 Cursor 安装路径
+    $cursorAppPath = "${env:LOCALAPPDATA}\Programs\Cursor"
+    if (-not (Test-Path $cursorAppPath)) {
+        $alternatePaths = @(
+            "${env:ProgramFiles}\Cursor",
+            "${env:ProgramFiles(x86)}\Cursor",
+            "${env:USERPROFILE}\AppData\Local\Programs\Cursor"
+        )
+        foreach ($path in $alternatePaths) {
+            if (Test-Path $path) {
+                $cursorAppPath = $path
+                break
+            }
+        }
+    }
+
+    if (-not (Test-Path $cursorAppPath)) {
+        Write-Host "$YELLOW⚠️  [警告]$NC 未找到 Cursor 安装路径，跳过禁用更新"
+        return $false
+    }
+
+    # 更新配置文件（JSON/YAML）
+    $updateFiles = @(
+        "$cursorAppPath\resources\app-update.yml",
+        "$cursorAppPath\resources\app\update-config.json",
+        "$env:APPDATA\Cursor\update-config.json",
+        "$env:APPDATA\Cursor\settings.json"
+    )
+
+    foreach ($file in $updateFiles) {
+        if (-not (Test-Path $file)) { continue }
+
+        try {
+            Copy-Item $file "$file.bak_$(Get-Date -Format 'yyyyMMdd_HHmmss')" -Force
+        } catch {
+            Write-Host "$YELLOW⚠️  [警告]$NC 备份失败: $file"
+        }
+
+        if ($file -like "*.yml") {
+            Set-Content -Path $file -Value "# update disabled by script $(Get-Date)" -Encoding UTF8
+            Write-Host "$GREEN✅ [完成]$NC 已处理更新配置: $file"
+            continue
+        }
+
+        if ($file -like "*update-config.json") {
+            $config = @{ autoCheck = $false; autoDownload = $false }
+            $config | ConvertTo-Json -Depth 5 | Set-Content -Path $file -Encoding UTF8
+            Write-Host "$GREEN✅ [完成]$NC 已处理更新配置: $file"
+            continue
+        }
+
+        if ($file -like "*settings.json") {
+            try {
+                $settings = Get-Content $file -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop
+            } catch {
+                $settings = @{}
+            }
+            if ($settings -is [hashtable]) {
+                $settings["update.mode"] = "none"
+            } else {
+                $settings | Add-Member -MemberType NoteProperty -Name "update.mode" -Value "none" -Force
+            }
+            $settings | ConvertTo-Json -Depth 10 | Set-Content -Path $file -Encoding UTF8
+            Write-Host "$GREEN✅ [完成]$NC 已处理更新配置: $file"
+            continue
+        }
+    }
+
+    # 尝试禁用更新器可执行文件
+    $updaterCandidates = @(
+        "$cursorAppPath\Update.exe",
+        "$env:LOCALAPPDATA\Cursor\Update.exe",
+        "$cursorAppPath\CursorUpdater.exe"
+    )
+
+    foreach ($updater in $updaterCandidates) {
+        if (-not (Test-Path $updater)) { continue }
+        $backup = "$updater.bak_$(Get-Date -Format 'yyyyMMdd_HHmmss')"
+        try {
+            Move-Item -Path $updater -Destination $backup -Force
+            Write-Host "$GREEN✅ [完成]$NC 已禁用更新器: $updater"
+        } catch {
+            Write-Host "$YELLOW⚠️  [警告]$NC 更新器禁用失败: $updater"
+        }
+    }
+
+    return $true
+}
+
 # 检查配置文件和环境
 function Test-CursorEnvironment {
     param(
@@ -1044,6 +1156,18 @@ function Modify-MachineCodeConfig {
             $SERVICE_MACHINE_ID = [System.Guid]::NewGuid().ToString()
             # 🔧 新增: firstSessionDate (重置首次会话日期)
             $FIRST_SESSION_DATE = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+            $SESSION_ID = [System.Guid]::NewGuid().ToString()
+
+            # 共享ID（用于配置与JS注入保持一致）
+            $global:CursorIds = @{
+                machineId        = $MACHINE_ID
+                macMachineId     = $MAC_MACHINE_ID
+                devDeviceId      = $UUID
+                sqmId            = $SQM_ID
+                firstSessionDate = $FIRST_SESSION_DATE
+                sessionId        = $SESSION_ID
+                macAddress       = "00:11:22:33:44:55"
+            }
 
             Write-Host "$GREEN✅ [进度]$NC 1/7 - 设备标识符生成完成"
 
@@ -1745,6 +1869,14 @@ if ($executeMode -eq "MODIFY_ONLY") {
             }
         }
 
+        Write-Host ""
+        Write-Host "$BLUE🚫 [禁用更新]$NC 正在禁用 Cursor 自动更新..."
+        if (Disable-CursorAutoUpdate) {
+            Write-Host "$GREEN✅ [禁用更新]$NC 自动更新已处理"
+        } else {
+            Write-Host "$YELLOW⚠️  [禁用更新]$NC 未能确认禁用更新，可能需要手动处理"
+        }
+
         Write-Host "$BLUE💡 [提示]$NC 现在可以启动Cursor使用新的机器码配置"
     } else {
         Write-Host ""
@@ -1872,6 +2004,14 @@ if ($executeMode -eq "MODIFY_ONLY") {
                 Write-Host "$YELLOW⚠️  [保护]$NC 设置只读属性失败: $($_.Exception.Message)"
                 Write-Host "$BLUE💡 [建议]$NC 可手动右键文件 → 属性 → 勾选'只读'"
             }
+        }
+
+        Write-Host ""
+        Write-Host "$BLUE🚫 [禁用更新]$NC 正在禁用 Cursor 自动更新..."
+        if (Disable-CursorAutoUpdate) {
+            Write-Host "$GREEN✅ [禁用更新]$NC 自动更新已处理"
+        } else {
+            Write-Host "$YELLOW⚠️  [禁用更新]$NC 未能确认禁用更新，可能需要手动处理"
         }
     } else {
         Write-Host ""

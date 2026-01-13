@@ -446,12 +446,20 @@ except Exception as e:
     # 生成新的ID
     local MAC_MACHINE_ID=$(uuidgen | tr '[:upper:]' '[:lower:]')
     local UUID=$(uuidgen | tr '[:upper:]' '[:lower:]')
-    local MACHINE_ID="auth0|user_$(openssl rand -hex 32)"
+    local MACHINE_ID=$(openssl rand -hex 32)
     local SQM_ID="{$(uuidgen | tr '[:lower:]' '[:upper:]')}"
     # 🔧 新增: serviceMachineId (用于 storage.serviceMachineId)
     local SERVICE_MACHINE_ID=$(uuidgen | tr '[:upper:]' '[:lower:]')
     # 🔧 新增: firstSessionDate (重置首次会话日期)
     local FIRST_SESSION_DATE=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+
+    CURSOR_ID_MACHINE_ID="$MACHINE_ID"
+    CURSOR_ID_MAC_MACHINE_ID="$MAC_MACHINE_ID"
+    CURSOR_ID_DEVICE_ID="$UUID"
+    CURSOR_ID_SQM_ID="$SQM_ID"
+    CURSOR_ID_FIRST_SESSION_DATE="$FIRST_SESSION_DATE"
+    CURSOR_ID_SESSION_ID=$(uuidgen | tr '[:upper:]' '[:lower:]')
+    CURSOR_ID_MAC_ADDRESS="${CURSOR_ID_MAC_ADDRESS:-00:11:22:33:44:55}"
 
     log_info "✅ [进度] 1/5 - 设备标识符生成完成"
 
@@ -744,6 +752,15 @@ TARGET_HOME="$(get_user_home_dir "$TARGET_USER")"
 # 定义配置文件路径
 STORAGE_FILE="$TARGET_HOME/Library/Application Support/Cursor/User/globalStorage/storage.json"
 BACKUP_DIR="$TARGET_HOME/Library/Application Support/Cursor/User/globalStorage/backups"
+
+# 共享ID（用于配置与JS注入保持一致）
+CURSOR_ID_MACHINE_ID=""
+CURSOR_ID_MAC_MACHINE_ID=""
+CURSOR_ID_DEVICE_ID=""
+CURSOR_ID_SQM_ID=""
+CURSOR_ID_FIRST_SESSION_DATE=""
+CURSOR_ID_SESSION_ID=""
+CURSOR_ID_MAC_ADDRESS="00:11:22:33:44:55"
 
 # 定义 Cursor 应用程序路径
 CURSOR_APP_PATH="/Applications/Cursor.app"
@@ -1417,6 +1434,40 @@ _show_troubleshooting_info() {
     echo
 }
 
+# 智能设备识别绕过（优先MAC地址修改，失败则JS注入）
+run_device_bypass() {
+    log_info "🔧 [设备识别] 开始执行智能设备识别绕过..."
+
+    local wifi_interface=""
+    wifi_interface=$(networksetup -listallhardwareports | awk '/Hardware Port: Wi-Fi/{getline; print $2; exit}')
+    local mac_success=false
+
+    if [ -n "$wifi_interface" ]; then
+        log_info "📡 [接口] 检测到 Wi-Fi 接口: $wifi_interface"
+        if _change_mac_for_one_interface "$wifi_interface"; then
+            mac_success=true
+        else
+            log_warn "⚠️  [MAC] Wi-Fi 接口 MAC 地址修改失败或未生效"
+        fi
+    else
+        log_warn "⚠️  [MAC] 未找到 Wi-Fi 接口，改用 JS 注入"
+    fi
+
+    if [ "$mac_success" = true ]; then
+        log_info "✅ [MAC] MAC 地址修改成功，跳过 JS 注入"
+        return 0
+    fi
+
+    log_info "🔧 [JS] 开始执行 JS 内核注入..."
+    if modify_cursor_js_files; then
+        log_info "✅ [JS] JS 内核注入完成"
+        return 0
+    fi
+
+    log_error "❌ [JS] JS 内核注入失败"
+    return 1
+}
+
 # 检查权限
 check_permissions() {
     if [ "$EUID" -ne 0 ]; then
@@ -1510,6 +1561,17 @@ backup_config() {
     fi
 }
 
+# 重新设置配置文件只读（避免权限修复覆盖）
+protect_storage_file() {
+    if [ -f "$STORAGE_FILE" ]; then
+        if chmod 444 "$STORAGE_FILE" 2>/dev/null; then
+            log_info "🔒 [保护] 配置文件已重新设置为只读"
+        else
+            log_warn "⚠️  [保护] 配置文件只读设置失败"
+        fi
+    fi
+}
+
 # 🔧 修改Cursor内核JS文件实现设备识别绕过（增强版 Hook 方案）
 # 方案A: someValue占位符替换 - 稳定锚点，不依赖混淆后的函数名
 # 方案B: 深度 Hook 注入 - 从底层拦截所有设备标识符生成
@@ -1525,17 +1587,56 @@ modify_cursor_js_files() {
         return 1
     fi
 
-    # 生成新的设备标识符（使用固定格式确保兼容性）
-    local new_uuid=$(uuidgen | tr '[:upper:]' '[:lower:]')
-    local machine_id=$(openssl rand -hex 32)
-    local device_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
-    local mac_machine_id=$(openssl rand -hex 32)
-    local sqm_id="{$(uuidgen | tr '[:lower:]' '[:upper:]')}"
-    local session_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
-    local first_session_date=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
-    local mac_address="00:11:22:33:44:55"
+    # 生成或复用设备标识符（优先使用配置中生成的值）
+    local machine_id="${CURSOR_ID_MACHINE_ID:-}"
+    local device_id="${CURSOR_ID_DEVICE_ID:-}"
+    local mac_machine_id="${CURSOR_ID_MAC_MACHINE_ID:-}"
+    local sqm_id="${CURSOR_ID_SQM_ID:-}"
+    local session_id="${CURSOR_ID_SESSION_ID:-}"
+    local first_session_date="${CURSOR_ID_FIRST_SESSION_DATE:-}"
+    local mac_address="${CURSOR_ID_MAC_ADDRESS:-00:11:22:33:44:55}"
+    local ids_missing=false
 
-    log_info "🔑 [生成] 已生成新的设备标识符"
+    if [ -z "$machine_id" ]; then
+        machine_id=$(openssl rand -hex 32)
+        ids_missing=true
+    fi
+    if [ -z "$device_id" ]; then
+        device_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
+        ids_missing=true
+    fi
+    if [ -z "$mac_machine_id" ]; then
+        mac_machine_id=$(openssl rand -hex 32)
+        ids_missing=true
+    fi
+    if [ -z "$sqm_id" ]; then
+        sqm_id="{$(uuidgen | tr '[:lower:]' '[:upper:]')}"
+        ids_missing=true
+    fi
+    if [ -z "$session_id" ]; then
+        session_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
+        ids_missing=true
+    fi
+    if [ -z "$first_session_date" ]; then
+        first_session_date=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+        ids_missing=true
+    fi
+
+    if [ "$ids_missing" = true ]; then
+        log_warn "部分 ID 未就绪，已生成新值用于 JS 注入"
+    else
+        log_info "已使用配置中的设备标识符进行 JS 注入"
+    fi
+
+    CURSOR_ID_MACHINE_ID="$machine_id"
+    CURSOR_ID_DEVICE_ID="$device_id"
+    CURSOR_ID_MAC_MACHINE_ID="$mac_machine_id"
+    CURSOR_ID_SQM_ID="$sqm_id"
+    CURSOR_ID_SESSION_ID="$session_id"
+    CURSOR_ID_FIRST_SESSION_DATE="$first_session_date"
+    CURSOR_ID_MAC_ADDRESS="$mac_address"
+
+    log_info "🔑 [准备] 设备标识符已就绪"
     log_info "   machineId: ${machine_id:0:16}..."
     log_info "   deviceId: ${device_id:0:16}..."
     log_info "   macMachineId: ${mac_machine_id:0:16}..."
@@ -1543,7 +1644,7 @@ modify_cursor_js_files() {
 
     # 保存 ID 配置到用户目录（供 Hook 读取）
     # 每次执行都删除旧配置并重新生成，确保获得新的设备标识符
-    local ids_config_path="$HOME/.cursor_ids.json"
+    local ids_config_path="$TARGET_HOME/.cursor_ids.json"
     if [ -f "$ids_config_path" ]; then
         rm -f "$ids_config_path"
         log_info "🗑️  [清理] 已删除旧的 ID 配置文件"
@@ -2692,6 +2793,7 @@ main() {
     echo
     echo -e "${BLUE}  1️⃣  仅修改机器码${NC}"
     echo -e "${YELLOW}      • 仅执行机器码修改功能${NC}"
+    echo -e "${YELLOW}      • 同步执行 JS 内核注入${NC}"
     echo -e "${YELLOW}      • 跳过文件夹删除/环境重置步骤${NC}"
     echo -e "${YELLOW}      • 保留现有Cursor配置和数据${NC}"
     echo
@@ -2733,7 +2835,8 @@ main() {
         echo -e "${BLUE}  1️⃣  检测Cursor配置文件${NC}"
         echo -e "${BLUE}  2️⃣  备份现有配置文件${NC}"
         echo -e "${BLUE}  3️⃣  修改机器码配置${NC}"
-        echo -e "${BLUE}  4️⃣  显示操作完成信息${NC}"
+        echo -e "${BLUE}  4️⃣  执行 JS 内核注入${NC}"
+        echo -e "${BLUE}  5️⃣  显示操作完成信息${NC}"
         echo
         echo -e "${YELLOW}⚠️  [注意事项]${NC}"
         echo -e "${YELLOW}  • 不会删除任何文件夹或重置环境${NC}"
@@ -2800,14 +2903,18 @@ main() {
             echo
             log_info "🎉 [完成] 机器码修改完成！"
             log_info "💡 [提示] 现在可以启动Cursor使用新的机器码配置"
+            echo
+            log_info "🔧 [设备识别] 正在执行 JS 内核注入..."
+            if modify_cursor_js_files; then
+                log_info "✅ [设备识别] JS 内核注入完成"
+            else
+                log_warn "⚠️  [设备识别] JS 内核注入失败，请检查日志"
+            fi
         else
             echo
             log_error "❌ [失败] 机器码修改失败！"
             log_info "💡 [建议] 请尝试'重置环境+修改机器码'选项"
         fi
-
-
-
         # 🚫 禁用自动更新（仅修改模式也需要）
         echo
         log_info "🚫 [禁用更新] 正在禁用Cursor自动更新..."
@@ -2860,7 +2967,10 @@ main() {
         # 🔧 智能设备识别绕过（MAC地址修改或JS内核修改）
         echo
         log_info "🔧 [设备识别] 开始智能设备识别绕过..."
-        log_info "💡 [说明] 将根据系统环境自动选择最佳方案（MAC地址修改或JS内核修改）"
+        log_info "💡 [说明] 将优先尝试 MAC 地址修改，失败则使用 JS 内核注入"
+        if ! run_device_bypass; then
+            log_warn "⚠️  [设备识别] 智能设备识别绕过未完全成功，请查看日志"
+        fi
 
 
         # 🔧 关键修复：修复应用签名问题（防止"应用已损坏"错误）
@@ -2909,6 +3019,7 @@ main() {
     echo
     log_info "🛡️ [最终权限修复] 执行脚本完成前的最终权限修复..."
     ensure_cursor_directory_permissions
+    protect_storage_file
 
     # 🎉 脚本执行完成
     log_info "🎉 [完成] 所有操作已完成！"
@@ -2936,4 +3047,3 @@ main() {
 
 # 执行主函数
 main
-
