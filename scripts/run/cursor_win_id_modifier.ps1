@@ -24,14 +24,14 @@ function Generate-RandomString {
     return $result
 }
 
-# 🔧 修改Cursor内核JS文件实现设备识别绕过（增强版 Hook 方案）
+# 🔧 修改Cursor内核JS文件实现设备识别绕过（增强版三重方案）
 # 方案A: someValue占位符替换 - 稳定锚点，不依赖混淆后的函数名
-# 方案B: 深度 Hook 注入 - 从底层拦截所有设备标识符生成
-# 方案C: Module.prototype.require 劫持 - 拦截 child_process, crypto, os 等模块
+# 方案B: b6 定点重写 - 机器码源函数直接返回固定值
+# 方案C: 深度 Hook + 共享进程注入 - 拦截 child_process/crypto/os/@vscode 等模块
 function Modify-CursorJSFiles {
     Write-Host ""
     Write-Host "$BLUE🔧 [内核修改]$NC 开始修改Cursor内核JS文件实现设备识别绕过..."
-    Write-Host "$BLUE💡 [方案]$NC 使用增强版 Hook 方案：深度模块劫持 + someValue替换"
+    Write-Host "$BLUE💡 [方案]$NC 使用增强版三重方案：占位符替换 + b6 定点重写 + 共享进程 Hook"
     Write-Host ""
 
     # Windows版Cursor应用路径
@@ -67,6 +67,8 @@ function Modify-CursorJSFiles {
         $macMachineId = [string]$global:CursorIds.macMachineId
         $deviceId = [string]$global:CursorIds.devDeviceId
         $sqmId = [string]$global:CursorIds.sqmId
+        # 机器 GUID 用于模拟注册表/原始机器码读取
+        $machineGuid = if ($global:CursorIds.machineGuid) { [string]$global:CursorIds.machineGuid } else { [System.Guid]::NewGuid().ToString().ToLower() }
         $sessionId = if ($global:CursorIds.sessionId) { [string]$global:CursorIds.sessionId } else { [System.Guid]::NewGuid().ToString().ToLower() }
         $firstSessionDateValue = if ($global:CursorIds.firstSessionDate) { [string]$global:CursorIds.firstSessionDate } else { (Get-Date).ToString("yyyy-MM-ddTHH:mm:ss.fffZ") }
         $macAddress = if ($global:CursorIds.macAddress) { [string]$global:CursorIds.macAddress } else { "00:11:22:33:44:55" }
@@ -84,6 +86,8 @@ function Modify-CursorJSFiles {
         $macMachineId = [System.BitConverter]::ToString($randomBytes2) -replace '-',''
         $rng2.Dispose()
         $sqmId = "{" + [System.Guid]::NewGuid().ToString().ToUpper() + "}"
+        # 机器 GUID 用于模拟注册表/原始机器码读取
+        $machineGuid = [System.Guid]::NewGuid().ToString().ToLower()
         $sessionId = [System.Guid]::NewGuid().ToString().ToLower()
         $firstSessionDateValue = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
         $macAddress = "00:11:22:33:44:55"
@@ -95,6 +99,7 @@ function Modify-CursorJSFiles {
         Write-Host "$GREEN🔑 [生成]$NC 已生成新的设备标识符"
     }
     Write-Host "   machineId: $($machineId.Substring(0,16))..."
+    Write-Host "   machineGuid: $($machineGuid.Substring(0,16))..."
     Write-Host "   deviceId: $($deviceId.Substring(0,16))..."
     Write-Host "   macMachineId: $($macMachineId.Substring(0,16))..."
     Write-Host "   sqmId: $sqmId"
@@ -108,10 +113,13 @@ function Modify-CursorJSFiles {
     }
     $idsConfig = @{
         machineId = $machineId
+        machineGuid = $machineGuid
         macMachineId = $macMachineId
         devDeviceId = $deviceId
         sqmId = $sqmId
         macAddress = $macAddress
+        sessionId = $sessionId
+        firstSessionDate = $firstSessionDateValue
         createdAt = $firstSessionDateValue
     }
     $idsConfig | ConvertTo-Json | Set-Content -Path $idsConfigPath -Encoding UTF8
@@ -119,7 +127,9 @@ function Modify-CursorJSFiles {
 
     # 目标JS文件列表（Windows路径，按优先级排序）
     $jsFiles = @(
-        "$cursorAppPath\resources\app\out\main.js"
+        "$cursorAppPath\resources\app\out\main.js",
+        # 共享进程用于聚合 telemetry，需要同步注入
+        "$cursorAppPath\resources\app\out\vs\code\electron-utility\sharedProcess\sharedProcessMain.js"
     )
 
     $modifiedCount = 0
@@ -191,6 +201,7 @@ function Modify-CursorJSFiles {
         try {
             $content = Get-Content $file -Raw -Encoding UTF8
             $replaced = $false
+            $replacedB6 = $false
 
             # ========== 方法A: someValue占位符替换（稳定锚点） ==========
             # 这些字符串是固定的占位符，不会被混淆器修改，跨版本稳定
@@ -244,7 +255,22 @@ function Modify-CursorJSFiles {
                 }
             }
 
-            # ========== 方法B: 增强版深度 Hook 注入 ==========
+            # ========== 方法B: b6 定点重写（机器码源函数，仅 main.js） ==========
+            # 说明：b6(t) 是 machineId 的核心生成函数，t=true 返回原始值，t=false 返回哈希
+            if ((Split-Path $file -Leaf) -eq "main.js") {
+                $b6Pattern = '(?s)async function b6\(\w+\)\{.*?return \w+\?\w+:\w+\}'
+                $b6Replacement = "async function b6(t){return t?'$machineGuid':'$machineId';}"
+                $b6Regex = [regex]::new($b6Pattern)
+                if ($b6Regex.IsMatch($content)) {
+                    $content = $b6Regex.Replace($content, $b6Replacement, 1)
+                    Write-Host "   $GREEN✓$NC [方案B] 已重写 b6(t) 返回值"
+                    $replacedB6 = $true
+                } else {
+                    Write-Host "   $YELLOW⚠️  $NC [方案B] 未定位到 b6(t) 目标函数"
+                }
+            }
+
+            # ========== 方法C: 增强版深度 Hook 注入 ==========
             # 从底层拦截所有设备标识符的生成：
             # 1. Module.prototype.require 劫持 - 拦截 child_process, crypto, os 等模块
             # 2. child_process.execSync - 拦截 REG.exe 查询 MachineGuid
@@ -258,116 +284,173 @@ function Modify-CursorJSFiles {
 // ========== Cursor Hook 注入开始 ==========
 ;(async function(){/*__cursor_patched__*/
 'use strict';
-if(globalThis.__cursor_patched__)return;
+if (globalThis.__cursor_patched__) return;
+globalThis.__cursor_patched__ = true;
 
-// 兼容 ESM：确保可用的 require（部分版本 main.js 可能是纯 ESM，不保证存在 require）
-var __require__=typeof require==='function'?require:null;
-if(!__require__){
-    try{
-        var __m__=await import('module');
-        __require__=__m__.createRequire(import.meta.url);
-    }catch(e){
-        // 无法获得 require 时直接退出，避免影响主进程启动
-        return;
-    }
-}
+try {
+    // 固定的设备标识符（与 PowerShell 生成保持一致）
+    var __ids__ = {
+        machineId:'$machineId',
+        machineGuid:'$machineGuid',
+        macMachineId:'$macMachineId',
+        devDeviceId:'$deviceId',
+        sqmId:'$sqmId',
+        macAddress:'$macAddress',
+        sessionId:'$sessionId',
+        firstSessionDate:'$firstSessionDateValue'
+    };
 
-globalThis.__cursor_patched__=true;
+    // 暴露到全局，便于共享进程复用
+    globalThis.__cursor_ids__ = __ids__;
 
-// 固定的设备标识符
-var __ids__={
-    machineId:'$machineId',
-    macMachineId:'$macMachineId',
-    devDeviceId:'$deviceId',
-    sqmId:'$sqmId',
-    macAddress:'$macAddress'
-};
-
-// 暴露到全局
-globalThis.__cursor_ids__=__ids__;
-
-// Hook Module.prototype.require
-var Module=__require__('module');
-var _origReq=Module.prototype.require;
-var _hooked=new Map();
-
-Module.prototype.require=function(id){
-    var result=_origReq.apply(this,arguments);
-    if(_hooked.has(id))return _hooked.get(id);
-    var hooked=result;
-
-    // Hook child_process
-    if(id==='child_process'){
-        var _origExecSync=result.execSync;
-        result.execSync=function(cmd,opts){
-            var cmdStr=String(cmd).toLowerCase();
-            if(cmdStr.includes('reg')&&cmdStr.includes('machineguid')){
-                return Buffer.from('\r\n    MachineGuid    REG_SZ    '+__ids__.machineId.substring(0,36)+'\r\n');
-            }
-            if(cmdStr.includes('ioreg')&&cmdStr.includes('ioplatformexpertdevice')){
-                return Buffer.from('"IOPlatformUUID" = "'+__ids__.machineId.substring(0,36).toUpperCase()+'"');
-            }
-            return _origExecSync.apply(this,arguments);
-        };
-        hooked=result;
-    }
-    // Hook os
-    else if(id==='os'){
-        var _origNI=result.networkInterfaces;
-        result.networkInterfaces=function(){
-            return{'Ethernet':[{address:'192.168.1.100',netmask:'255.255.255.0',family:'IPv4',mac:__ids__.macAddress,internal:false}]};
-        };
-        hooked=result;
-    }
-    // Hook crypto
-    else if(id==='crypto'){
-        var _origCreateHash=result.createHash;
-        var _origRandomUUID=result.randomUUID;
-        result.createHash=function(algo){
-            var hash=_origCreateHash.apply(this,arguments);
-            if(algo.toLowerCase()==='sha256'){
-                var _origDigest=hash.digest.bind(hash);
-                var _origUpdate=hash.update.bind(hash);
-                var inputData='';
-                hash.update=function(data,enc){inputData+=String(data);return _origUpdate(data,enc);};
-                hash.digest=function(enc){
-                    if(inputData.includes('MachineGuid')||inputData.includes('IOPlatformUUID')||(inputData.length>=32&&inputData.length<=40)){
-                        return enc==='hex'?__ids__.machineId:Buffer.from(__ids__.machineId,'hex');
-                    }
-                    return _origDigest(enc);
+    // 兼容 ESM：尝试获取 require
+    var __require__ = typeof require === 'function' ? require : null;
+    if (!__require__) {
+        try {
+            var __m__ = await import('module');
+            __require__ = __m__.createRequire(import.meta.url);
+        } catch (e) {
+            // 无法获得 require 时仅做全局 crypto 兜底，避免影响启动
+            if (globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function') {
+                var __origGlobalUUID__ = globalThis.crypto.randomUUID;
+                var __uuidCount__ = 0;
+                globalThis.crypto.randomUUID = function(){
+                    __uuidCount__++;
+                    if (__uuidCount__ <= 2) return __ids__.devDeviceId;
+                    return __origGlobalUUID__.apply(this, arguments);
                 };
             }
-            return hash;
-        };
-        if(_origRandomUUID){
-            var uuidCount=0;
-            result.randomUUID=function(){
-                uuidCount++;
-                if(uuidCount<=2)return __ids__.devDeviceId;
-                return _origRandomUUID.apply(this,arguments);
-            };
+            return;
         }
-        hooked=result;
-    }
-    // Hook @vscode/deviceid
-    else if(id==='@vscode/deviceid'){
-        hooked={...result,getDeviceId:async function(){return __ids__.devDeviceId;}};
-    }
-    // Hook @vscode/windows-registry
-    else if(id==='@vscode/windows-registry'){
-        var _origGetReg=result.GetStringRegKey;
-        hooked={...result,GetStringRegKey:function(hive,path,name){
-            if(name==='MachineId'||path.includes('SQMClient'))return __ids__.sqmId;
-            if(name==='MachineGuid'||path.includes('Cryptography'))return __ids__.machineId.substring(0,36);
-            return _origGetReg?_origGetReg.apply(this,arguments):'';
-        }};
     }
 
-    if(hooked!==result)_hooked.set(id,hooked);
-    return hooked;
-};
+    // 处理 node: 前缀模块名
+    function __normalizeId__(id){
+        return (typeof id === 'string' && id.indexOf('node:') === 0) ? id.slice(5) : id;
+    }
 
-console.log('[Cursor ID Modifier] 增强版 Hook 已激活 - 煎饼果子(86) 公众号【煎饼果子卷AI】');
+    // 先覆盖全局 crypto.randomUUID（满足直调用）
+    if (globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function') {
+        var __origGlobalUUID2__ = globalThis.crypto.randomUUID;
+        var __uuidCount2__ = 0;
+        globalThis.crypto.randomUUID = function(){
+            __uuidCount2__++;
+            if (__uuidCount2__ <= 2) return __ids__.devDeviceId;
+            return __origGlobalUUID2__.apply(this, arguments);
+        };
+    }
+
+    // Hook Module.prototype.require
+    var Module = __require__('module');
+    var _origReq = Module.prototype.require;
+    var _hooked = new Map();
+
+    Module.prototype.require = function(id){
+        var normalized = __normalizeId__(id);
+        var result = _origReq.apply(this, arguments);
+        if (_hooked.has(normalized)) return _hooked.get(normalized);
+        var hooked = result;
+
+        // Hook child_process（拦截注册表/平台查询）
+        if (normalized === 'child_process') {
+            var _origExecSync = result.execSync;
+            var _origExecFileSync = result.execFileSync;
+            if (typeof _origExecSync === 'function') {
+                result.execSync = function(cmd, opts){
+                    var cmdStr = String(cmd).toLowerCase();
+                    if (cmdStr.includes('reg') && cmdStr.includes('machineguid')) {
+                        return Buffer.from('\r\n    MachineGuid    REG_SZ    ' + __ids__.machineGuid + '\r\n');
+                    }
+                    if (cmdStr.includes('ioreg') && cmdStr.includes('ioplatformexpertdevice')) {
+                        return Buffer.from('\"IOPlatformUUID\" = \"' + __ids__.machineGuid.toUpperCase() + '\"');
+                    }
+                    return _origExecSync.apply(this, arguments);
+                };
+            }
+            if (typeof _origExecFileSync === 'function') {
+                result.execFileSync = function(file, args, opts){
+                    var cmdStr = [file].concat(args || []).join(' ').toLowerCase();
+                    if (cmdStr.includes('reg') && cmdStr.includes('machineguid')) {
+                        return Buffer.from('\r\n    MachineGuid    REG_SZ    ' + __ids__.machineGuid + '\r\n');
+                    }
+                    if (cmdStr.includes('ioreg') && cmdStr.includes('ioplatformexpertdevice')) {
+                        return Buffer.from('\"IOPlatformUUID\" = \"' + __ids__.machineGuid.toUpperCase() + '\"');
+                    }
+                    return _origExecFileSync.apply(this, arguments);
+                };
+            }
+            hooked = result;
+        }
+        // Hook os（MAC 地址）
+        else if (normalized === 'os') {
+            var _origNI = result.networkInterfaces;
+            result.networkInterfaces = function(){
+                return {'Ethernet':[{'address':'192.168.1.100','netmask':'255.255.255.0','family':'IPv4','mac':__ids__.macAddress,'internal':false}]};
+            };
+            hooked = result;
+        }
+        // Hook crypto（hash/uuid）
+        else if (normalized === 'crypto') {
+            var _origCreateHash = result.createHash;
+            var _origRandomUUID = result.randomUUID;
+            if (typeof _origCreateHash === 'function') {
+                result.createHash = function(algo){
+                    var hash = _origCreateHash.apply(this, arguments);
+                    var algoName = String(algo).toLowerCase();
+                    if (algoName === 'sha256') {
+                        var _origDigest = hash.digest.bind(hash);
+                        var _origUpdate = hash.update.bind(hash);
+                        var inputData = '';
+                        hash.update = function(data, enc){ inputData += String(data); return _origUpdate(data, enc); };
+                        hash.digest = function(enc){
+                            var text = inputData.toLowerCase();
+                            var looksGuid = /^[0-9a-f-]{32,36}$/.test(text);
+                            if (looksGuid || text.includes('machineguid') || text.includes('ioplatformuuid')) {
+                                return enc === 'hex' ? __ids__.machineId : Buffer.from(__ids__.machineId, 'hex');
+                            }
+                            return _origDigest(enc);
+                        };
+                    }
+                    return hash;
+                };
+            }
+            if (typeof _origRandomUUID === 'function') {
+                var uuidCount = 0;
+                result.randomUUID = function(){
+                    uuidCount++;
+                    if (uuidCount <= 2) return __ids__.devDeviceId;
+                    return _origRandomUUID.apply(this, arguments);
+                };
+            }
+            hooked = result;
+        }
+        // Hook @vscode/deviceid
+        else if (normalized === '@vscode/deviceid') {
+            hooked = Object.assign({}, result, {
+                getDeviceId: async function(){ return __ids__.devDeviceId; }
+            });
+        }
+        // Hook @vscode/windows-registry
+        else if (normalized === '@vscode/windows-registry') {
+            var _origGetReg = result.GetStringRegKey;
+            hooked = Object.assign({}, result, {
+                GetStringRegKey: function(hive, path, name){
+                    var p = String(path || '').toLowerCase();
+                    if (name === 'MachineId' || p.includes('sqmclient')) return __ids__.sqmId;
+                    if (name === 'MachineGuid' || p.includes('cryptography')) return __ids__.machineGuid;
+                    return _origGetReg ? _origGetReg.apply(this, arguments) : '';
+                }
+            });
+        }
+
+        if (hooked !== result) _hooked.set(normalized, hooked);
+        return hooked;
+    };
+
+    console.log('[Cursor ID Modifier] Hook 已激活（占位符 + b6 + 共享进程）');
+} catch (e) {
+    try { console.warn('[Cursor ID Modifier] 注入异常：' + (e && e.message ? e.message : e)); } catch (_) {}
+}
 })();
 // ========== Cursor Hook 注入结束 ==========
 
@@ -376,21 +459,23 @@ console.log('[Cursor ID Modifier] 增强版 Hook 已激活 - 煎饼果子(86) �
             # 找到版权声明结束位置并在其后注入
             if ($content -match '(\*/\s*\n)') {
                 $content = $content -replace '(\*/\s*\n)', "`$1$injectCode"
-                Write-Host "   $GREEN✓$NC [方案B] 增强版 Hook 代码已注入（版权声明后）"
+                Write-Host "   $GREEN✓$NC [方案C] 增强版 Hook 代码已注入（版权声明后）"
             } else {
                 # 如果没有找到版权声明，则注入到文件开头
                 $content = $injectCode + $content
-                Write-Host "   $GREEN✓$NC [方案B] 增强版 Hook 代码已注入（文件开头）"
+                Write-Host "   $GREEN✓$NC [方案C] 增强版 Hook 代码已注入（文件开头）"
             }
 
             # 写入修改后的内容
             Set-Content -Path $file -Value $content -Encoding UTF8 -NoNewline
 
-            if ($replaced) {
-                Write-Host "$GREEN✅ [成功]$NC 增强版混合方案修改成功（someValue替换 + 深度Hook）"
-            } else {
-                Write-Host "$GREEN✅ [成功]$NC 增强版 Hook 修改成功"
-            }
+            # 汇总本次注入实际生效的方案组合
+            $summaryParts = @()
+            if ($replaced) { $summaryParts += "someValue替换" }
+            if ($replacedB6) { $summaryParts += "b6定点重写" }
+            $summaryParts += "深度Hook"
+            $summaryText = ($summaryParts -join " + ")
+            Write-Host "$GREEN✅ [成功]$NC 增强版方案修改成功（$summaryText）"
             $modifiedCount++
 
         } catch {
@@ -409,9 +494,10 @@ console.log('[Cursor ID Modifier] 增强版 Hook 已激活 - 煎饼果子(86) �
         Write-Host ""
         Write-Host "$GREEN🎉 [完成]$NC 成功修改 $modifiedCount 个JS文件"
         Write-Host "$BLUE💾 [备份]$NC 原始文件备份位置: $backupPath"
-        Write-Host "$BLUE💡 [说明]$NC 使用增强版 Hook 方案："
+        Write-Host "$BLUE💡 [说明]$NC 使用增强版三重方案："
         Write-Host "   • 方案A: someValue占位符替换（稳定锚点，跨版本兼容）"
-        Write-Host "   • 方案B: 深度模块劫持（child_process, crypto, os, @vscode/*）"
+        Write-Host "   • 方案B: b6 定点重写（机器码源函数）"
+        Write-Host "   • 方案C: 深度模块劫持 + 共享进程注入（child_process/crypto/os/@vscode/*）"
         Write-Host "$BLUE📁 [配置]$NC ID 配置文件: $idsConfigPath"
         return $true
     } else {
