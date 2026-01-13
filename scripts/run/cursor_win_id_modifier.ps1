@@ -9,9 +9,228 @@ $YELLOW = "`e[33m"
 $BLUE = "`e[34m"
 $NC = "`e[0m"
 
-# 配置文件路径
-$STORAGE_FILE = "$env:APPDATA\Cursor\User\globalStorage\storage.json"
-$BACKUP_DIR = "$env:APPDATA\Cursor\User\globalStorage\backups"
+# 路径解析：优先使用 .NET 获取系统目录，避免环境变量缺失导致路径异常
+function Get-FolderPathSafe {
+    param(
+        [Parameter(Mandatory = $true)][System.Environment+SpecialFolder]$SpecialFolder,
+        [Parameter(Mandatory = $true)][string]$EnvVarName,
+        [Parameter(Mandatory = $true)][string]$FallbackRelative,
+        [Parameter(Mandatory = $true)][string]$Label
+    )
+    $path = [Environment]::GetFolderPath($SpecialFolder)
+    if ([string]::IsNullOrWhiteSpace($path)) {
+        $envValue = [Environment]::GetEnvironmentVariable($EnvVarName)
+        if (-not [string]::IsNullOrWhiteSpace($envValue)) {
+            $path = $envValue
+        }
+    }
+    if ([string]::IsNullOrWhiteSpace($path)) {
+        $userProfile = [Environment]::GetFolderPath([System.Environment+SpecialFolder]::UserProfile)
+        if ([string]::IsNullOrWhiteSpace($userProfile)) {
+            $userProfile = [Environment]::GetEnvironmentVariable("USERPROFILE")
+        }
+        if (-not [string]::IsNullOrWhiteSpace($userProfile)) {
+            $path = Join-Path $userProfile $FallbackRelative
+        }
+    }
+    if ([string]::IsNullOrWhiteSpace($path)) {
+        Write-Host "$YELLOW⚠️  [路径]$NC $Label 无法解析，将尝试其他方式"
+    } else {
+        Write-Host "$BLUEℹ️  [路径]$NC $Label: $path"
+    }
+    return $path
+}
+
+function Initialize-CursorPaths {
+    Write-Host "$BLUEℹ️  [路径]$NC 开始解析 Cursor 相关路径..."
+    $global:CursorAppDataRoot = Get-FolderPathSafe `
+        -SpecialFolder ([System.Environment+SpecialFolder]::ApplicationData) `
+        -EnvVarName "APPDATA" `
+        -FallbackRelative "AppData\Roaming" `
+        -Label "Roaming AppData"
+    $global:CursorLocalAppDataRoot = Get-FolderPathSafe `
+        -SpecialFolder ([System.Environment+SpecialFolder]::LocalApplicationData) `
+        -EnvVarName "LOCALAPPDATA" `
+        -FallbackRelative "AppData\Local" `
+        -Label "Local AppData"
+    $global:CursorUserProfileRoot = [Environment]::GetFolderPath([System.Environment+SpecialFolder]::UserProfile)
+    if ([string]::IsNullOrWhiteSpace($global:CursorUserProfileRoot)) {
+        $global:CursorUserProfileRoot = [Environment]::GetEnvironmentVariable("USERPROFILE")
+    }
+    if (-not [string]::IsNullOrWhiteSpace($global:CursorUserProfileRoot)) {
+        Write-Host "$BLUEℹ️  [路径]$NC 用户目录: $global:CursorUserProfileRoot"
+    }
+    $global:CursorAppDataDir = if ($global:CursorAppDataRoot) { Join-Path $global:CursorAppDataRoot "Cursor" } else { $null }
+    $global:CursorLocalAppDataDir = if ($global:CursorLocalAppDataRoot) { Join-Path $global:CursorLocalAppDataRoot "Cursor" } else { $null }
+    $global:CursorStorageDir = if ($global:CursorAppDataDir) { Join-Path $global:CursorAppDataDir "User\globalStorage" } else { $null }
+    $global:CursorStorageFile = if ($global:CursorStorageDir) { Join-Path $global:CursorStorageDir "storage.json" } else { $null }
+    $global:CursorBackupDir = if ($global:CursorStorageDir) { Join-Path $global:CursorStorageDir "backups" } else { $null }
+
+    if ($global:CursorStorageDir -and -not (Test-Path $global:CursorStorageDir)) {
+        Write-Host "$YELLOW⚠️  [路径]$NC 全局配置目录不存在: $global:CursorStorageDir"
+    }
+    if ($global:CursorStorageFile) {
+        if (Test-Path $global:CursorStorageFile) {
+            Write-Host "$GREEN✅ [路径]$NC 已找到配置文件: $global:CursorStorageFile"
+        } else {
+            Write-Host "$YELLOW⚠️  [路径]$NC 配置文件不存在: $global:CursorStorageFile"
+        }
+    }
+}
+
+function Normalize-CursorInstallCandidate {
+    param([string]$Path)
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return $null
+    }
+    $candidate = $Path.Trim().Trim('"')
+    if (Test-Path $candidate -PathType Leaf) {
+        $candidate = Split-Path -Parent $candidate
+    }
+    return $candidate
+}
+
+function Test-CursorInstallPath {
+    param([string]$Path)
+    $candidate = Normalize-CursorInstallCandidate -Path $Path
+    if (-not $candidate) {
+        return $false
+    }
+    $exePath = Join-Path $candidate "Cursor.exe"
+    return (Test-Path $exePath)
+}
+
+function Get-CursorInstallPathFromRegistry {
+    $results = @()
+    $uninstallKeys = @(
+        "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*",
+        "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*",
+        "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*"
+    )
+    foreach ($key in $uninstallKeys) {
+        try {
+            $items = Get-ItemProperty -Path $key -ErrorAction SilentlyContinue
+            foreach ($item in $items) {
+                if (-not $item.DisplayName -or $item.DisplayName -notlike "*Cursor*") {
+                    continue
+                }
+                $candidate = $null
+                if ($item.InstallLocation) {
+                    $candidate = $item.InstallLocation
+                } elseif ($item.DisplayIcon) {
+                    $candidate = $item.DisplayIcon.Split(',')[0].Trim('"')
+                } elseif ($item.UninstallString) {
+                    $candidate = $item.UninstallString.Split(' ')[0].Trim('"')
+                }
+                if ($candidate) {
+                    $results += $candidate
+                }
+            }
+        } catch {
+            Write-Host "$YELLOW⚠️  [路径]$NC 读取注册表失败: $key"
+        }
+    }
+    return $results | Where-Object { $_ } | Select-Object -Unique
+}
+
+function Request-CursorInstallPathFromUser {
+    Write-Host "$YELLOW💡 [提示]$NC 自动检测失败，可手动选择 Cursor 安装目录（包含 Cursor.exe）"
+    $selectedPath = $null
+    try {
+        Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
+        $dialog = New-Object System.Windows.Forms.FolderBrowserDialog
+        $dialog.Description = "请选择 Cursor 安装目录（包含 Cursor.exe）"
+        $dialog.ShowNewFolderButton = $false
+        if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+            $selectedPath = $dialog.SelectedPath
+        }
+    } catch {
+        Write-Host "$YELLOW⚠️  [提示]$NC 无法打开选择窗口，将使用命令行输入"
+    }
+    if (-not $selectedPath) {
+        $manualInput = Read-Host "请输入 Cursor 安装目录（包含 Cursor.exe），或直接回车取消"
+        if (-not [string]::IsNullOrWhiteSpace($manualInput)) {
+            $selectedPath = $manualInput
+        }
+    }
+    if ($selectedPath) {
+        $normalized = Normalize-CursorInstallCandidate -Path $selectedPath
+        if ($normalized -and (Test-CursorInstallPath -Path $normalized)) {
+            Write-Host "$GREEN✅ [发现]$NC 手动指定安装路径: $normalized"
+            return $normalized
+        }
+        Write-Host "$RED❌ [错误]$NC 手动路径无效: $selectedPath"
+    }
+    return $null
+}
+
+function Resolve-CursorInstallPath {
+    param([switch]$AllowPrompt)
+    if ($global:CursorInstallPath -and (Test-CursorInstallPath -Path $global:CursorInstallPath)) {
+        return $global:CursorInstallPath
+    }
+
+    Write-Host "$BLUE🔎 [路径]$NC 正在检测 Cursor 安装目录..."
+    $candidates = @()
+    if ($global:CursorLocalAppDataRoot) {
+        $candidates += (Join-Path $global:CursorLocalAppDataRoot "Programs\Cursor")
+    }
+    $programFiles = [Environment]::GetFolderPath([System.Environment+SpecialFolder]::ProgramFiles)
+    if ($programFiles) {
+        $candidates += (Join-Path $programFiles "Cursor")
+    }
+    $programFilesX86 = [Environment]::GetFolderPath([System.Environment+SpecialFolder]::ProgramFilesX86)
+    if ($programFilesX86) {
+        $candidates += (Join-Path $programFilesX86 "Cursor")
+    }
+
+    $regCandidates = @(Get-CursorInstallPathFromRegistry)
+    if ($regCandidates.Count -gt 0) {
+        Write-Host "$BLUEℹ️  [路径]$NC 从注册表发现候选路径: $($regCandidates -join '; ')"
+        $candidates += $regCandidates
+    }
+
+    $fixedDrives = [IO.DriveInfo]::GetDrives() | Where-Object { $_.DriveType -eq 'Fixed' }
+    foreach ($drive in $fixedDrives) {
+        $root = $drive.RootDirectory.FullName
+        $candidates += (Join-Path $root "Program Files\Cursor")
+        $candidates += (Join-Path $root "Program Files (x86)\Cursor")
+        $candidates += (Join-Path $root "Cursor")
+    }
+
+    $candidates = $candidates | Where-Object { $_ } | Select-Object -Unique
+    $totalCandidates = $candidates.Count
+    for ($i = 0; $i -lt $totalCandidates; $i++) {
+        $candidate = Normalize-CursorInstallCandidate -Path $candidates[$i]
+        $attempt = $i + 1
+        if (-not $candidate) {
+            continue
+        }
+        Write-Host "$BLUE⏳ [路径]$NC ($attempt/$totalCandidates) 尝试安装路径: $candidate"
+        if (Test-CursorInstallPath -Path $candidate) {
+            $global:CursorInstallPath = $candidate
+            Write-Host "$GREEN✅ [发现]$NC 找到Cursor安装路径: $candidate"
+            return $candidate
+        }
+    }
+
+    if ($AllowPrompt) {
+        $manualPath = Request-CursorInstallPathFromUser
+        if ($manualPath) {
+            $global:CursorInstallPath = $manualPath
+            return $manualPath
+        }
+    }
+
+    Write-Host "$RED❌ [错误]$NC 未找到Cursor应用安装路径"
+    Write-Host "$YELLOW💡 [提示]$NC 请确认Cursor已正确安装或手动指定路径"
+    return $null
+}
+
+# 配置文件路径（初始化后统一使用全局变量）
+Initialize-CursorPaths
+$STORAGE_FILE = $global:CursorStorageFile
+$BACKUP_DIR = $global:CursorBackupDir
 
 # PowerShell原生方法生成随机字符串
 function Generate-RandomString {
@@ -34,31 +253,11 @@ function Modify-CursorJSFiles {
     Write-Host "$BLUE💡 [方案]$NC 使用增强版三重方案：占位符替换 + b6 定点重写 + Loader Stub + 外置 Hook"
     Write-Host ""
 
-    # Windows版Cursor应用路径
-    $cursorAppPath = "${env:LOCALAPPDATA}\Programs\Cursor"
-    if (-not (Test-Path $cursorAppPath)) {
-        # 尝试其他可能的安装路径
-        $alternatePaths = @(
-            "${env:ProgramFiles}\Cursor",
-            "${env:ProgramFiles(x86)}\Cursor",
-            "${env:USERPROFILE}\AppData\Local\Programs\Cursor"
-        )
-
-        foreach ($path in $alternatePaths) {
-            if (Test-Path $path) {
-                $cursorAppPath = $path
-                break
-            }
-        }
-
-        if (-not (Test-Path $cursorAppPath)) {
-            Write-Host "$RED❌ [错误]$NC 未找到Cursor应用安装路径"
-            Write-Host "$YELLOW💡 [提示]$NC 请确认Cursor已正确安装"
-            return $false
-        }
+    # Windows版Cursor应用路径（支持自动检测 + 手动兜底）
+    $cursorAppPath = Resolve-CursorInstallPath -AllowPrompt
+    if (-not $cursorAppPath) {
+        return $false
     }
-
-    Write-Host "$GREEN✅ [发现]$NC 找到Cursor安装路径: $cursorAppPath"
 
     # 生成或复用设备标识符（优先使用配置中生成的值）
     $useConfigIds = $false
@@ -429,11 +628,15 @@ function Remove-CursorTrialFolders {
         "C:\Users\Administrator\AppData\Roaming\Cursor"
     )
 
-    # 当前用户路径
-    $currentUserPaths = @(
-        "$env:USERPROFILE\.cursor",
-        "$env:APPDATA\Cursor"
-    )
+    # 当前用户路径（使用解析后的用户目录和 AppData）
+    $currentUserPaths = @()
+    $userProfileRoot = if ($global:CursorUserProfileRoot) { $global:CursorUserProfileRoot } else { [Environment]::GetEnvironmentVariable("USERPROFILE") }
+    if ($userProfileRoot) {
+        $currentUserPaths += (Join-Path $userProfileRoot ".cursor")
+    }
+    if ($global:CursorAppDataDir) {
+        $currentUserPaths += $global:CursorAppDataDir
+    }
 
     # 合并所有路径
     $foldersToDelete += $adminPaths
@@ -485,16 +688,16 @@ function Remove-CursorTrialFolders {
         # 🔧 预创建必要的目录结构，避免权限问题
         Write-Host "$BLUE🔧 [修复]$NC 预创建必要的目录结构以避免权限问题..."
 
-        $cursorAppData = "$env:APPDATA\Cursor"
-        $cursorLocalAppData = "$env:LOCALAPPDATA\cursor"
-        $cursorUserProfile = "$env:USERPROFILE\.cursor"
+        $cursorAppData = $global:CursorAppDataDir
+        $cursorLocalAppData = $global:CursorLocalAppDataDir
+        $cursorUserProfile = if ($userProfileRoot) { Join-Path $userProfileRoot ".cursor" } else { "$env:USERPROFILE\.cursor" }
 
         # 创建主要目录
         try {
-            if (-not (Test-Path $cursorAppData)) {
+            if ($cursorAppData -and -not (Test-Path $cursorAppData)) {
                 New-Item -ItemType Directory -Path $cursorAppData -Force | Out-Null
             }
-            if (-not (Test-Path $cursorUserProfile)) {
+            if ($cursorUserProfile -and -not (Test-Path $cursorUserProfile)) {
                 New-Item -ItemType Directory -Path $cursorUserProfile -Force | Out-Null
             }
             Write-Host "$GREEN✅ [完成]$NC 目录结构预创建完成"
@@ -535,20 +738,13 @@ function Restart-CursorAndWait {
     if (-not (Test-Path $cursorPath)) {
         Write-Host "$RED❌ [错误]$NC Cursor可执行文件不存在: $cursorPath"
 
-        # 尝试使用备用路径
-        $backupPaths = @(
-            "$env:LOCALAPPDATA\Programs\cursor\Cursor.exe",
-            "$env:PROGRAMFILES\Cursor\Cursor.exe",
-            "$env:PROGRAMFILES(X86)\Cursor\Cursor.exe"
-        )
-
-        $foundPath = $null
-        foreach ($backupPath in $backupPaths) {
-            if (Test-Path $backupPath) {
-                $foundPath = $backupPath
-                Write-Host "$GREEN💡 [发现]$NC 使用备用路径: $foundPath"
-                break
-            }
+        # 尝试重新解析安装路径
+        $installPath = Resolve-CursorInstallPath -AllowPrompt
+        $foundPath = if ($installPath) { Join-Path $installPath "Cursor.exe" } else { $null }
+        if ($foundPath -and (Test-Path $foundPath)) {
+            Write-Host "$GREEN💡 [发现]$NC 使用备用路径: $foundPath"
+        } else {
+            $foundPath = $null
         }
 
         if (-not $foundPath) {
@@ -567,7 +763,11 @@ function Restart-CursorAndWait {
         Start-Sleep -Seconds 20
 
         # 检查配置文件是否生成
-        $configPath = "$env:APPDATA\Cursor\User\globalStorage\storage.json"
+        $configPath = $STORAGE_FILE
+        if (-not $configPath) {
+            Write-Host "$RED❌ [错误]$NC 无法解析配置文件路径"
+            return $false
+        }
         $maxWait = 45
         $waited = 0
 
@@ -737,7 +937,11 @@ function Test-FileAccessibility {
 function Invoke-CursorInitialization {
     Write-Host ""
     Write-Host "$GREEN🧹 [初始化]$NC 正在执行 Cursor 初始化清理..."
-    $BASE_PATH = "$env:APPDATA\Cursor\User"
+    $BASE_PATH = if ($global:CursorAppDataDir) { Join-Path $global:CursorAppDataDir "User" } else { $null }
+    if (-not $BASE_PATH) {
+        Write-Host "$RED❌ [错误]$NC 无法解析 Cursor 用户目录，初始化清理终止"
+        return
+    }
 
     $filesToDelete = @(
         (Join-Path -Path $BASE_PATH -ChildPath "globalStorage\state.vscdb"),
@@ -886,23 +1090,9 @@ function Disable-CursorAutoUpdate {
     Write-Host ""
     Write-Host "$BLUE🚫 [禁用更新]$NC 正在尝试禁用 Cursor 自动更新..."
 
-    # 检测 Cursor 安装路径
-    $cursorAppPath = "${env:LOCALAPPDATA}\Programs\Cursor"
-    if (-not (Test-Path $cursorAppPath)) {
-        $alternatePaths = @(
-            "${env:ProgramFiles}\Cursor",
-            "${env:ProgramFiles(x86)}\Cursor",
-            "${env:USERPROFILE}\AppData\Local\Programs\Cursor"
-        )
-        foreach ($path in $alternatePaths) {
-            if (Test-Path $path) {
-                $cursorAppPath = $path
-                break
-            }
-        }
-    }
-
-    if (-not (Test-Path $cursorAppPath)) {
+    # 检测 Cursor 安装路径（支持自动检测 + 手动兜底）
+    $cursorAppPath = Resolve-CursorInstallPath -AllowPrompt
+    if (-not $cursorAppPath) {
         Write-Host "$YELLOW⚠️  [警告]$NC 未找到 Cursor 安装路径，跳过禁用更新"
         return $false
     }
@@ -911,9 +1101,9 @@ function Disable-CursorAutoUpdate {
     $updateFiles = @(
         "$cursorAppPath\resources\app-update.yml",
         "$cursorAppPath\resources\app\update-config.json",
-        "$env:APPDATA\Cursor\update-config.json",
-        "$env:APPDATA\Cursor\settings.json"
-    )
+        (if ($global:CursorAppDataDir) { Join-Path $global:CursorAppDataDir "update-config.json" } else { $null }),
+        (if ($global:CursorAppDataDir) { Join-Path $global:CursorAppDataDir "settings.json" } else { $null })
+    ) | Where-Object { $_ }
 
     foreach ($file in $updateFiles) {
         if (-not (Test-Path $file)) { continue }
@@ -957,9 +1147,9 @@ function Disable-CursorAutoUpdate {
     # 尝试禁用更新器可执行文件
     $updaterCandidates = @(
         "$cursorAppPath\Update.exe",
-        "$env:LOCALAPPDATA\Cursor\Update.exe",
+        (if ($global:CursorLocalAppDataDir) { Join-Path $global:CursorLocalAppDataDir "Update.exe" } else { $null }),
         "$cursorAppPath\CursorUpdater.exe"
-    )
+    ) | Where-Object { $_ }
 
     foreach ($updater in $updaterCandidates) {
         if (-not (Test-Path $updater)) { continue }
@@ -984,12 +1174,14 @@ function Test-CursorEnvironment {
     Write-Host ""
     Write-Host "$BLUE🔍 [环境检查]$NC 正在检查Cursor环境..."
 
-    $configPath = "$env:APPDATA\Cursor\User\globalStorage\storage.json"
-    $cursorAppData = "$env:APPDATA\Cursor"
+    $configPath = $STORAGE_FILE
+    $cursorAppData = $global:CursorAppDataDir
     $issues = @()
 
     # 检查配置文件
-    if (-not (Test-Path $configPath)) {
+    if (-not $configPath) {
+        $issues += "无法解析配置文件路径"
+    } elseif (-not (Test-Path $configPath)) {
         $issues += "配置文件不存在: $configPath"
     } else {
         try {
@@ -1002,16 +1194,16 @@ function Test-CursorEnvironment {
     }
 
     # 检查Cursor目录结构
-    if (-not (Test-Path $cursorAppData)) {
+    if (-not $cursorAppData -or -not (Test-Path $cursorAppData)) {
         $issues += "Cursor应用数据目录不存在: $cursorAppData"
     }
 
     # 检查Cursor安装
-    $cursorPaths = @(
-        "$env:LOCALAPPDATA\Programs\cursor\Cursor.exe",
-        "$env:PROGRAMFILES\Cursor\Cursor.exe",
-        "$env:PROGRAMFILES(X86)\Cursor\Cursor.exe"
-    )
+    $cursorPaths = @()
+    $installPath = Resolve-CursorInstallPath
+    if ($installPath) {
+        $cursorPaths = @(Join-Path $installPath "Cursor.exe")
+    }
 
     $cursorFound = $false
     foreach ($path in $cursorPaths) {
@@ -1048,7 +1240,11 @@ function Modify-MachineCodeConfig {
     Write-Host ""
     Write-Host "$GREEN🛠️  [配置]$NC 正在修改机器码配置..."
 
-    $configPath = "$env:APPDATA\Cursor\User\globalStorage\storage.json"
+    $configPath = $STORAGE_FILE
+    if (-not $configPath) {
+        Write-Host "$RED❌ [错误]$NC 无法解析配置文件路径"
+        return $false
+    }
 
     # 增强的配置文件检查
     if (-not (Test-Path $configPath)) {
@@ -1166,7 +1362,10 @@ function Modify-MachineCodeConfig {
             Write-Host "$BLUE⏳ [进度]$NC 2/7 - 创建备份目录..."
 
             # 备份原始值（增强版）
-            $backupDir = "$env:APPDATA\Cursor\User\globalStorage\backups"
+            $backupDir = $BACKUP_DIR
+            if (-not $backupDir) {
+                throw "无法解析备份目录路径"
+            }
             if (-not (Test-Path $backupDir)) {
                 New-Item -ItemType Directory -Path $backupDir -Force -ErrorAction Stop | Out-Null
             }
@@ -1310,49 +1509,57 @@ function Modify-MachineCodeConfig {
 
                 # 🔧 新增: 修改 machineid 文件
                 Write-Host "$BLUE🔧 [machineid]$NC 正在修改 machineid 文件..."
-                $machineIdFilePath = "$env:APPDATA\Cursor\machineid"
-                try {
-                    if (Test-Path $machineIdFilePath) {
-                        # 备份原始 machineid 文件
-                        $machineIdBackup = "$backupDir\machineid.backup_$(Get-Date -Format 'yyyyMMdd_HHmmss')"
-                        Copy-Item $machineIdFilePath $machineIdBackup -Force
-                        Write-Host "$GREEN💾 [备份]$NC machineid 文件已备份: $machineIdBackup"
-                    }
-                    # 写入新的 serviceMachineId 到 machineid 文件
-                    [System.IO.File]::WriteAllText($machineIdFilePath, $SERVICE_MACHINE_ID, [System.Text.Encoding]::UTF8)
-                    Write-Host "$GREEN✅ [machineid]$NC machineid 文件修改成功: $SERVICE_MACHINE_ID"
+                $machineIdFilePath = if ($global:CursorAppDataDir) { Join-Path $global:CursorAppDataDir "machineid" } else { $null }
+                if (-not $machineIdFilePath) {
+                    Write-Host "$YELLOW⚠️  [machineid]$NC 无法解析 machineid 文件路径，跳过修改"
+                } else {
+                    try {
+                        if (Test-Path $machineIdFilePath) {
+                            # 备份原始 machineid 文件
+                            $machineIdBackup = "$backupDir\machineid.backup_$(Get-Date -Format 'yyyyMMdd_HHmmss')"
+                            Copy-Item $machineIdFilePath $machineIdBackup -Force
+                            Write-Host "$GREEN💾 [备份]$NC machineid 文件已备份: $machineIdBackup"
+                        }
+                        # 写入新的 serviceMachineId 到 machineid 文件
+                        [System.IO.File]::WriteAllText($machineIdFilePath, $SERVICE_MACHINE_ID, [System.Text.Encoding]::UTF8)
+                        Write-Host "$GREEN✅ [machineid]$NC machineid 文件修改成功: $SERVICE_MACHINE_ID"
 
-                    # 设置 machineid 文件为只读
-                    $machineIdFile = Get-Item $machineIdFilePath
-                    $machineIdFile.IsReadOnly = $true
-                    Write-Host "$GREEN🔒 [保护]$NC machineid 文件已设置为只读"
-                } catch {
-                    Write-Host "$YELLOW⚠️  [machineid]$NC machineid 文件修改失败: $($_.Exception.Message)"
-                    Write-Host "$BLUE💡 [提示]$NC 可手动修改文件: $machineIdFilePath"
+                        # 设置 machineid 文件为只读
+                        $machineIdFile = Get-Item $machineIdFilePath
+                        $machineIdFile.IsReadOnly = $true
+                        Write-Host "$GREEN🔒 [保护]$NC machineid 文件已设置为只读"
+                    } catch {
+                        Write-Host "$YELLOW⚠️  [machineid]$NC machineid 文件修改失败: $($_.Exception.Message)"
+                        Write-Host "$BLUE💡 [提示]$NC 可手动修改文件: $machineIdFilePath"
+                    }
                 }
 
                 # 🔧 新增: 修改 .updaterId 文件（更新器设备标识符）
                 Write-Host "$BLUE🔧 [updaterId]$NC 正在修改 .updaterId 文件..."
-                $updaterIdFilePath = "$env:APPDATA\Cursor\.updaterId"
-                try {
-                    if (Test-Path $updaterIdFilePath) {
-                        # 备份原始 .updaterId 文件
-                        $updaterIdBackup = "$backupDir\.updaterId.backup_$(Get-Date -Format 'yyyyMMdd_HHmmss')"
-                        Copy-Item $updaterIdFilePath $updaterIdBackup -Force
-                        Write-Host "$GREEN💾 [备份]$NC .updaterId 文件已备份: $updaterIdBackup"
-                    }
-                    # 生成新的 updaterId（UUID格式）
-                    $newUpdaterId = [System.Guid]::NewGuid().ToString()
-                    [System.IO.File]::WriteAllText($updaterIdFilePath, $newUpdaterId, [System.Text.Encoding]::UTF8)
-                    Write-Host "$GREEN✅ [updaterId]$NC .updaterId 文件修改成功: $newUpdaterId"
+                $updaterIdFilePath = if ($global:CursorAppDataDir) { Join-Path $global:CursorAppDataDir ".updaterId" } else { $null }
+                if (-not $updaterIdFilePath) {
+                    Write-Host "$YELLOW⚠️  [updaterId]$NC 无法解析 .updaterId 文件路径，跳过修改"
+                } else {
+                    try {
+                        if (Test-Path $updaterIdFilePath) {
+                            # 备份原始 .updaterId 文件
+                            $updaterIdBackup = "$backupDir\.updaterId.backup_$(Get-Date -Format 'yyyyMMdd_HHmmss')"
+                            Copy-Item $updaterIdFilePath $updaterIdBackup -Force
+                            Write-Host "$GREEN💾 [备份]$NC .updaterId 文件已备份: $updaterIdBackup"
+                        }
+                        # 生成新的 updaterId（UUID格式）
+                        $newUpdaterId = [System.Guid]::NewGuid().ToString()
+                        [System.IO.File]::WriteAllText($updaterIdFilePath, $newUpdaterId, [System.Text.Encoding]::UTF8)
+                        Write-Host "$GREEN✅ [updaterId]$NC .updaterId 文件修改成功: $newUpdaterId"
 
-                    # 设置 .updaterId 文件为只读
-                    $updaterIdFile = Get-Item $updaterIdFilePath
-                    $updaterIdFile.IsReadOnly = $true
-                    Write-Host "$GREEN🔒 [保护]$NC .updaterId 文件已设置为只读"
-                } catch {
-                    Write-Host "$YELLOW⚠️  [updaterId]$NC .updaterId 文件修改失败: $($_.Exception.Message)"
-                    Write-Host "$BLUE💡 [提示]$NC 可手动修改文件: $updaterIdFilePath"
+                        # 设置 .updaterId 文件为只读
+                        $updaterIdFile = Get-Item $updaterIdFilePath
+                        $updaterIdFile.IsReadOnly = $true
+                        Write-Host "$GREEN🔒 [保护]$NC .updaterId 文件已设置为只读"
+                    } catch {
+                        Write-Host "$YELLOW⚠️  [updaterId]$NC .updaterId 文件修改失败: $($_.Exception.Message)"
+                        Write-Host "$BLUE💡 [提示]$NC 可手动修改文件: $updaterIdFilePath"
+                    }
                 }
 
                 # 🔒 添加配置文件保护机制
@@ -1425,20 +1632,9 @@ function Modify-MachineCodeConfig {
 function Start-CursorToGenerateConfig {
     Write-Host "$BLUE🚀 [启动]$NC 正在尝试启动Cursor生成配置文件..."
 
-    # 查找Cursor可执行文件
-    $cursorPaths = @(
-        "$env:LOCALAPPDATA\Programs\cursor\Cursor.exe",
-        "$env:PROGRAMFILES\Cursor\Cursor.exe",
-        "$env:PROGRAMFILES(X86)\Cursor\Cursor.exe"
-    )
-
-    $cursorPath = $null
-    foreach ($path in $cursorPaths) {
-        if (Test-Path $path) {
-            $cursorPath = $path
-            break
-        }
-    }
+    # 查找Cursor可执行文件（支持自动检测 + 手动兜底）
+    $installPath = Resolve-CursorInstallPath -AllowPrompt
+    $cursorPath = if ($installPath) { Join-Path $installPath "Cursor.exe" } else { $null }
 
     if (-not $cursorPath) {
         Write-Host "$RED❌ [错误]$NC 未找到Cursor安装，请确认Cursor已正确安装"
@@ -1456,7 +1652,11 @@ function Start-CursorToGenerateConfig {
         Write-Host "$BLUE💡 [提示]$NC 您可以在Cursor完全加载后手动关闭它"
 
         # 等待配置文件生成
-        $configPath = "$env:APPDATA\Cursor\User\globalStorage\storage.json"
+        $configPath = $STORAGE_FILE
+        if (-not $configPath) {
+            Write-Host "$RED❌ [错误]$NC 无法解析配置文件路径"
+            return $false
+        }
         $maxWait = 60
         $waited = 0
 
@@ -1612,10 +1812,10 @@ Write-Host ""
 # 获取并显示 Cursor 版本
 function Get-CursorVersion {
     try {
-        # 主要检测路径
-        $packagePath = "$env:LOCALAPPDATA\\Programs\\cursor\\resources\\app\\package.json"
-        
-        if (Test-Path $packagePath) {
+        # 主要检测路径（基于安装路径解析）
+        $installPath = Resolve-CursorInstallPath
+        $packagePath = if ($installPath) { Join-Path $installPath "resources\app\package.json" } else { $null }
+        if ($packagePath -and (Test-Path $packagePath)) {
             $packageJson = Get-Content $packagePath -Raw | ConvertFrom-Json
             if ($packageJson.version) {
                 Write-Host "$GREEN[信息]$NC 当前安装的 Cursor 版本: v$($packageJson.version)"
@@ -1623,9 +1823,9 @@ function Get-CursorVersion {
             }
         }
 
-        # 备用路径检测
-        $altPath = "$env:LOCALAPPDATA\\cursor\\resources\\app\\package.json"
-        if (Test-Path $altPath) {
+        # 备用路径检测（兼容旧目录结构）
+        $altPath = if ($global:CursorLocalAppDataRoot) { Join-Path $global:CursorLocalAppDataRoot "cursor\resources\app\package.json" } else { $null }
+        if ($altPath -and (Test-Path $altPath)) {
             $packageJson = Get-Content $altPath -Raw | ConvertFrom-Json
             if ($packageJson.version) {
                 Write-Host "$GREEN[信息]$NC 当前安装的 Cursor 版本: v$($packageJson.version)"
@@ -1717,29 +1917,23 @@ function Close-CursorProcessAndSaveInfo {
     } else {
         Write-Host "$BLUE💡 [提示]$NC 未发现 $processName 进程运行"
         # 尝试找到Cursor的安装路径
-        $cursorPaths = @(
-            "$env:LOCALAPPDATA\Programs\cursor\Cursor.exe",
-            "$env:PROGRAMFILES\Cursor\Cursor.exe",
-            "$env:PROGRAMFILES(X86)\Cursor\Cursor.exe"
-        )
-
-        foreach ($path in $cursorPaths) {
-            if (Test-Path $path) {
-                $global:CursorProcessInfo = @{
-                    ProcessName = "Cursor"
-                    Path = $path
-                    StartTime = $null
-                }
-                Write-Host "$GREEN💾 [发现]$NC 找到Cursor安装路径: $path"
-                break
+        $installPath = Resolve-CursorInstallPath
+        $candidatePath = if ($installPath) { Join-Path $installPath "Cursor.exe" } else { $null }
+        if ($candidatePath -and (Test-Path $candidatePath)) {
+            $global:CursorProcessInfo = @{
+                ProcessName = "Cursor"
+                Path = $candidatePath
+                StartTime = $null
             }
+            Write-Host "$GREEN💾 [发现]$NC 找到Cursor安装路径: $candidatePath"
         }
 
         if (-not $global:CursorProcessInfo) {
             Write-Host "$YELLOW⚠️  [警告]$NC 未找到Cursor安装路径，将使用默认路径"
+            $defaultInstallPath = if ($global:CursorLocalAppDataRoot) { Join-Path $global:CursorLocalAppDataRoot "Programs\cursor\Cursor.exe" } else { "$env:LOCALAPPDATA\Programs\cursor\Cursor.exe" }
             $global:CursorProcessInfo = @{
                 ProcessName = "Cursor"
-                Path = "$env:LOCALAPPDATA\Programs\cursor\Cursor.exe"
+                Path = $defaultInstallPath
                 StartTime = $null
             }
         }
@@ -1747,7 +1941,9 @@ function Close-CursorProcessAndSaveInfo {
 }
 
 # �️ 确保备份目录存在
-if (-not (Test-Path $BACKUP_DIR)) {
+if (-not $BACKUP_DIR) {
+    Write-Host "$YELLOW⚠️  [警告]$NC 无法解析备份目录路径，跳过创建"
+} elseif (-not (Test-Path $BACKUP_DIR)) {
     try {
         New-Item -ItemType Directory -Path $BACKUP_DIR -Force | Out-Null
         Write-Host "$GREEN✅ [备份目录]$NC 备份目录创建成功: $BACKUP_DIR"
@@ -1819,7 +2015,10 @@ if ($executeMode -eq "MODIFY_ONLY") {
             # 🔒 添加配置文件保护机制
             Write-Host "$BLUE🔒 [保护]$NC 正在设置配置文件保护..."
             try {
-                $configPath = "$env:APPDATA\Cursor\User\globalStorage\storage.json"
+                $configPath = $STORAGE_FILE
+                if (-not $configPath) {
+                    throw "无法解析配置文件路径"
+                }
                 $configFile = Get-Item $configPath
                 $configFile.IsReadOnly = $true
                 Write-Host "$GREEN✅ [保护]$NC 配置文件已设置为只读，防止Cursor覆盖修改"
@@ -1850,7 +2049,10 @@ if ($executeMode -eq "MODIFY_ONLY") {
             # 🔒 即使注册表修改失败，也要保护配置文件
             Write-Host "$BLUE🔒 [保护]$NC 正在设置配置文件保护..."
             try {
-                $configPath = "$env:APPDATA\Cursor\User\globalStorage\storage.json"
+                $configPath = $STORAGE_FILE
+                if (-not $configPath) {
+                    throw "无法解析配置文件路径"
+                }
                 $configFile = Get-Item $configPath
                 $configFile.IsReadOnly = $true
                 Write-Host "$GREEN✅ [保护]$NC 配置文件已设置为只读，防止Cursor覆盖修改"
@@ -1953,7 +2155,10 @@ if ($executeMode -eq "MODIFY_ONLY") {
             # 🔒 添加配置文件保护机制
             Write-Host "$BLUE🔒 [保护]$NC 正在设置配置文件保护..."
             try {
-                $configPath = "$env:APPDATA\Cursor\User\globalStorage\storage.json"
+                $configPath = $STORAGE_FILE
+                if (-not $configPath) {
+                    throw "无法解析配置文件路径"
+                }
                 $configFile = Get-Item $configPath
                 $configFile.IsReadOnly = $true
                 Write-Host "$GREEN✅ [保护]$NC 配置文件已设置为只读，防止Cursor覆盖修改"
@@ -1987,7 +2192,10 @@ if ($executeMode -eq "MODIFY_ONLY") {
             # 🔒 即使注册表修改失败，也要保护配置文件
             Write-Host "$BLUE🔒 [保护]$NC 正在设置配置文件保护..."
             try {
-                $configPath = "$env:APPDATA\Cursor\User\globalStorage\storage.json"
+                $configPath = $STORAGE_FILE
+                if (-not $configPath) {
+                    throw "无法解析配置文件路径"
+                }
                 $configFile = Get-Item $configPath
                 $configFile.IsReadOnly = $true
                 Write-Host "$GREEN✅ [保护]$NC 配置文件已设置为只读，防止Cursor覆盖修改"
