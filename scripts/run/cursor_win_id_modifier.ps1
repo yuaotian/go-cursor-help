@@ -2,12 +2,13 @@
 $OutputEncoding = [System.Text.Encoding]::UTF8
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
-# 颜色定义
-$RED = "`e[31m"
-$GREEN = "`e[32m"
-$YELLOW = "`e[33m"
-$BLUE = "`e[34m"
-$NC = "`e[0m"
+# 颜色定义（兼容 PowerShell 5.1 和 7.x）
+$ESC = [char]27
+$RED = "$ESC[31m"
+$GREEN = "$ESC[32m"
+$YELLOW = "$ESC[33m"
+$BLUE = "$ESC[34m"
+$NC = "$ESC[0m"
 
 # 路径解析：优先使用 .NET 获取系统目录，避免环境变量缺失导致路径异常
 function Get-FolderPathSafe {
@@ -36,7 +37,7 @@ function Get-FolderPathSafe {
     if ([string]::IsNullOrWhiteSpace($path)) {
         Write-Host "$YELLOW⚠️  [路径]$NC $Label 无法解析，将尝试其他方式"
     } else {
-        Write-Host "$BLUEℹ️  [路径]$NC $Label: $path"
+        Write-Host "$BLUEℹ️  [路径]$NC ${Label}: $path"
     }
     return $path
 }
