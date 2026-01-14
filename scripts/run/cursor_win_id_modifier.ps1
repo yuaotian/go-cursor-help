@@ -621,6 +621,7 @@ function Modify-CursorJSFiles {
                     Write-Host "   $BLUEℹ️  $NC [方案B诊断] id.js偏移=$markerIndex | sha256 createHash 命中=$($hashMatches.Count)"
                     $patched = $false
                     $diagLines = @()
+                    # 兼容：PowerShell 可展开字符串中 "$var:" 会被当作作用域/驱动器前缀解析，需用 "${var}" 明确变量边界
                     $candidateNo = 0
 
                     foreach ($hm in $hashMatches) {
@@ -628,31 +629,31 @@ function Modify-CursorJSFiles {
                         $hashPos = $hm.Index
                         $funcStart = $windowText.LastIndexOf("async function", $hashPos)
                         if ($funcStart -lt 0) {
-                            if ($candidateNo -le 3) { $diagLines += "候选#$candidateNo: 未找到 async function 起点" }
+                            if ($candidateNo -le 3) { $diagLines += "候选#${candidateNo}: 未找到 async function 起点" }
                             continue
                         }
 
                         $openBrace = $windowText.IndexOf("{", $funcStart)
                         if ($openBrace -lt 0) {
-                            if ($candidateNo -le 3) { $diagLines += "候选#$candidateNo: 未找到函数起始花括号" }
+                            if ($candidateNo -le 3) { $diagLines += "候选#${candidateNo}: 未找到函数起始花括号" }
                             continue
                         }
 
                         $endBrace = Find-JsMatchingBraceEnd -Text $windowText -OpenBraceIndex $openBrace -MaxScan 20000
                         if ($endBrace -lt 0) {
-                            if ($candidateNo -le 3) { $diagLines += "候选#$candidateNo: 花括号配对失败（扫描上限内未闭合）" }
+                            if ($candidateNo -le 3) { $diagLines += "候选#${candidateNo}: 花括号配对失败（扫描上限内未闭合）" }
                             continue
                         }
 
                         $funcText = $windowText.Substring($funcStart, $endBrace - $funcStart + 1)
                         if ($funcText.Length -gt 8000) {
-                            if ($candidateNo -le 3) { $diagLines += "候选#$candidateNo: 函数体过长 len=$($funcText.Length)，已跳过" }
+                            if ($candidateNo -le 3) { $diagLines += "候选#${candidateNo}: 函数体过长 len=$($funcText.Length)，已跳过" }
                             continue
                         }
 
                         $sig = [regex]::Match($funcText, '^async function (\w+)\((\w+)\)')
                         if (-not $sig.Success) {
-                            if ($candidateNo -le 3) { $diagLines += "候选#$candidateNo: 未解析到函数签名（async function name(param)）" }
+                            if ($candidateNo -le 3) { $diagLines += "候选#${candidateNo}: 未解析到函数签名（async function name(param)）" }
                             continue
                         }
                         $fn = $sig.Groups[1].Value
@@ -662,7 +663,7 @@ function Modify-CursorJSFiles {
                         $hasDigest = ($funcText -match '\.digest\(["'']hex["'']\)')
                         $hasReturn = ($funcText -match ('return\s+' + [regex]::Escape($param) + '\?\w+:\w+\}'))
                         if ($candidateNo -le 3) {
-                            $diagLines += "候选#$candidateNo: $fn($param) len=$($funcText.Length) digest=$hasDigest return=$hasReturn"
+                            $diagLines += "候选#${candidateNo}: $fn($param) len=$($funcText.Length) digest=$hasDigest return=$hasReturn"
                         }
                         if (-not $hasDigest) { continue }
                         if (-not $hasReturn) { continue }
@@ -672,7 +673,7 @@ function Modify-CursorJSFiles {
                         $absEnd = $markerIndex + $endBrace
                         $content = $content.Substring(0, $absStart) + $replacement + $content.Substring($absEnd + 1)
 
-                        Write-Host "   $BLUEℹ️  $NC [方案B诊断] 命中候选#$candidateNo：$fn($param) len=$($funcText.Length)"
+                        Write-Host "   $BLUEℹ️  $NC [方案B诊断] 命中候选#${candidateNo}：$fn($param) len=$($funcText.Length)"
                         Write-Host "   $GREEN✓$NC [方案B] 已重写 $fn($param) 机器码源函数（融合版特征匹配）"
                         $replacedB6 = $true
                         $patched = $true
