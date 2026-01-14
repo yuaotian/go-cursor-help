@@ -701,17 +701,22 @@ if (globalThis.__cursor_hook_loaded__) return;
 globalThis.__cursor_hook_loaded__ = true;
 
 try {
-    var __require__ = typeof require === 'function' ? require : null;
-    if (!__require__) {
-        var __m__ = await import('module');
-        __require__ = __m__.createRequire(import.meta.url);
-    }
-    var fs = __require__('fs');
-    var path = __require__('path');
-    var os = __require__('os');
-    var hookPath = path.join(os.homedir(), '.cursor_hook.js');
-    if (fs.existsSync(hookPath)) {
-        __require__(hookPath);
+    // 兼容 ESM/CJS：避免使用 import.meta（仅 ESM 支持），统一用动态 import 加载 Hook
+    var fsMod = await import('fs');
+    var pathMod = await import('path');
+    var osMod = await import('os');
+    var urlMod = await import('url');
+
+    var fs = fsMod && (fsMod.default || fsMod);
+    var path = pathMod && (pathMod.default || pathMod);
+    var os = osMod && (osMod.default || osMod);
+    var url = urlMod && (urlMod.default || urlMod);
+
+    if (fs && path && os && url && typeof url.pathToFileURL === 'function') {
+        var hookPath = path.join(os.homedir(), '.cursor_hook.js');
+        if (typeof fs.existsSync === 'function' && fs.existsSync(hookPath)) {
+            await import(url.pathToFileURL(hookPath).href);
+        }
     }
 } catch (e) {
     // 失败静默，避免影响启动
