@@ -2002,8 +2002,9 @@ if True:
          i += 1
      return None
  
- hash_re = re.compile(r'createHash\\([\"\\']sha256[\"\\']\\)')
- sig_re = re.compile(r'^async function (\\w+)\\((\\w+)\\)')
+ # 修复：避免 raw 单引号字符串中的 \\' 引发语法错误；并纠正正则转义以匹配实际 main.js 代码结构（与 Win 脚本逻辑对齐）
+ hash_re = re.compile(r"createHash\(\s*['\"]sha256['\"]\s*\)")
+ sig_re = re.compile(r'^async function (\w+)\((\w+)\)')
  
  hash_matches = list(hash_re.finditer(window))
  diag(f"marker_index={marker_index} window_len={len(window)} sha256_createHash={len(hash_matches)}")
@@ -2042,8 +2043,8 @@ if True:
      name, param = sm.group(1), sm.group(2)
  
      # 特征校验：sha256 + hex digest + return param ? raw : hash
-     has_digest = re.search(r'\\.digest\\([\"\\']hex[\"\\']\\)', func_text) is not None
-     has_return = re.search(r'return\\s+' + re.escape(param) + r'\\?\\w+:\\w+\\}', func_text) is not None
+     has_digest = re.search(r"\.digest\(\s*['\"]hex['\"]\s*\)", func_text) is not None
+     has_return = re.search(r'return\s+' + re.escape(param) + r'\?\w+:\w+\}', func_text) is not None
      if idx <= 3:
          diag(f"候选#{idx}: {name}({param}) len={len(func_text)} digest={has_digest} return={has_return}")
      if not has_digest:
