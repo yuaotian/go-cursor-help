@@ -37,6 +37,43 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# 启动时尝试调整终端窗口大小为 1024x768（列x行）；不支持/失败时静默忽略，避免影响脚本主流程
+try_resize_terminal_window() {
+    local target_cols=1024
+    local target_rows=768
+
+    # 仅在交互终端中尝试，避免输出被重定向时出现乱码
+    if [ ! -t 1 ]; then
+        return 0
+    fi
+
+    case "${TERM:-}" in
+        ""|dumb)
+            return 0
+            ;;
+    esac
+
+    # 终端类型检测：仅对常见 xterm 体系终端尝试窗口调整（Terminal.app/iTerm2 以及常见终端通常为 xterm*）
+    case "${TERM:-}" in
+        xterm*|screen*|tmux*|rxvt*|alacritty*|kitty*|foot*|wezterm*)
+            ;;
+        *)
+            return 0
+            ;;
+    esac
+
+    # 优先通过 xterm 窗口控制序列调整；在 tmux/screen 下需要 passthrough 包装
+    if [ -n "${TMUX:-}" ]; then
+        printf '\033Ptmux;\033\033[8;%d;%dt\033\\' "$target_rows" "$target_cols" 2>/dev/null || true
+    elif [ -n "${STY:-}" ]; then
+        printf '\033P\033[8;%d;%dt\033\\' "$target_rows" "$target_cols" 2>/dev/null || true
+    else
+        printf '\033[8;%d;%dt' "$target_rows" "$target_cols" 2>/dev/null || true
+    fi
+
+    return 0
+}
+
 # 日志函数 - 同时输出到终端和日志文件
 log_info() {
     echo -e "${GREEN}[INFO]${NC} $1"
@@ -2924,6 +2961,9 @@ select_menu_option() {
 
 # 主函数
 main() {
+
+    # 在显示菜单/流程说明前调整终端窗口大小；不支持则静默忽略
+    try_resize_terminal_window
 
     # 初始化日志文件
     initialize_log

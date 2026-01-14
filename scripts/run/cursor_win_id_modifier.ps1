@@ -10,6 +10,56 @@ $YELLOW = "$ESC[33m"
 $BLUE = "$ESC[34m"
 $NC = "$ESC[0m"
 
+# 启动时尝试调整终端窗口大小为 1024x768（列x行）；不支持/失败时静默忽略，避免影响脚本主流程
+function Try-ResizeTerminalWindow {
+    param(
+        [int]$Columns = 1024,
+        [int]$Rows = 768
+    )
+
+    # 方式1：通过 PowerShell Host RawUI 调整（传统控制台、ConEmu 等可能支持）
+    try {
+        $rawUi = $null
+        if ($Host -and $Host.UI -and $Host.UI.RawUI) {
+            $rawUi = $Host.UI.RawUI
+        }
+
+        if ($rawUi) {
+            try {
+                # BufferSize 必须 >= WindowSize，否则会抛异常
+                $bufferSize = $rawUi.BufferSize
+                $newBufferSize = New-Object System.Management.Automation.Host.Size (
+                    ([Math]::Max($bufferSize.Width, $Columns)),
+                    ([Math]::Max($bufferSize.Height, $Rows))
+                )
+                $rawUi.BufferSize = $newBufferSize
+            } catch {
+                # 静默忽略
+            }
+
+            try {
+                $rawUi.WindowSize = New-Object System.Management.Automation.Host.Size ($Columns, $Rows)
+            } catch {
+                # 静默忽略
+            }
+        }
+    } catch {
+        # 静默忽略
+    }
+
+    # 方式2：通过 ANSI 转义序列再尝试一次（Windows Terminal 等可能支持）
+    try {
+        if (-not [Console]::IsOutputRedirected) {
+            $escChar = [char]27
+            [Console]::Out.Write("$escChar[8;${Rows};${Columns}t")
+        }
+    } catch {
+        # 静默忽略
+    }
+}
+
+Try-ResizeTerminalWindow -Columns 1024 -Rows 768
+
 # 路径解析：优先使用 .NET 获取系统目录，避免环境变量缺失导致路径异常
 function Get-FolderPathSafe {
     param(
