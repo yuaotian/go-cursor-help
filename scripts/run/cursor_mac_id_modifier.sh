@@ -1862,6 +1862,9 @@ EOF
 if True:
  import re, sys
  
+ def diag(msg):
+     print(f"[方案B][诊断] {msg}", file=sys.stderr)
+  
  path, machine_guid, machine_id = sys.argv[1], sys.argv[2], sys.argv[3]
  
  with open(path, "r", encoding="utf-8") as f:
@@ -1872,6 +1875,7 @@ if True:
  marker_index = data.find(marker)
  if marker_index < 0:
      print("NOT_FOUND")
+     diag(f"未找到模块标记: {marker}")
      raise SystemExit(0)
  
  window_end = min(len(data), marker_index + 200000)
@@ -1964,33 +1968,50 @@ if True:
  hash_re = re.compile(r'createHash\\([\"\\']sha256[\"\\']\\)')
  sig_re = re.compile(r'^async function (\\w+)\\((\\w+)\\)')
  
- for hm in hash_re.finditer(window):
+ hash_matches = list(hash_re.finditer(window))
+ diag(f"marker_index={marker_index} window_len={len(window)} sha256_createHash={len(hash_matches)}")
+ 
+ for idx, hm in enumerate(hash_matches, start=1):
      hash_pos = hm.start()
      func_start = window.rfind("async function", 0, hash_pos)
      if func_start < 0:
+         if idx <= 3:
+             diag(f"候选#{idx}: 未找到 async function 起点")
          continue
  
      open_brace = window.find("{", func_start)
      if open_brace < 0:
+         if idx <= 3:
+             diag(f"候选#{idx}: 未找到函数起始花括号")
          continue
  
      end_brace = find_matching_brace(window, open_brace, max_scan=20000)
      if end_brace is None:
+         if idx <= 3:
+             diag(f"候选#{idx}: 花括号配对失败（扫描上限内未闭合）")
          continue
  
      func_text = window[func_start:end_brace + 1]
      if len(func_text) > 8000:
+         if idx <= 3:
+             diag(f"候选#{idx}: 函数体过长 len={len(func_text)}，已跳过")
          continue
  
      sm = sig_re.match(func_text)
      if not sm:
+         if idx <= 3:
+             diag(f"候选#{idx}: 未解析到函数签名（async function name(param)）")
          continue
      name, param = sm.group(1), sm.group(2)
  
      # 特征校验：sha256 + hex digest + return param ? raw : hash
-     if not re.search(r'\\.digest\\([\"\\']hex[\"\\']\\)', func_text):
+     has_digest = re.search(r'\\.digest\\([\"\\']hex[\"\\']\\)', func_text) is not None
+     has_return = re.search(r'return\\s+' + re.escape(param) + r'\\?\\w+:\\w+\\}', func_text) is not None
+     if idx <= 3:
+         diag(f"候选#{idx}: {name}({param}) len={len(func_text)} digest={has_digest} return={has_return}")
+     if not has_digest:
          continue
-     if not re.search(r'return\\s+' + re.escape(param) + r'\\?\\w+:\\w+\\}', func_text):
+     if not has_return:
          continue
  
      replacement = f'async function {name}({param}){{return {param}?"{machine_guid}":"{machine_id}";}}'
@@ -1999,9 +2020,11 @@ if True:
      new_data = data[:abs_start] + replacement + data[abs_end + 1:]
      with open(path, "w", encoding="utf-8") as f:
          f.write(new_data)
+     diag(f"命中并重写: {name}({param}) len={len(func_text)}")
      print("PATCHED")
      break
  else:
+     diag("未找到满足特征的候选函数")
      print("NOT_FOUND")
 PY
                 )
