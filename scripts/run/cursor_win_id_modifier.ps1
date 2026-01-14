@@ -518,16 +518,22 @@ function Modify-CursorJSFiles {
             # ========== 方法B: b6 定点重写（机器码源函数，仅 main.js） ==========
             # 说明：b6(t) 是 machineId 的核心生成函数，t=true 返回原始值，t=false 返回哈希
             if ((Split-Path $file -Leaf) -eq "main.js") {
-                # 使用特征锚点定位（createHash("sha256") + return t?e:i），避免依赖函数名
-                $b6Pattern = '(?s)async function (\w+)\((\w+)\)\{.*?createHash\("sha256"\).*?return \w+\?\w+:\w+\}'
-                $b6Replacement = "async function `$1(`$2){return `$2?'$machineGuid':'$machineId';}"
+                # ⚠️ 安全修复：旧版“泛匹配 async function + .*?”会在部分版本中跨越大段代码误替换，直接破坏 main.js 语法。
+                # 这里改为仅锚定 b6(...) 的函数定义；若版本不存在 b6，则跳过方案B，避免误伤。
+                $b6Pattern = '(?s)async function b6\((\w+)\)\{.*?createHash\(["'']sha256["'']\).*?return \1\?\w+:\w+\}'
+                $b6Replacement = "async function b6(`$1){return `$1?'$machineGuid':'$machineId';}"
                 $b6Regex = [regex]::new($b6Pattern)
-                if ($b6Regex.IsMatch($content)) {
-                    $content = $b6Regex.Replace($content, $b6Replacement, 1)
-                    Write-Host "   $GREEN✓$NC [方案B] 已重写 b6(t) 返回值"
-                    $replacedB6 = $true
+                $b6Match = $b6Regex.Match($content)
+                if ($b6Match.Success) {
+                    if ($b6Match.Length -gt 5000) {
+                        Write-Host "   $YELLOW⚠️  $NC [方案B] b6 匹配长度异常（$($b6Match.Length)），为避免破坏文件已跳过"
+                    } else {
+                        $content = $b6Regex.Replace($content, $b6Replacement, 1)
+                        Write-Host "   $GREEN✓$NC [方案B] 已重写 b6(t) 返回值"
+                        $replacedB6 = $true
+                    }
                 } else {
-                    Write-Host "   $YELLOW⚠️  $NC [方案B] 未定位到 b6(t) 目标函数"
+                    Write-Host "   $YELLOW⚠️  $NC [方案B] 未找到 b6(t) 目标函数，已跳过"
                 }
             }
 

@@ -84,23 +84,12 @@ var __cursor_hook_config__ = {
     };
 
     // 加载或生成 ID 配置
-    // 注意：使用 createRequire 来支持 ES Module 环境
+    // 注意：该 Hook 由脚本注入的 Loader 通过 CommonJS(require) 方式加载，
+    // 为避免出现 import.meta 等仅 ESM 支持的语法导致 Cursor 启动期解析失败，这里保持纯 CommonJS 写法。
     const loadOrGenerateIds = () => {
-        // 在 ES Module 环境中，需要使用 createRequire 来加载 CommonJS 模块
-        let fs, path, os;
-        try {
-            // 尝试使用 Node.js 内置模块
-            const { createRequire } = require('module');
-            const require2 = createRequire(import.meta?.url || __filename);
-            fs = require2('fs');
-            path = require2('path');
-            os = require2('os');
-        } catch (e) {
-            // 回退到直接 require
-            fs = require('fs');
-            path = require('path');
-            os = require('os');
-        }
+        const fs = require('fs');
+        const path = require('path');
+        const os = require('os');
 
         const configPath = path.join(os.homedir(), __cursor_hook_config__.configFileName);
 
