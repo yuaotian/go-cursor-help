@@ -562,10 +562,13 @@ try {
 
 "@
 
-            # 找到版权声明结束位置并在其后注入
-            if ($content -match '(\*/\s*\n)') {
-                $content = $content -replace '(\*/\s*\n)', "`$1$injectCode"
-                Write-Host "   $GREEN✓$NC [方案C] Loader Stub 已注入（版权声明后）"
+            # 找到版权声明结束位置并在其后注入（仅注入一次，避免多次插入破坏语法）
+            if ($content -match "__cursor_patched__") {
+                Write-Host "   $YELLOW⚠️  $NC [方案C] 已检测到既有注入标记，跳过重复注入"
+            } elseif ($content -match '(\*/\s*\n)') {
+                $replacement = '$1' + $injectCode
+                $content = [regex]::Replace($content, '(\*/\s*\n)', $replacement, 1)
+                Write-Host "   $GREEN✓$NC [方案C] Loader Stub 已注入（版权声明后，仅首次）"
             } else {
                 # 如果没有找到版权声明，则注入到文件开头
                 $content = $injectCode + $content
