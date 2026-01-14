@@ -27,10 +27,21 @@
 | 1️⃣ | **Pro** 🔥 `HOT` | **¥65** | **$10** | $20 | $20 Base + Rewards + Overdraft ≈ **$45–$65** |
 | 2️⃣ | **Pro+** | **¥265** | **$40** | $60 | $70 Base + Rewards + Overdraft ≈ **$95–$130** |
 | 3️⃣ | **Ultra** 👑 | **¥888** | **$140** | $200 | $400+ Base + Massive Rewards ≈ **$400+** |
+| 🎁 | **Half-Month** 🏷️ `LIMITED` | **¥688** | **$100** | — | 1000 Reqs + $20 ≈ **More durable than Ultra** |
 
 > 📖 [Official Pricing](https://cursor.com/cn/docs/account/pricing)
 >
 > *ℹ️ Value note: Total usage value = Base Credits + Rewards + Overdraft (monthly resets apply).*
+>
+> ### 🔥 [New] Cursor Business Exclusive Request-Based Account - 1000 Reqs + $20
+>
+> > **More durable than the $200/Ultra plan! Experience it yourself!**
+>
+> - **Service**:       Cursor Official Business Member - 14-day account (deleted after use).
+> - **14-Day Exclusive**: Personal exclusive business official request-based account. Includes **1000** fast requests + **$20** model usage credit.
+> - **Billing**:       Deducts request counts first, then the additional $20 credit. Note: Max models consume more counts. No slow-speed unlimited mode.
+> - **Full Access**:   All models available, no functional restrictions.
+> - **Official & Warranty**: Guaranteed official account, full warranty, after-sales support. Renewable!
 
 ⚠️ **Before you buy**: Private (not shared) | Valid 25–30 days | Up to 3 devices | 7‑day warranty (replacement / pro‑rated refund)
 
