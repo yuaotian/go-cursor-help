@@ -10,11 +10,11 @@ $YELLOW = "$ESC[33m"
 $BLUE = "$ESC[34m"
 $NC = "$ESC[0m"
 
-# 启动时尝试调整终端窗口大小为 1024x768（列x行）；不支持/失败时静默忽略，避免影响脚本主流程
+# 启动时尝试调整终端窗口大小为 120x40（列x行）；不支持/失败时静默忽略，避免影响脚本主流程
 function Try-ResizeTerminalWindow {
     param(
-        [int]$Columns = 1024,
-        [int]$Rows = 768
+        [int]$Columns = 120,
+        [int]$Rows = 40
     )
 
     # 方式1：通过 PowerShell Host RawUI 调整（传统控制台、ConEmu 等可能支持）
@@ -58,7 +58,7 @@ function Try-ResizeTerminalWindow {
     }
 }
 
-Try-ResizeTerminalWindow -Columns 1024 -Rows 768
+Try-ResizeTerminalWindow -Columns 120 -Rows 40
 
 # 路径解析：优先使用 .NET 获取系统目录，避免环境变量缺失导致路径异常
 function Get-FolderPathSafe {

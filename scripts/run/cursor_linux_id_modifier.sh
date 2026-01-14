@@ -19,10 +19,10 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# 启动时尝试调整终端窗口大小为 1024x768（列x行）；不支持/失败时静默忽略，避免影响脚本主流程
+# 启动时尝试调整终端窗口大小为 120x40（列x行）；不支持/失败时静默忽略，避免影响脚本主流程
 try_resize_terminal_window() {
-    local target_cols=1024
-    local target_rows=768
+    local target_cols=120
+    local target_rows=40
 
     # 仅在交互终端中尝试，避免输出被重定向时出现乱码
     if [ ! -t 1 ]; then
