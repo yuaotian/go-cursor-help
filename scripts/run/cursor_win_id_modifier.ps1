@@ -519,8 +519,8 @@ function Modify-CursorJSFiles {
             # 说明：b6(t) 是 machineId 的核心生成函数，t=true 返回原始值，t=false 返回哈希
             if ((Split-Path $file -Leaf) -eq "main.js") {
                 # 使用特征锚点定位（createHash("sha256") + return t?e:i），避免依赖函数名
-                $b6Pattern = '(?s)async function \w+\(\w+\)\{.*?createHash\("sha256"\).*?return \w+\?\w+:\w+\}'
-                $b6Replacement = "async function b6(t){return t?'$machineGuid':'$machineId';}"
+                $b6Pattern = '(?s)async function (\w+)\((\w+)\)\{.*?createHash\("sha256"\).*?return \w+\?\w+:\w+\}'
+                $b6Replacement = "async function `$1(`$2){return `$2?'$machineGuid':'$machineId';}"
                 $b6Regex = [regex]::new($b6Pattern)
                 if ($b6Regex.IsMatch($content)) {
                     $content = $b6Regex.Replace($content, $b6Replacement, 1)
@@ -573,6 +573,12 @@ try {
                 # 如果没有找到版权声明，则注入到文件开头
                 $content = $injectCode + $content
                 Write-Host "   $GREEN✓$NC [方案C] Loader Stub 已注入（文件开头）"
+            }
+
+            # 注入一致性校验：避免重复注入导致语法损坏
+            $patchedCount = ([regex]::Matches($content, "__cursor_patched__")).Count
+            if ($patchedCount -gt 1) {
+                throw "检测到重复注入标记：$patchedCount"
             }
 
             # 写入修改后的内容
