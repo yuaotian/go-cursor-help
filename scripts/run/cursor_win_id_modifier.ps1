@@ -244,6 +244,81 @@ function Generate-RandomString {
     return $result
 }
 
+# 🔍 简易 JavaScript 花括号匹配（用于在限定片段内定位函数边界，避免正则跨段误替换）
+# 说明：这是一个轻量解析器，足以应对 main.js 中的压缩函数体（含 try/catch、字符串、注释）。
+function Find-JsMatchingBraceEnd {
+    param(
+        [Parameter(Mandatory = $true)][string]$Text,
+        [Parameter(Mandatory = $true)][int]$OpenBraceIndex,
+        [int]$MaxScan = 20000
+    )
+
+    if ($OpenBraceIndex -lt 0 -or $OpenBraceIndex -ge $Text.Length) {
+        return -1
+    }
+
+    $limit = [Math]::Min($Text.Length, $OpenBraceIndex + $MaxScan)
+
+    $depth = 1
+    $inSingle = $false
+    $inDouble = $false
+    $inTemplate = $false
+    $inLineComment = $false
+    $inBlockComment = $false
+    $escape = $false
+
+    for ($i = $OpenBraceIndex + 1; $i -lt $limit; $i++) {
+        $ch = $Text[$i]
+        $next = if ($i + 1 -lt $limit) { $Text[$i + 1] } else { [char]0 }
+
+        if ($inLineComment) {
+            if ($ch -eq "`n") { $inLineComment = $false }
+            continue
+        }
+        if ($inBlockComment) {
+            if ($ch -eq '*' -and $next -eq '/') { $inBlockComment = $false; $i++; continue }
+            continue
+        }
+
+        if ($inSingle) {
+            if ($escape) { $escape = $false; continue }
+            if ($ch -eq '\') { $escape = $true; continue }
+            if ($ch -eq "'") { $inSingle = $false }
+            continue
+        }
+        if ($inDouble) {
+            if ($escape) { $escape = $false; continue }
+            if ($ch -eq '\') { $escape = $true; continue }
+            if ($ch -eq '"') { $inDouble = $false }
+            continue
+        }
+        if ($inTemplate) {
+            if ($escape) { $escape = $false; continue }
+            if ($ch -eq '\') { $escape = $true; continue }
+            if ($ch -eq '`') { $inTemplate = $false }
+            continue
+        }
+
+        # 注释检测（仅在非字符串状态下）
+        if ($ch -eq '/' -and $next -eq '/') { $inLineComment = $true; $i++; continue }
+        if ($ch -eq '/' -and $next -eq '*') { $inBlockComment = $true; $i++; continue }
+
+        # 字符串/模板字符串
+        if ($ch -eq "'") { $inSingle = $true; continue }
+        if ($ch -eq '"') { $inDouble = $true; continue }
+        if ($ch -eq '`') { $inTemplate = $true; continue }
+
+        # 花括号深度
+        if ($ch -eq '{') { $depth++; continue }
+        if ($ch -eq '}') {
+            $depth--
+            if ($depth -eq 0) { return $i }
+        }
+    }
+
+    return -1
+}
+
 # 🔧 修改Cursor内核JS文件实现设备识别绕过（增强版三重方案）
 # 方案A: someValue占位符替换 - 稳定锚点，不依赖混淆后的函数名
 # 方案B: b6 定点重写 - 机器码源函数直接返回固定值
@@ -327,11 +402,22 @@ function Modify-CursorJSFiles {
 
     # 部署外置 Hook 文件（供 Loader Stub 加载，支持多域名备用下载）
     $hookTargetPath = "$env:USERPROFILE\.cursor_hook.js"
-    $hookSourceCandidates = @(
-        (Join-Path $PSScriptRoot "..\hook\cursor_hook.js"),
-        (Join-Path (Get-Location) "scripts\hook\cursor_hook.js")
-    )
-    $hookSourcePath = $hookSourceCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+    # 兼容：通过 `irm ... | iex` 执行时 $PSScriptRoot 可能为空，Join-Path 会直接报错
+    $hookSourceCandidates = @()
+    if (-not [string]::IsNullOrWhiteSpace($PSScriptRoot)) {
+        $hookSourceCandidates += (Join-Path $PSScriptRoot "..\hook\cursor_hook.js")
+    } elseif ($MyInvocation.MyCommand.Path) {
+        $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+        if (-not [string]::IsNullOrWhiteSpace($scriptDir)) {
+            $hookSourceCandidates += (Join-Path $scriptDir "..\hook\cursor_hook.js")
+        }
+    }
+    $cwdPath = $null
+    try { $cwdPath = (Get-Location).Path } catch { $cwdPath = $null }
+    if (-not [string]::IsNullOrWhiteSpace($cwdPath)) {
+        $hookSourceCandidates += (Join-Path $cwdPath "scripts\hook\cursor_hook.js")
+    }
+    $hookSourcePath = $hookSourceCandidates | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
     $hookDownloadUrls = @(
         "https://wget.la/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/hook/cursor_hook.js",
         "https://down.npee.cn/?https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/hook/cursor_hook.js",
@@ -518,22 +604,62 @@ function Modify-CursorJSFiles {
             # ========== 方法B: b6 定点重写（机器码源函数，仅 main.js） ==========
             # 说明：b6(t) 是 machineId 的核心生成函数，t=true 返回原始值，t=false 返回哈希
             if ((Split-Path $file -Leaf) -eq "main.js") {
-                # ⚠️ 安全修复：旧版“泛匹配 async function + .*?”会在部分版本中跨越大段代码误替换，直接破坏 main.js 语法。
-                # 这里改为仅锚定 b6(...) 的函数定义；若版本不存在 b6，则跳过方案B，避免误伤。
-                $b6Pattern = '(?s)async function b6\((\w+)\)\{.*?createHash\(["'']sha256["'']\).*?return \1\?\w+:\w+\}'
-                $b6Replacement = "async function b6(`$1){return `$1?'$machineGuid':'$machineId';}"
-                $b6Regex = [regex]::new($b6Pattern)
-                $b6Match = $b6Regex.Match($content)
-                if ($b6Match.Success) {
-                    if ($b6Match.Length -gt 5000) {
-                        Write-Host "   $YELLOW⚠️  $NC [方案B] b6 匹配长度异常（$($b6Match.Length)），为避免破坏文件已跳过"
-                    } else {
-                        $content = $b6Regex.Replace($content, $b6Replacement, 1)
-                        Write-Host "   $GREEN✓$NC [方案B] 已重写 b6(t) 返回值"
-                        $replacedB6 = $true
+                # ✅ 1+3 融合：限定 out-build/vs/base/node/id.js 模块内做特征匹配 + 花括号配对定位函数边界
+                # 目的：提升跨版本覆盖率，同时避免正则跨模块误吞导致 main.js 语法损坏。
+                try {
+                    $moduleMarker = "out-build/vs/base/node/id.js"
+                    $markerIndex = $content.IndexOf($moduleMarker)
+                    if ($markerIndex -lt 0) {
+                        throw "未找到 id.js 模块标记"
                     }
-                } else {
-                    Write-Host "   $YELLOW⚠️  $NC [方案B] 未找到 b6(t) 目标函数，已跳过"
+
+                    $windowLen = [Math]::Min($content.Length - $markerIndex, 200000)
+                    $windowText = $content.Substring($markerIndex, $windowLen)
+
+                    $hashRegex = [regex]::new('createHash\(["'']sha256["'']\)')
+                    $hashMatches = $hashRegex.Matches($windowText)
+                    $patched = $false
+
+                    foreach ($hm in $hashMatches) {
+                        $hashPos = $hm.Index
+                        $funcStart = $windowText.LastIndexOf("async function", $hashPos)
+                        if ($funcStart -lt 0) { continue }
+
+                        $openBrace = $windowText.IndexOf("{", $funcStart)
+                        if ($openBrace -lt 0) { continue }
+
+                        $endBrace = Find-JsMatchingBraceEnd -Text $windowText -OpenBraceIndex $openBrace -MaxScan 20000
+                        if ($endBrace -lt 0) { continue }
+
+                        $funcText = $windowText.Substring($funcStart, $endBrace - $funcStart + 1)
+                        if ($funcText.Length -gt 8000) { continue }
+
+                        $sig = [regex]::Match($funcText, '^async function (\w+)\((\w+)\)')
+                        if (-not $sig.Success) { continue }
+                        $fn = $sig.Groups[1].Value
+                        $param = $sig.Groups[2].Value
+
+                        # 特征校验：sha256 + hex digest + return param ? raw : hash
+                        if (-not ($funcText -match 'createHash\(["'']sha256["'']\)')) { continue }
+                        if (-not ($funcText -match '\.digest\(["'']hex["'']\)')) { continue }
+                        if (-not ($funcText -match ('return\s+' + [regex]::Escape($param) + '\?\w+:\w+\}'))) { continue }
+
+                        $replacement = "async function $fn($param){return $param?'$machineGuid':'$machineId';}"
+                        $absStart = $markerIndex + $funcStart
+                        $absEnd = $markerIndex + $endBrace
+                        $content = $content.Substring(0, $absStart) + $replacement + $content.Substring($absEnd + 1)
+
+                        Write-Host "   $GREEN✓$NC [方案B] 已重写 $fn($param) 机器码源函数（融合版特征匹配）"
+                        $replacedB6 = $true
+                        $patched = $true
+                        break
+                    }
+
+                    if (-not $patched) {
+                        Write-Host "   $YELLOW⚠️  $NC [方案B] 未定位到机器码源函数特征，已跳过"
+                    }
+                } catch {
+                    Write-Host "   $YELLOW⚠️  $NC [方案B] 定位失败，已跳过：$($_.Exception.Message)"
                 }
             }
 
@@ -1114,12 +1240,15 @@ function Disable-CursorAutoUpdate {
     }
 
     # 更新配置文件（JSON/YAML）
-    $updateFiles = @(
-        "$cursorAppPath\resources\app-update.yml",
-        "$cursorAppPath\resources\app\update-config.json",
-        (if ($global:CursorAppDataDir) { Join-Path $global:CursorAppDataDir "update-config.json" } else { $null }),
-        (if ($global:CursorAppDataDir) { Join-Path $global:CursorAppDataDir "settings.json" } else { $null })
-    ) | Where-Object { $_ }
+    # 兼容修复：PowerShell 不支持把 (if ... ) 当作表达式写进数组里，会报 “if 不是 cmdlet”
+    $updateFiles = @()
+    $updateFiles += "$cursorAppPath\resources\app-update.yml"
+    $updateFiles += "$cursorAppPath\resources\app\update-config.json"
+    if ($global:CursorAppDataDir) {
+        $updateFiles += (Join-Path $global:CursorAppDataDir "update-config.json")
+        $updateFiles += (Join-Path $global:CursorAppDataDir "settings.json")
+    }
+    $updateFiles = $updateFiles | Where-Object { $_ }
 
     foreach ($file in $updateFiles) {
         if (-not (Test-Path $file)) { continue }
@@ -1161,11 +1290,13 @@ function Disable-CursorAutoUpdate {
     }
 
     # 尝试禁用更新器可执行文件
-    $updaterCandidates = @(
-        "$cursorAppPath\Update.exe",
-        (if ($global:CursorLocalAppDataDir) { Join-Path $global:CursorLocalAppDataDir "Update.exe" } else { $null }),
-        "$cursorAppPath\CursorUpdater.exe"
-    ) | Where-Object { $_ }
+    $updaterCandidates = @()
+    $updaterCandidates += "$cursorAppPath\Update.exe"
+    if ($global:CursorLocalAppDataDir) {
+        $updaterCandidates += (Join-Path $global:CursorLocalAppDataDir "Update.exe")
+    }
+    $updaterCandidates += "$cursorAppPath\CursorUpdater.exe"
+    $updaterCandidates = $updaterCandidates | Where-Object { $_ }
 
     foreach ($updater in $updaterCandidates) {
         if (-not (Test-Path $updater)) { continue }

@@ -1859,24 +1859,152 @@ EOF
             if command -v python3 >/dev/null 2>&1; then
                 local b6_result
                 b6_result=$(python3 - "$file" "$machine_guid" "$machine_id" <<'PY'
-import re, sys
-path, machine_guid, machine_id = sys.argv[1], sys.argv[2], sys.argv[3]
-with open(path, "r", encoding="utf-8") as f:
-    data = f.read()
-pattern = re.compile(r'async function (\\w+)\\((\\w+)\\)\\{.*?createHash\\(\"sha256\"\\).*?return \\w+\\?\\w+:\\w+\\}', re.S)
-def repl(m):
-    name = m.group(1)
-    param = m.group(2)
-    return f"async function {name}({param}){{return {param}?\\\"{machine_guid}\\\":\\\"{machine_id}\\\";}}"
-new_data, count = pattern.subn(repl, data, count=1)
-if count:
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(new_data)
-    print("PATCHED")
-else:
-    print("NOT_FOUND")
+if True:
+ import re, sys
+ 
+ path, machine_guid, machine_id = sys.argv[1], sys.argv[2], sys.argv[3]
+ 
+ with open(path, "r", encoding="utf-8") as f:
+     data = f.read()
+ 
+ # ✅ 1+3 融合：限定 out-build/vs/base/node/id.js 模块内做特征匹配 + 花括号配对定位函数边界
+ marker = "out-build/vs/base/node/id.js"
+ marker_index = data.find(marker)
+ if marker_index < 0:
+     print("NOT_FOUND")
+     raise SystemExit(0)
+ 
+ window_end = min(len(data), marker_index + 200000)
+ window = data[marker_index:window_end]
+ 
+ def find_matching_brace(text, open_index, max_scan=20000):
+     limit = min(len(text), open_index + max_scan)
+     depth = 1
+     in_single = in_double = in_template = False
+     in_line_comment = in_block_comment = False
+     escape = False
+     i = open_index + 1
+     while i < limit:
+         ch = text[i]
+         nxt = text[i + 1] if i + 1 < limit else ""
+ 
+         if in_line_comment:
+             if ch == "\n":
+                 in_line_comment = False
+             i += 1
+             continue
+         if in_block_comment:
+             if ch == "*" and nxt == "/":
+                 in_block_comment = False
+                 i += 2
+                 continue
+             i += 1
+             continue
+ 
+         if in_single:
+             if escape:
+                 escape = False
+             elif ch == "\\\\":
+                 escape = True
+             elif ch == "'":
+                 in_single = False
+             i += 1
+             continue
+         if in_double:
+             if escape:
+                 escape = False
+             elif ch == "\\\\":
+                 escape = True
+             elif ch == '"':
+                 in_double = False
+             i += 1
+             continue
+         if in_template:
+             if escape:
+                 escape = False
+             elif ch == "\\\\":
+                 escape = True
+             elif ch == "`":
+                 in_template = False
+             i += 1
+             continue
+ 
+         if ch == "/" and nxt == "/":
+             in_line_comment = True
+             i += 2
+             continue
+         if ch == "/" and nxt == "*":
+             in_block_comment = True
+             i += 2
+             continue
+ 
+         if ch == "'":
+             in_single = True
+             i += 1
+             continue
+         if ch == '"':
+             in_double = True
+             i += 1
+             continue
+         if ch == "`":
+             in_template = True
+             i += 1
+             continue
+ 
+         if ch == "{":
+             depth += 1
+         elif ch == "}":
+             depth -= 1
+             if depth == 0:
+                 return i
+ 
+         i += 1
+     return None
+ 
+ hash_re = re.compile(r'createHash\\([\"\\']sha256[\"\\']\\)')
+ sig_re = re.compile(r'^async function (\\w+)\\((\\w+)\\)')
+ 
+ for hm in hash_re.finditer(window):
+     hash_pos = hm.start()
+     func_start = window.rfind("async function", 0, hash_pos)
+     if func_start < 0:
+         continue
+ 
+     open_brace = window.find("{", func_start)
+     if open_brace < 0:
+         continue
+ 
+     end_brace = find_matching_brace(window, open_brace, max_scan=20000)
+     if end_brace is None:
+         continue
+ 
+     func_text = window[func_start:end_brace + 1]
+     if len(func_text) > 8000:
+         continue
+ 
+     sm = sig_re.match(func_text)
+     if not sm:
+         continue
+     name, param = sm.group(1), sm.group(2)
+ 
+     # 特征校验：sha256 + hex digest + return param ? raw : hash
+     if not re.search(r'\\.digest\\([\"\\']hex[\"\\']\\)', func_text):
+         continue
+     if not re.search(r'return\\s+' + re.escape(param) + r'\\?\\w+:\\w+\\}', func_text):
+         continue
+ 
+     replacement = f'async function {name}({param}){{return {param}?"{machine_guid}":"{machine_id}";}}'
+     abs_start = marker_index + func_start
+     abs_end = marker_index + end_brace
+     new_data = data[:abs_start] + replacement + data[abs_end + 1:]
+     with open(path, "w", encoding="utf-8") as f:
+         f.write(new_data)
+     print("PATCHED")
+     break
+ else:
+     print("NOT_FOUND")
 PY
-)
+                )
                 if [ "$b6_result" = "PATCHED" ]; then
                     log_info "   ✓ [方案B] 已重写 b6 特征函数"
                     b6_patched=true
