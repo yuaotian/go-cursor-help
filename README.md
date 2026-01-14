@@ -94,6 +94,12 @@ curl -fsSL https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/
 irm https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
 ```
 
+**Tip (Windows):** If you suspect a cached old script (mirror/proxy cache), append a timestamp query parameter to bypass cache:
+
+```powershell
+irm "https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1?$(Get-Date -Format yyyyMMddHHmmss)" | iex
+```
+
 
 
 </details>
@@ -118,6 +124,12 @@ curl -fsSL https://wget.la/https://raw.githubusercontent.com/yuaotian/go-cursor-
 
 ```powershell
 irm https://wget.la/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
+```
+
+**Tip (Windows):** If the mirror caches old content, append `?$(Get-Date -Format yyyyMMddHHmmss)` to the URL:
+
+```powershell
+irm "https://wget.la/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1?$(Get-Date -Format yyyyMMddHHmmss)" | iex
 ```
 
 </details>

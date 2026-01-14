@@ -1715,7 +1715,7 @@ main() {
     echo -e "${YELLOW}  一起交流更多Cursor技巧和AI知识(脚本免费、关注公众号加群有更多技巧和大佬)  ${NC}"
     echo -e "${BLUE}=====================================================${NC}"
     echo
-    echo -e "${YELLOW}⚡  [小小广告] Cursor官网正规成品号：Pro¥65 | Pro+¥265 | Ultra¥888 独享账号/7天质保，WeChat：JavaRookie666  ${NC}"
+    echo -e "${YELLOW}⚡  [小小广告] Cursor官网正规成品号：Pro¥65 | Pro+¥265 | Ultra¥888 独享账号| ￥688 Team绝版次数号1000次+20刀额度 | 全部7天质保 | ，WeChat：JavaRookie666  ${NC}"
     echo
     echo -e "${YELLOW}[提示]${NC} 本工具旨在修改 Cursor 以解决可能的启动问题或设备限制。"
     echo -e "${YELLOW}[提示]${NC} 它将优先修改 JS 文件，并可选择重置设备ID和禁用自动更新。"
@@ -1798,7 +1798,7 @@ main() {
     echo
     echo -e "${GREEN}=====================================================${NC}"
     echo -e "${YELLOW}  请关注公众号【煎饼果子卷AI】获取更多技巧和交流 ${NC}"
-    echo -e "${YELLOW}⚡   [小小广告] Cursor官网正规成品号：Pro¥65 | Pro+¥265 | Ultra¥888 独享账号/7天质保，WeChat：JavaRookie666  ${NC}"
+    echo -e "${YELLOW}⚡   [小小广告] Cursor官网正规成品号：Pro¥65 | Pro+¥265 | Ultra¥888 独享账号| ￥688 Team绝版次数号1000次+20刀额度 | 全部7天质保 | ，WeChat：JavaRookie666  ${NC}"
     echo -e "${GREEN}=====================================================${NC}"
     echo
     

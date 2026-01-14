@@ -125,6 +125,18 @@ curl -fsSL https://wget.la/https://raw.githubusercontent.com/yuaotian/go-cursor-
 irm https://wget.la/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1 | iex
 ```
 
+**缓存提示（Windows）：** 如果镜像/代理缓存导致拉到旧脚本，可在 URL 末尾追加时间戳参数绕缓存（推荐 raw + 时间戳）：  
+
+```powershell
+irm "https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1?$(Get-Date -Format yyyyMMddHHmmss)" | iex
+```
+
+如果必须继续使用 `wget.la` 镜像，同样可以在镜像 URL 末尾追加时间戳参数：  
+
+```powershell
+irm "https://wget.la/https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/scripts/run/cursor_win_id_modifier.ps1?$(Get-Date -Format yyyyMMddHHmmss)" | iex
+```
+
 
 </details>
 
