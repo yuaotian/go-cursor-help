@@ -87,6 +87,33 @@ log_cmd_output() {
     echo "" >> "$LOG_FILE"
 }
 
+# sed -i 兼容封装：优先原地编辑；不支持/失败时回退到临时文件替换，提升跨发行版兼容性
+sed_inplace() {
+    local expr="$1"
+    local file="$2"
+
+    # GNU sed / BusyBox sed：通常支持 sed -i
+    if sed -i "$expr" "$file" 2>/dev/null; then
+        return 0
+    fi
+
+    # BSD sed：需要提供 -i '' 形式（少数环境可能出现）
+    if sed -i '' "$expr" "$file" 2>/dev/null; then
+        return 0
+    fi
+
+    # 最后兜底：临时文件替换（避免不同 sed 的 -i 语义差异）
+    local temp_file
+    temp_file=$(mktemp) || return 1
+    if sed "$expr" "$file" > "$temp_file"; then
+        cat "$temp_file" > "$file"
+        rm -f "$temp_file"
+        return 0
+    fi
+    rm -f "$temp_file"
+    return 1
+}
+
 # 获取当前用户
 get_current_user() {
     if [ "$EUID" -eq 0 ]; then
@@ -609,12 +636,53 @@ modify_or_add_config() {
     elif grep -q "}" "$file"; then
          # key不存在, 在最后一个 '}' 前添加新的key-value对
          # 注意：这种方式比较脆弱，如果 JSON 格式不标准或最后一行不是 '}' 会失败
-         sed '$ s/}/,\n    "'$key'\": "'$value'\"\n}/' "$file" > "$temp_file" || {
-             log_error "添加配置失败 (注入): $key to $file"
-             rm -f "$temp_file"
-             chmod u-w "$file" # 恢复权限
-             return 1
-         }
+         # 🔧 兼容修复：不依赖 GNU sed 的 \n 替换扩展；同时避免在 `}` 独占一行时生成无效 JSON
+         if tail -n 1 "$file" | grep -Eq '^[[:space:]]*}[[:space:]]*$'; then
+             # 多行 JSON：在最后一个 `}` 前插入新行，并为上一条属性补上逗号
+             awk -v key="$key" -v value="$value" '
+             { lines[NR] = $0 }
+             END {
+                 brace = 0
+                 for (i = NR; i >= 1; i--) {
+                     if (lines[i] ~ /^[[:space:]]*}[[:space:]]*$/) { brace = i; break }
+                 }
+                 if (brace == 0) { exit 2 }
+
+                 prev = 0
+                 for (i = brace - 1; i >= 1; i--) {
+                     if (lines[i] !~ /^[[:space:]]*$/) { prev = i; break }
+                 }
+                 if (prev > 0) {
+                     line = lines[prev]
+                     sub(/[[:space:]]*$/, "", line)
+                     if (line !~ /{$/ && line !~ /,$/) {
+                         lines[prev] = line ","
+                     } else {
+                         lines[prev] = line
+                     }
+                 }
+
+                 insert_line = "    \"" key "\": \"" value "\""
+                 for (i = 1; i <= NR; i++) {
+                     if (i == brace) { print insert_line }
+                     print lines[i]
+                 }
+             }
+             ' "$file" > "$temp_file" || {
+                 log_error "添加配置失败 (注入): $key to $file"
+                 rm -f "$temp_file"
+                 chmod u-w "$file" # 恢复权限
+                 return 1
+             }
+         else
+             # 单行 JSON：直接在末尾 `}` 前插入键值（避免依赖 sed 的 \\n 扩展）
+             sed "s/}[[:space:]]*$/,\"$key\": \"$value\"}/" "$file" > "$temp_file" || {
+                 log_error "添加配置失败 (注入): $key to $file"
+                 rm -f "$temp_file"
+                 chmod u-w "$file" # 恢复权限
+                 return 1
+             }
+         fi
          log_debug "已添加 key '$key' 到文件 '$file' 中"
     else
          log_error "无法确定如何添加配置: $key to $file (文件结构可能不标准)"
@@ -1116,49 +1184,49 @@ EOF
         # 如果直接把 someValue.machineId 替换成 "\"<真实值>\""，会形成 ""<真实值>"" 导致 JS 语法错误。
         # 因此这里优先替换完整的字符串字面量（包含外层引号），再兜底替换不带引号的占位符。
         if grep -q 'someValue\.machineId' "$file"; then
-            sed -i "s/\"someValue\.machineId\"/\"${machine_id}\"/g" "$file"
-            sed -i "s/'someValue\.machineId'/\"${machine_id}\"/g" "$file"
-            sed -i "s/someValue\.machineId/\"${machine_id}\"/g" "$file"
+            sed_inplace "s/\"someValue\.machineId\"/\"${machine_id}\"/g" "$file"
+            sed_inplace "s/'someValue\.machineId'/\"${machine_id}\"/g" "$file"
+            sed_inplace "s/someValue\.machineId/\"${machine_id}\"/g" "$file"
             log_info "   ✓ [方案A] 替换 someValue.machineId"
             replaced=true
         fi
 
         if grep -q 'someValue\.macMachineId' "$file"; then
-            sed -i "s/\"someValue\.macMachineId\"/\"${mac_machine_id}\"/g" "$file"
-            sed -i "s/'someValue\.macMachineId'/\"${mac_machine_id}\"/g" "$file"
-            sed -i "s/someValue\.macMachineId/\"${mac_machine_id}\"/g" "$file"
+            sed_inplace "s/\"someValue\.macMachineId\"/\"${mac_machine_id}\"/g" "$file"
+            sed_inplace "s/'someValue\.macMachineId'/\"${mac_machine_id}\"/g" "$file"
+            sed_inplace "s/someValue\.macMachineId/\"${mac_machine_id}\"/g" "$file"
             log_info "   ✓ [方案A] 替换 someValue.macMachineId"
             replaced=true
         fi
 
         if grep -q 'someValue\.devDeviceId' "$file"; then
-            sed -i "s/\"someValue\.devDeviceId\"/\"${device_id}\"/g" "$file"
-            sed -i "s/'someValue\.devDeviceId'/\"${device_id}\"/g" "$file"
-            sed -i "s/someValue\.devDeviceId/\"${device_id}\"/g" "$file"
+            sed_inplace "s/\"someValue\.devDeviceId\"/\"${device_id}\"/g" "$file"
+            sed_inplace "s/'someValue\.devDeviceId'/\"${device_id}\"/g" "$file"
+            sed_inplace "s/someValue\.devDeviceId/\"${device_id}\"/g" "$file"
             log_info "   ✓ [方案A] 替换 someValue.devDeviceId"
             replaced=true
         fi
 
         if grep -q 'someValue\.sqmId' "$file"; then
-            sed -i "s/\"someValue\.sqmId\"/\"${sqm_id}\"/g" "$file"
-            sed -i "s/'someValue\.sqmId'/\"${sqm_id}\"/g" "$file"
-            sed -i "s/someValue\.sqmId/\"${sqm_id}\"/g" "$file"
+            sed_inplace "s/\"someValue\.sqmId\"/\"${sqm_id}\"/g" "$file"
+            sed_inplace "s/'someValue\.sqmId'/\"${sqm_id}\"/g" "$file"
+            sed_inplace "s/someValue\.sqmId/\"${sqm_id}\"/g" "$file"
             log_info "   ✓ [方案A] 替换 someValue.sqmId"
             replaced=true
         fi
 
         if grep -q 'someValue\.sessionId' "$file"; then
-            sed -i "s/\"someValue\.sessionId\"/\"${session_id}\"/g" "$file"
-            sed -i "s/'someValue\.sessionId'/\"${session_id}\"/g" "$file"
-            sed -i "s/someValue\.sessionId/\"${session_id}\"/g" "$file"
+            sed_inplace "s/\"someValue\.sessionId\"/\"${session_id}\"/g" "$file"
+            sed_inplace "s/'someValue\.sessionId'/\"${session_id}\"/g" "$file"
+            sed_inplace "s/someValue\.sessionId/\"${session_id}\"/g" "$file"
             log_info "   ✓ [方案A] 替换 someValue.sessionId"
             replaced=true
         fi
 
         if grep -q 'someValue\.firstSessionDate' "$file"; then
-            sed -i "s/\"someValue\.firstSessionDate\"/\"${first_session_date}\"/g" "$file"
-            sed -i "s/'someValue\.firstSessionDate'/\"${first_session_date}\"/g" "$file"
-            sed -i "s/someValue\.firstSessionDate/\"${first_session_date}\"/g" "$file"
+            sed_inplace "s/\"someValue\.firstSessionDate\"/\"${first_session_date}\"/g" "$file"
+            sed_inplace "s/'someValue\.firstSessionDate'/\"${first_session_date}\"/g" "$file"
+            sed_inplace "s/someValue\.firstSessionDate/\"${first_session_date}\"/g" "$file"
             log_info "   ✓ [方案A] 替换 someValue.firstSessionDate"
             replaced=true
         fi
@@ -1481,25 +1549,19 @@ disable_auto_update() {
            # 备份
            cp "$config" "${config}.bak_$(date +%Y%m%d%H%M%S)" 2>/dev/null
            
-           # 尝试修改 JSON (如果存在且是 settings.json)
-           if [[ "$config" == *settings.json ]]; then
-               # 尝试添加或修改 "update.mode": "none"
-                if grep -q '"update.mode"' "$config"; then
-                    sed -i 's/"update.mode":[[:space:]]*"[^"]*"/"update.mode": "none"/' "$config" || log_warn "修改 settings.json 中的 update.mode 失败"
-                elif grep -q "}" "$config"; then # 尝试注入
-                     sed -i '$ s/}/,\n    "update.mode": "none"\n}/' "$config" || log_warn "注入 update.mode 到 settings.json 失败"
+            # 尝试修改 JSON (如果存在且是 settings.json)
+            if [[ "$config" == *settings.json ]]; then
+                # 🔧 兼容修复：复用 modify_or_add_config 统一处理替换/注入，避免 sed -i 与 \n 扩展差异
+                if modify_or_add_config "update.mode" "none" "$config"; then
+                    ((disabled_count++))
+                    log_info "已尝试在 '$config' 中设置 'update.mode' 为 'none'"
                 else
-                    log_warn "无法修改 settings.json 以禁用更新（结构未知）"
+                    log_warn "修改 settings.json 中的 update.mode 失败: $config"
                 fi
-                # 确保权限正确
+            elif [[ "$config" == *update-config.json ]]; then
+                 # 直接覆盖 update-config.json
+                 echo '{"autoCheck": false, "autoDownload": false}' > "$config"
                  chown "$CURRENT_USER":"$(id -g -n "$CURRENT_USER")" "$config" || log_warn "设置所有权失败: $config"
-                 chmod 644 "$config" || log_warn "设置权限失败: $config"
-                 ((disabled_count++))
-                 log_info "已尝试在 '$config' 中设置 'update.mode' 为 'none'"
-           elif [[ "$config" == *update-config.json ]]; then
-                # 直接覆盖 update-config.json
-                echo '{"autoCheck": false, "autoDownload": false}' > "$config"
-                chown "$CURRENT_USER":"$(id -g -n "$CURRENT_USER")" "$config" || log_warn "设置所有权失败: $config"
                 chmod 644 "$config" || log_warn "设置权限失败: $config"
                 ((disabled_count++))
                 log_info "已覆盖更新配置文件: $config"

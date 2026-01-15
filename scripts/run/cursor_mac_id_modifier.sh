@@ -260,7 +260,8 @@ test_cursor_environment() {
         issues+=("配置文件不存在: $config_path")
     else
         # 验证JSON格式
-        if python3 -c "import json; json.load(open('$config_path'))" 2>/dev/null; then
+        # 🔧 修复：避免把路径直接拼进 Python 源码字符串（路径包含引号等特殊字符时会导致语法错误）
+        if python3 -c 'import json, sys; json.load(open(sys.argv[1], "r", encoding="utf-8"))' "$config_path" 2>/dev/null; then
             log_info "✅ [检查] 配置文件格式正确"
         else
             issues+=("配置文件格式错误或损坏")
@@ -449,7 +450,8 @@ modify_machine_code_config() {
 
     # 验证配置文件格式并显示结构
     log_info "🔍 [验证] 检查配置文件格式..."
-    if ! python3 -c "import json; json.load(open('$config_path'))" 2>/dev/null; then
+    # 🔧 修复：避免把路径直接拼进 Python 源码字符串（路径包含引号等特殊字符时会导致语法错误）
+    if ! python3 -c 'import json, sys; json.load(open(sys.argv[1], "r", encoding="utf-8"))' "$config_path" 2>/dev/null; then
         log_error "❌ [错误] 配置文件格式错误或损坏"
         log_info "💡 [建议] 配置文件可能已损坏，建议选择'重置环境+修改机器码'选项"
         return 1
@@ -458,23 +460,26 @@ modify_machine_code_config() {
 
     # 显示当前配置文件中的相关属性
     log_info "📋 [当前配置] 检查现有的遥测属性："
+    # 🔧 修复：避免把路径直接拼进 Python 源码字符串（路径包含引号等特殊字符时会导致语法错误）
     python3 -c "
-import json
-try:
-    with open('$config_path', 'r', encoding='utf-8') as f:
-        config = json.load(f)
-
-    properties = ['telemetry.machineId', 'telemetry.macMachineId', 'telemetry.devDeviceId', 'telemetry.sqmId']
-    for prop in properties:
-        if prop in config:
-            value = config[prop]
-            display_value = value[:20] + '...' if len(value) > 20 else value
-            print(f'  ✓ {prop} = {display_value}')
-        else:
-            print(f'  - {prop} (不存在，将创建)')
-except Exception as e:
-    print(f'Error reading config: {e}')
-"
+ import json
+ import sys
+ try:
+     config_path = sys.argv[1]
+     with open(config_path, 'r', encoding='utf-8') as f:
+         config = json.load(f)
+ 
+     properties = ['telemetry.machineId', 'telemetry.macMachineId', 'telemetry.devDeviceId', 'telemetry.sqmId']
+     for prop in properties:
+         if prop in config:
+             value = config[prop]
+             display_value = value[:20] + '...' if len(value) > 20 else value
+             print(f'  ✓ {prop} = {display_value}')
+         else:
+             print(f'  - {prop} (不存在，将创建)')
+ except Exception as e:
+     print(f'Error reading config: {e}')
+ " "$config_path"
     echo
 
     # 显示操作进度
@@ -535,40 +540,49 @@ except Exception as e:
     log_info "⏳ [进度] 4/5 - 更新配置文件..."
 
     # 使用Python修改JSON配置（更可靠，安全方式）
+    # 🔧 修复：避免把路径/值直接拼进 Python 源码字符串（引号/反斜杠等特殊字符会导致语法错误或写入错误）
     local python_result=$(python3 -c "
-import json
-import sys
-
-try:
-    with open('$config_path', 'r', encoding='utf-8') as f:
-        config = json.load(f)
-
-    # 安全更新配置，确保属性存在
-    # 🔧 修复: 添加 storage.serviceMachineId 和 telemetry.firstSessionDate
-    properties_to_update = {
-        'telemetry.machineId': '$MACHINE_ID',
-        'telemetry.macMachineId': '$MAC_MACHINE_ID',
-        'telemetry.devDeviceId': '$UUID',
-        'telemetry.sqmId': '$SQM_ID',
-        'storage.serviceMachineId': '$SERVICE_MACHINE_ID',
-        'telemetry.firstSessionDate': '$FIRST_SESSION_DATE'
-    }
-
-    for key, value in properties_to_update.items():
-        if key in config:
-            print(f'  ✓ 更新属性: {key}')
-        else:
-            print(f'  + 添加属性: {key}')
-        config[key] = value
-
-    with open('$config_path', 'w', encoding='utf-8') as f:
-        json.dump(config, f, indent=2, ensure_ascii=False)
-
-    print('SUCCESS')
-except Exception as e:
-    print(f'ERROR: {e}')
-    sys.exit(1)
-" 2>&1)
+ import json
+ import sys
+ 
+ try:
+     config_path = sys.argv[1]
+     machine_id = sys.argv[2]
+     mac_machine_id = sys.argv[3]
+     dev_device_id = sys.argv[4]
+     sqm_id = sys.argv[5]
+     service_machine_id = sys.argv[6]
+     first_session_date = sys.argv[7]
+ 
+     with open(config_path, 'r', encoding='utf-8') as f:
+         config = json.load(f)
+ 
+     # 安全更新配置，确保属性存在
+     # 🔧 修复: 添加 storage.serviceMachineId 和 telemetry.firstSessionDate
+     properties_to_update = {
+         'telemetry.machineId': machine_id,
+         'telemetry.macMachineId': mac_machine_id,
+         'telemetry.devDeviceId': dev_device_id,
+         'telemetry.sqmId': sqm_id,
+         'storage.serviceMachineId': service_machine_id,
+         'telemetry.firstSessionDate': first_session_date
+     }
+ 
+     for key, value in properties_to_update.items():
+         if key in config:
+             print(f'  ✓ 更新属性: {key}')
+         else:
+             print(f'  + 添加属性: {key}')
+         config[key] = value
+ 
+     with open(config_path, 'w', encoding='utf-8') as f:
+         json.dump(config, f, indent=2, ensure_ascii=False)
+ 
+     print('SUCCESS')
+ except Exception as e:
+     print(f'ERROR: {e}')
+     sys.exit(1)
+ " "$config_path" "$MACHINE_ID" "$MAC_MACHINE_ID" "$UUID" "$SQM_ID" "$SERVICE_MACHINE_ID" "$FIRST_SESSION_DATE" 2>&1)
 
     # 🔧 关键修复：正确解析Python执行结果
     local python_exit_code=$?
@@ -598,38 +612,48 @@ except Exception as e:
         chmod 644 "$config_path" 2>/dev/null || true
 
         # 验证修改是否成功
+        # 🔧 修复：避免把路径/值直接拼进 Python 源码字符串（引号/反斜杠等特殊字符会导致语法错误或写入错误）
         local verification_result=$(python3 -c "
-import json
-try:
-    with open('$config_path', 'r', encoding='utf-8') as f:
-        config = json.load(f)
-
-    # 🔧 修复: 添加 storage.serviceMachineId 和 telemetry.firstSessionDate 验证
-    properties_to_check = {
-        'telemetry.machineId': '$MACHINE_ID',
-        'telemetry.macMachineId': '$MAC_MACHINE_ID',
-        'telemetry.devDeviceId': '$UUID',
-        'telemetry.sqmId': '$SQM_ID',
-        'storage.serviceMachineId': '$SERVICE_MACHINE_ID',
-        'telemetry.firstSessionDate': '$FIRST_SESSION_DATE'
-    }
-
-    verification_passed = True
-    for key, expected_value in properties_to_check.items():
-        actual_value = config.get(key)
-        if actual_value == expected_value:
-            print(f'✓ {key}: 验证通过')
-        else:
-            print(f'✗ {key}: 验证失败 (期望: {expected_value}, 实际: {actual_value})')
-            verification_passed = False
-
-    if verification_passed:
-        print('VERIFICATION_SUCCESS')
-    else:
-        print('VERIFICATION_FAILED')
-except Exception as e:
-    print(f'VERIFICATION_ERROR: {e}')
-" 2>&1)
+ import json
+ import sys
+ try:
+     config_path = sys.argv[1]
+     machine_id = sys.argv[2]
+     mac_machine_id = sys.argv[3]
+     dev_device_id = sys.argv[4]
+     sqm_id = sys.argv[5]
+     service_machine_id = sys.argv[6]
+     first_session_date = sys.argv[7]
+ 
+     with open(config_path, 'r', encoding='utf-8') as f:
+         config = json.load(f)
+ 
+     # 🔧 修复: 添加 storage.serviceMachineId 和 telemetry.firstSessionDate 验证
+     properties_to_check = {
+         'telemetry.machineId': machine_id,
+         'telemetry.macMachineId': mac_machine_id,
+         'telemetry.devDeviceId': dev_device_id,
+         'telemetry.sqmId': sqm_id,
+         'storage.serviceMachineId': service_machine_id,
+         'telemetry.firstSessionDate': first_session_date
+     }
+ 
+     verification_passed = True
+     for key, expected_value in properties_to_check.items():
+         actual_value = config.get(key)
+         if actual_value == expected_value:
+             print(f'✓ {key}: 验证通过')
+         else:
+             print(f'✗ {key}: 验证失败 (期望: {expected_value}, 实际: {actual_value})')
+             verification_passed = False
+ 
+     if verification_passed:
+         print('VERIFICATION_SUCCESS')
+     else:
+         print('VERIFICATION_FAILED')
+ except Exception as e:
+     print(f'VERIFICATION_ERROR: {e}')
+ " "$config_path" "$MACHINE_ID" "$MAC_MACHINE_ID" "$UUID" "$SQM_ID" "$SERVICE_MACHINE_ID" "$FIRST_SESSION_DATE" 2>&1)
 
         # 检查验证结果（忽略其他输出，只关注最终结果）
         if echo "$verification_result" | grep -q "VERIFICATION_SUCCESS"; then
