@@ -114,6 +114,34 @@ sed_inplace() {
     return 1
 }
 
+# 路径解析兼容：优先 realpath；缺失时回退到 readlink -f / python3 / cd+pwd（避免命令缺失触发 set -e）
+resolve_path() {
+    local target="$1"
+
+    if command -v realpath >/dev/null 2>&1; then
+        realpath "$target" 2>/dev/null && return 0
+    fi
+
+    if command -v readlink >/dev/null 2>&1; then
+        readlink -f "$target" 2>/dev/null && return 0
+    fi
+
+    if command -v python3 >/dev/null 2>&1; then
+        python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$target" 2>/dev/null && return 0
+    fi
+
+    # 最后兜底：不解析符号链接，仅尽量返回绝对路径
+    if [ -d "$target" ]; then
+        (cd "$target" 2>/dev/null && pwd -P) && return 0
+    fi
+    local dir
+    dir=$(dirname "$target")
+    (cd "$dir" 2>/dev/null && printf "%s/%s\n" "$(pwd -P)" "$(basename "$target")") && return 0
+
+    echo "$target"
+    return 0
+}
+
 # 获取当前用户
 get_current_user() {
     # sudo 场景：优先以 SUDO_USER 作为目标用户（Cursor 通常运行在该用户下）
@@ -262,13 +290,29 @@ find_cursor_path() {
 
     # 尝试通过which命令定位
     if command -v cursor &> /dev/null; then
-        CURSOR_PATH=$(which cursor)
-        log_info "通过which找到Cursor: $CURSOR_PATH"
+        # 兼容修复：部分发行版没有 which；command -v 已可直接返回路径
+        CURSOR_PATH=$(command -v cursor)
+        log_info "通过 command -v 找到 Cursor: $CURSOR_PATH"
         return 0
     fi
     
     # 尝试查找可能的安装路径 (限制搜索范围和类型)
-    local cursor_paths=$(find /usr /opt "$TARGET_HOME/.local" -path "$INSTALL_DIR/cursor" -o -name "cursor" -type f -executable 2>/dev/null)
+    # 兼容修复：find 的 -executable 在 BusyBox 等环境可能不可用，且 find 报错返回非0会触发 set -e；这里统一兜底处理
+    local cursor_paths=""
+
+    # 优先：使用 -executable（若受支持）
+    cursor_paths=$(find /usr /opt "$TARGET_HOME/.local" -type f -name "cursor" -executable 2>/dev/null || true)
+
+    # 回退：不依赖 -executable，改用 shell 过滤可执行
+    if [ -z "$cursor_paths" ]; then
+        cursor_paths=$(find /usr /opt "$TARGET_HOME/.local" -type f -name "cursor" 2>/dev/null || true)
+        cursor_paths=$(echo "$cursor_paths" | while IFS= read -r p; do [ -n "$p" ] && [ -x "$p" ] && echo "$p"; done)
+    fi
+
+    # 额外兜底：标准安装路径优先
+    if [ -x "$INSTALL_DIR/cursor" ]; then
+        cursor_paths="$INSTALL_DIR/cursor"$'\n'"$cursor_paths"
+    fi
     if [ -n "$cursor_paths" ]; then
         # 优先选择标准安装路径
         local standard_path=$(echo "$cursor_paths" | grep "$INSTALL_DIR/cursor" | head -1)
@@ -319,11 +363,11 @@ find_cursor_resources() {
             log_info "通过二进制路径找到资源目录: $CURSOR_RESOURCES"
             return 0
         elif [ -d "$base_dir/../resources" ]; then # 例如在 bin 目录内
-            CURSOR_RESOURCES=$(realpath "$base_dir/..")
+            CURSOR_RESOURCES=$(resolve_path "$base_dir/..")
             log_info "通过二进制路径找到资源目录: $CURSOR_RESOURCES"
             return 0
         elif [ -d "$base_dir/../lib/cursor/resources" ]; then # 另一种常见结构
-            CURSOR_RESOURCES=$(realpath "$base_dir/../lib/cursor")
+            CURSOR_RESOURCES=$(resolve_path "$base_dir/../lib/cursor")
             log_info "通过二进制路径找到资源目录: $CURSOR_RESOURCES"
             return 0
         fi
@@ -352,7 +396,8 @@ install_cursor_appimage() {
 
     # 查找 AppImage 文件
     find_appimage() {
-        found_appimage_path=$(find "$APPIMAGE_SEARCH_DIR" -maxdepth 1 -name "$APPIMAGE_PATTERN" -print -quit)
+        # 兼容修复：find 参数在不同实现中可能有差异，且 find 非0 会触发 set -e；这里统一兜底为成功返回
+        found_appimage_path=$(find "$APPIMAGE_SEARCH_DIR" -maxdepth 1 -name "$APPIMAGE_PATTERN" -print -quit 2>/dev/null || true)
         if [ -z "$found_appimage_path" ]; then
             return 1
         else
@@ -1086,7 +1131,8 @@ find_cursor_js_files() {
     
     for pattern in "${js_patterns[@]}"; do
         # 使用 find 在 CURSOR_RESOURCES 下查找完整路径
-        local files=$(find "$CURSOR_RESOURCES" -path "*/$pattern" -type f 2>/dev/null)
+        # 兼容修复：find 遇到错误返回非0可能触发 set -e，这里统一兜底为成功返回
+        local files=$(find "$CURSOR_RESOURCES" -path "*/$pattern" -type f 2>/dev/null || true)
         if [ -n "$files" ]; then
             while IFS= read -r file; do
                 # 检查文件是否已添加
@@ -1103,7 +1149,7 @@ find_cursor_js_files() {
     if [ "$found" = false ]; then
         log_warn "在标准路径模式中未找到JS文件，尝试在资源目录 '$CURSOR_RESOURCES' 中进行更广泛的搜索..."
         # 查找包含特定关键字的 JS 文件
-        local files=$(find "$CURSOR_RESOURCES" -name "*.js" -type f -exec grep -lE 'IOPlatformUUID|x-cursor-checksum|getMachineId' {} \; 2>/dev/null)
+        local files=$(find "$CURSOR_RESOURCES" -name "*.js" -type f -exec grep -lE 'IOPlatformUUID|x-cursor-checksum|getMachineId' {} \; 2>/dev/null || true)
         if [ -n "$files" ]; then
             while IFS= read -r file; do
                  if [[ ! " ${js_files[@]} " =~ " ${file} " ]]; then
@@ -1770,14 +1816,15 @@ disable_auto_update() {
     # 尝试查找updater可执行文件并禁用（重命名或移除权限）
     local updater_paths=()
      if [ -n "$CURSOR_RESOURCES" ] && [ -d "$CURSOR_RESOURCES" ]; then
-        updater_paths+=($(find "$CURSOR_RESOURCES" -name "updater" -type f -executable 2>/dev/null))
-        updater_paths+=($(find "$CURSOR_RESOURCES" -name "CursorUpdater" -type f -executable 2>/dev/null)) # macOS 风格？
+        # 兼容修复：不强依赖 find -executable，且兜底避免 find 非0 触发 set -e
+        updater_paths+=($(find "$CURSOR_RESOURCES" -name "updater" -type f 2>/dev/null || true))
+        updater_paths+=($(find "$CURSOR_RESOURCES" -name "CursorUpdater" -type f 2>/dev/null || true)) # macOS 风格？
      fi
-      if [ -d "$INSTALL_DIR" ]; then
-          updater_paths+=($(find "$INSTALL_DIR" -name "updater" -type f -executable 2>/dev/null))
-          updater_paths+=($(find "$INSTALL_DIR" -name "CursorUpdater" -type f -executable 2>/dev/null))
-      fi
-      updater_paths+=("$CURSOR_CONFIG_DIR/updater") # 旧位置？
+       if [ -d "$INSTALL_DIR" ]; then
+          updater_paths+=($(find "$INSTALL_DIR" -name "updater" -type f 2>/dev/null || true))
+          updater_paths+=($(find "$INSTALL_DIR" -name "CursorUpdater" -type f 2>/dev/null || true))
+       fi
+       updater_paths+=("$CURSOR_CONFIG_DIR/updater") # 旧位置？
 
     for updater in "${updater_paths[@]}"; do
         if [ -f "$updater" ] && [ -x "$updater" ]; then
