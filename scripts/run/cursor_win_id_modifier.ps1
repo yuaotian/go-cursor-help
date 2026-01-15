@@ -395,7 +395,19 @@ function Modify-CursorJSFiles {
         # 机器 GUID 用于模拟注册表/原始机器码读取
         $machineGuid = if ($global:CursorIds.machineGuid) { [string]$global:CursorIds.machineGuid } else { [System.Guid]::NewGuid().ToString().ToLower() }
         $sessionId = if ($global:CursorIds.sessionId) { [string]$global:CursorIds.sessionId } else { [System.Guid]::NewGuid().ToString().ToLower() }
-        $firstSessionDateValue = if ($global:CursorIds.firstSessionDate) { [string]$global:CursorIds.firstSessionDate } else { (Get-Date).ToString("yyyy-MM-ddTHH:mm:ss.fffZ") }
+        # 使用 UTC 时间生成/规范化 firstSessionDate，避免本地时间却带 Z 的语义错误；同时兼容 ConvertFrom-Json 可能返回 DateTime
+        $firstSessionDateValue = if ($global:CursorIds.firstSessionDate) {
+            $rawFirstSessionDate = $global:CursorIds.firstSessionDate
+            if ($rawFirstSessionDate -is [DateTime]) {
+                $rawFirstSessionDate.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+            } elseif ($rawFirstSessionDate -is [DateTimeOffset]) {
+                $rawFirstSessionDate.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+            } else {
+                [string]$rawFirstSessionDate
+            }
+        } else {
+            (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+        }
         $macAddress = if ($global:CursorIds.macAddress) { [string]$global:CursorIds.macAddress } else { "00:11:22:33:44:55" }
         $useConfigIds = $true
     } else {
@@ -414,7 +426,8 @@ function Modify-CursorJSFiles {
         # 机器 GUID 用于模拟注册表/原始机器码读取
         $machineGuid = [System.Guid]::NewGuid().ToString().ToLower()
         $sessionId = [System.Guid]::NewGuid().ToString().ToLower()
-        $firstSessionDateValue = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+        # 使用 UTC 时间生成 firstSessionDate，避免本地时间却带 Z 的语义错误
+        $firstSessionDateValue = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
         $macAddress = "00:11:22:33:44:55"
     }
 
@@ -609,7 +622,8 @@ function Modify-CursorJSFiles {
 
             # 🔧 新增: firstSessionDate（重置首次会话日期）
             if (-not $firstSessionDateValue) {
-                $firstSessionDateValue = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+                # 使用 UTC 时间生成 firstSessionDate，避免本地时间却带 Z 的语义错误
+                $firstSessionDateValue = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
             }
 
             $placeholders = @(
