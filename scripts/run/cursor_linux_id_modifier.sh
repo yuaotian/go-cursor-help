@@ -19,10 +19,29 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# 显式禁用时，关闭 TTY UI（resize/clear/Logo），避免部分环境乱码/花屏
+if [ -n "${CURSOR_NO_TTY_UI:-}" ]; then
+    CURSOR_NO_TTY_UI=1
+fi
+
+# UI/颜色开关：遵循 NO_COLOR 标准，并支持 CURSOR_NO_TTY_UI（禁用花哨 TTY UI）
+if [ -n "${NO_COLOR:-}" ] || [ -n "${CURSOR_NO_COLOR:-}" ] || [ -n "${CURSOR_NO_TTY_UI:-}" ]; then
+    RED=''
+    GREEN=''
+    YELLOW=''
+    BLUE=''
+    NC=''
+fi
+
 # 启动时尝试调整终端窗口大小为 120x40（列x行）；不支持/失败时静默忽略，避免影响脚本主流程
 try_resize_terminal_window() {
     local target_cols=120
     local target_rows=40
+
+    # 可通过 CURSOR_NO_TTY_UI 显式禁用所有终端控制输出（避免部分环境乱码/花屏）
+    if [ -n "${CURSOR_NO_TTY_UI:-}" ]; then
+        return 0
+    fi
 
     # 仅在交互终端中尝试，避免输出被重定向时出现乱码
     if [ ! -t 1 ]; then
@@ -1317,30 +1336,52 @@ EOF
             for url in "${hook_download_urls[@]}"; do
                 index=$((index + 1))
                 log_info "⏳ [Hook] ($index/$total_urls) 当前下载节点: $url"
+
+                # 兼容修复：部分 curl 版本可能不支持 --progress-bar，失败时回退为基础参数
                 if curl -fL --progress-bar "$url" -o "$hook_target_path"; then
                     chown "$CURRENT_USER":"$CURRENT_GROUP" "$hook_target_path" 2>/dev/null || true
                     log_info "✅ [Hook] 外置 Hook 已在线下载: $hook_target_path"
                     hook_downloaded=true
                     break
-                else
-                    rm -f "$hook_target_path"
-                    log_warn "⚠️  [Hook] 外置 Hook 下载失败: $url"
                 fi
+
+                rm -f "$hook_target_path"
+                log_warn "⚠️  [Hook] curl 下载失败，尝试回退参数重试: $url"
+                if curl -fL "$url" -o "$hook_target_path"; then
+                    chown "$CURRENT_USER":"$CURRENT_GROUP" "$hook_target_path" 2>/dev/null || true
+                    log_info "✅ [Hook] 外置 Hook 已在线下载: $hook_target_path"
+                    hook_downloaded=true
+                    break
+                fi
+
+                rm -f "$hook_target_path"
+                log_warn "⚠️  [Hook] 外置 Hook 下载失败: $url"
             done
         elif command -v wget >/dev/null 2>&1; then
             local index=0
             for url in "${hook_download_urls[@]}"; do
                 index=$((index + 1))
                 log_info "⏳ [Hook] ($index/$total_urls) 当前下载节点: $url"
+
+                # 兼容修复：BusyBox/精简版 wget 可能不支持 --progress=bar:force，失败时回退为基础参数
                 if wget --progress=bar:force -O "$hook_target_path" "$url"; then
                     chown "$CURRENT_USER":"$CURRENT_GROUP" "$hook_target_path" 2>/dev/null || true
                     log_info "✅ [Hook] 外置 Hook 已在线下载: $hook_target_path"
                     hook_downloaded=true
                     break
-                else
-                    rm -f "$hook_target_path"
-                    log_warn "⚠️  [Hook] 外置 Hook 下载失败: $url"
                 fi
+
+                rm -f "$hook_target_path"
+                log_warn "⚠️  [Hook] wget 下载失败，尝试回退参数重试: $url"
+                if wget -O "$hook_target_path" "$url"; then
+                    chown "$CURRENT_USER":"$CURRENT_GROUP" "$hook_target_path" 2>/dev/null || true
+                    log_info "✅ [Hook] 外置 Hook 已在线下载: $hook_target_path"
+                    hook_downloaded=true
+                    break
+                fi
+
+                rm -f "$hook_target_path"
+                log_warn "⚠️  [Hook] 外置 Hook 下载失败: $url"
             done
         else
             log_warn "⚠️  [Hook] 未检测到 curl/wget，无法在线下载 Hook"
@@ -2016,7 +2057,9 @@ cursor_initialize_cleanup() {
 # 主函数
 main() {
     # 在显示菜单/流程说明前调整终端窗口大小；不支持则静默忽略
-    try_resize_terminal_window
+    if [ -z "${CURSOR_NO_TTY_UI:-}" ]; then
+        try_resize_terminal_window
+    fi
 
     # 初始化日志文件
     initialize_log
@@ -2030,28 +2073,30 @@ main() {
     log_info "系统信息: $(uname -a)"
     log_cmd_output "lsb_release -a 2>/dev/null || cat /etc/*release 2>/dev/null || cat /etc/issue" "系统版本信息"
     
-    clear
-    # 显示 Logo
-    echo -e "
-    ██████╗██╗   ██╗██████╗ ███████╗ ██████╗ ██████╗ 
-   ██╔════╝██║   ██║██╔══██╗██╔════╝██╔═══██╗██╔══██╗
-   ██║     ██║   ██║██████╔╝███████╗██║   ██║██████╔╝
-   ██║     ██║   ██║██╔══██╗╚════██║██║   ██║██╔══██╗
-   ╚██████╗╚██████╔╝██║  ██║███████║╚██████╔╝██║  ██║
-    ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═╝  ╚═╝
-    "
-    echo -e "${BLUE}=====================================================${NC}"
-    echo -e "${GREEN}         Cursor Linux 启动与修改工具（免费）            ${NC}"
-    echo -e "${YELLOW}        关注公众号【煎饼果子卷AI】     ${NC}"
-    echo -e "${YELLOW}  一起交流更多Cursor技巧和AI知识(脚本免费、关注公众号加群有更多技巧和大佬)  ${NC}"
-    echo -e "${BLUE}=====================================================${NC}"
-    echo
-    echo -e "${YELLOW}⚡  [小小广告] Cursor官网正规成品号：Pro¥65 | Pro+¥265 | Ultra¥888 独享账号| ￥688 Team绝版次数号1000次+20刀额度 | 全部7天质保 | ，WeChat：JavaRookie666  ${NC}"
-    echo
-    echo -e "${YELLOW}[提示]${NC} 本工具旨在修改 Cursor 以解决可能的启动问题或设备限制。"
-    echo -e "${YELLOW}[提示]${NC} 它将优先修改 JS 文件，并可选择重置设备ID和禁用自动更新。"
-    echo -e "${YELLOW}[提示]${NC} 如果未找到 Cursor，将尝试从 '$APPIMAGE_SEARCH_DIR' 目录安装。"
-    echo
+    if [ -z "${CURSOR_NO_TTY_UI:-}" ]; then
+        clear
+        # 显示 Logo
+        echo -e "
+        ██████╗██╗   ██╗██████╗ ███████╗ ██████╗ ██████╗ 
+       ██╔════╝██║   ██║██╔══██╗██╔════╝██╔═══██╗██╔══██╗
+       ██║     ██║   ██║██████╔╝███████╗██║   ██║██████╔╝
+       ██║     ██║   ██║██╔══██╗╚════██║██║   ██║██╔══██╗
+       ╚██████╗╚██████╔╝██║  ██║███████║╚██████╔╝██║  ██║
+        ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═╝  ╚═╝
+        "
+        echo -e "${BLUE}=====================================================${NC}"
+        echo -e "${GREEN}         Cursor Linux 启动与修改工具（免费）            ${NC}"
+        echo -e "${YELLOW}        关注公众号【煎饼果子卷AI】     ${NC}"
+        echo -e "${YELLOW}  一起交流更多Cursor技巧和AI知识(脚本免费、关注公众号加群有更多技巧和大佬)  ${NC}"
+        echo -e "${BLUE}=====================================================${NC}"
+        echo
+        echo -e "${YELLOW}⚡  [小小广告] Cursor官网正规成品号：Pro¥65 | Pro+¥265 | Ultra¥888 独享账号| ￥688 Team绝版次数号1000次+20刀额度 | 全部7天质保 | ，WeChat：JavaRookie666  ${NC}"
+        echo
+        echo -e "${YELLOW}[提示]${NC} 本工具旨在修改 Cursor 以解决可能的启动问题或设备限制。"
+        echo -e "${YELLOW}[提示]${NC} 它将优先修改 JS 文件，并可选择重置设备ID和禁用自动更新。"
+        echo -e "${YELLOW}[提示]${NC} 如果未找到 Cursor，将尝试从 '$APPIMAGE_SEARCH_DIR' 目录安装。"
+        echo
+    fi
 
     # 查找 Cursor 路径
     if ! find_cursor_path; then
