@@ -105,6 +105,27 @@ log_cmd_output() {
     echo "" >> "$LOG_FILE"
 }
 
+# 生成指定字节长度的十六进制串（2*bytes 个字符），优先 openssl，缺失时使用 python3 兜底
+generate_hex_bytes() {
+    local bytes="$1"
+    if command -v openssl >/dev/null 2>&1; then
+        openssl rand -hex "$bytes"
+        return 0
+    fi
+    # mac 脚本已要求 python3，可作为兜底
+    python3 -c 'import os, sys; print(os.urandom(int(sys.argv[1])).hex())' "$bytes"
+}
+
+# 生成随机 UUID（小写），优先 uuidgen，缺失时使用 python3 兜底
+generate_uuid() {
+    if command -v uuidgen >/dev/null 2>&1; then
+        uuidgen | tr '[:upper:]' '[:lower:]'
+        return 0
+    fi
+    # mac 脚本已要求 python3，可作为兜底
+    python3 -c 'import uuid; print(str(uuid.uuid4()))'
+}
+
 # 🚀 新增 Cursor 防掉试用Pro删除文件夹功能
 remove_cursor_trial_folders() {
     echo
@@ -486,12 +507,12 @@ modify_machine_code_config() {
     log_info "⏳ [进度] 1/5 - 生成新的设备标识符..."
 
     # 生成新的ID
-    local MAC_MACHINE_ID=$(uuidgen | tr '[:upper:]' '[:lower:]')
-    local UUID=$(uuidgen | tr '[:upper:]' '[:lower:]')
-    local MACHINE_ID=$(openssl rand -hex 32)
-    local SQM_ID="{$(uuidgen | tr '[:lower:]' '[:upper:]')}"
+    local MAC_MACHINE_ID=$(generate_uuid)
+    local UUID=$(generate_uuid)
+    local MACHINE_ID=$(generate_hex_bytes 32)
+    local SQM_ID="{$(generate_uuid | tr '[:lower:]' '[:upper:]')}"
     # 🔧 新增: serviceMachineId (用于 storage.serviceMachineId)
-    local SERVICE_MACHINE_ID=$(uuidgen | tr '[:upper:]' '[:lower:]')
+    local SERVICE_MACHINE_ID=$(generate_uuid)
     # 🔧 新增: firstSessionDate (重置首次会话日期)
     local FIRST_SESSION_DATE=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
 
@@ -500,7 +521,7 @@ modify_machine_code_config() {
     CURSOR_ID_DEVICE_ID="$UUID"
     CURSOR_ID_SQM_ID="$SQM_ID"
     CURSOR_ID_FIRST_SESSION_DATE="$FIRST_SESSION_DATE"
-    CURSOR_ID_SESSION_ID=$(uuidgen | tr '[:upper:]' '[:lower:]')
+    CURSOR_ID_SESSION_ID=$(generate_uuid)
     CURSOR_ID_MAC_ADDRESS="${CURSOR_ID_MAC_ADDRESS:-00:11:22:33:44:55}"
 
     log_info "✅ [进度] 1/5 - 设备标识符生成完成"
@@ -711,7 +732,7 @@ modify_machine_code_config() {
                     log_info "💾 [备份] .updaterId 文件已备份: $updater_id_backup"
             fi
             # 生成新的 updaterId（UUID格式）
-            local new_updater_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
+            local new_updater_id=$(generate_uuid)
             if echo -n "$new_updater_id" > "$updater_id_file_path" 2>/dev/null; then
                 log_info "✅ [updaterId] .updaterId 文件修改成功: $new_updater_id"
                 # 设置 .updaterId 文件为只读
@@ -1640,27 +1661,27 @@ modify_cursor_js_files() {
     local ids_missing=false
 
     if [ -z "$machine_id" ]; then
-        machine_id=$(openssl rand -hex 32)
+        machine_id=$(generate_hex_bytes 32)
         ids_missing=true
     fi
     if [ -z "$machine_guid" ]; then
-        machine_guid=$(uuidgen | tr '[:upper:]' '[:lower:]')
+        machine_guid=$(generate_uuid)
         ids_missing=true
     fi
     if [ -z "$device_id" ]; then
-        device_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
+        device_id=$(generate_uuid)
         ids_missing=true
     fi
     if [ -z "$mac_machine_id" ]; then
-        mac_machine_id=$(openssl rand -hex 32)
+        mac_machine_id=$(generate_hex_bytes 32)
         ids_missing=true
     fi
     if [ -z "$sqm_id" ]; then
-        sqm_id="{$(uuidgen | tr '[:lower:]' '[:upper:]')}"
+        sqm_id="{$(generate_uuid | tr '[:lower:]' '[:upper:]')}"
         ids_missing=true
     fi
     if [ -z "$session_id" ]; then
-        session_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
+        session_id=$(generate_uuid)
         ids_missing=true
     fi
     if [ -z "$first_session_date" ]; then
@@ -2635,10 +2656,10 @@ if (typeof window !== 'undefined') {
 console.log('Cursor全局设备标识符拦截已激活 - ES模块版本');
 "
                 # 将代码注入到文件开头
-                local new_uuid=$(uuidgen | tr '[:upper:]' '[:lower:]')
-                local machine_id="auth0|user_$(openssl rand -hex 16)"
-                local device_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
-                local mac_machine_id=$(openssl rand -hex 32)
+                local new_uuid=$(generate_uuid)
+                local machine_id="auth0|user_$(generate_hex_bytes 16)"
+                local device_id=$(generate_uuid)
+                local mac_machine_id=$(generate_hex_bytes 32)
 
                 inject_universal_code=${inject_universal_code//\$\{new_uuid\}/$new_uuid}
                 inject_universal_code=${inject_universal_code//\$\{machine_id\}/$machine_id}

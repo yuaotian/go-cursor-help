@@ -116,11 +116,80 @@ sed_inplace() {
 
 # 获取当前用户
 get_current_user() {
-    if [ "$EUID" -eq 0 ]; then
+    # sudo 场景：优先以 SUDO_USER 作为目标用户（Cursor 通常运行在该用户下）
+    if [ "$EUID" -eq 0 ] && [ -n "${SUDO_USER:-}" ]; then
         echo "$SUDO_USER"
-    else
-        echo "$USER"
+        return 0
     fi
+
+    # 普通/直跑 root 场景：使用当前有效用户
+    if command -v id >/dev/null 2>&1; then
+        id -un 2>/dev/null && return 0
+    fi
+    echo "${USER:-}"
+}
+
+# 获取指定用户的 Home 目录（兼容 sudo/root/容器等场景）
+get_user_home_dir() {
+    local user="$1"
+    local home=""
+
+    if command -v getent >/dev/null 2>&1; then
+        home=$(getent passwd "$user" 2>/dev/null | awk -F: '{print $6}' | head -n 1)
+    fi
+    if [ -z "$home" ] && [ -f /etc/passwd ]; then
+        home=$(awk -F: -v u="$user" '$1==u {print $6; exit}' /etc/passwd 2>/dev/null)
+    fi
+    if [ -z "$home" ]; then
+        home=$(eval echo "~$user" 2>/dev/null)
+    fi
+
+    # 兜底：无法解析时使用当前环境 HOME
+    if [ -z "$home" ] || [[ "$home" == "~"* ]]; then
+        home="${HOME:-}"
+    fi
+
+    echo "$home"
+}
+
+# 获取指定用户的主组（chown 需要 user:group；不同发行版 id 参数/输出可能存在差异）
+get_user_primary_group() {
+    local user="$1"
+    local group=""
+    local gid=""
+
+    # 优先：直接获取主组名（最简洁）
+    if command -v id >/dev/null 2>&1; then
+        group=$(id -gn "$user" 2>/dev/null | tr -d '\r\n') || true
+        if [ -n "$group" ]; then
+            echo "$group"
+            return 0
+        fi
+
+        # 回退：先取 gid，再映射为组名（映射失败则直接返回 gid，chown 同样可用）
+        gid=$(id -g "$user" 2>/dev/null | tr -d '\r\n') || true
+    fi
+
+    if [ -n "$gid" ]; then
+        if command -v getent >/dev/null 2>&1; then
+            group=$(getent group "$gid" 2>/dev/null | awk -F: '{print $1}' | head -n 1) || true
+        fi
+        if [ -z "$group" ] && [ -f /etc/group ]; then
+            group=$(awk -F: -v g="$gid" '$3==g {print $1; exit}' /etc/group 2>/dev/null) || true
+        fi
+
+        if [ -n "$group" ]; then
+            echo "$group"
+            return 0
+        fi
+
+        echo "$gid"
+        return 0
+    fi
+
+    # 最后兜底：返回用户本身（少数系统允许 user:user）
+    echo "$user"
+    return 0
 }
 
 CURRENT_USER=$(get_current_user)
@@ -129,8 +198,26 @@ if [ -z "$CURRENT_USER" ]; then
     exit 1
 fi
 
+# 🎯 统一“目标用户/目标 Home”：后续所有 Cursor 用户数据路径均基于该 Home
+TARGET_HOME=$(get_user_home_dir "$CURRENT_USER")
+if [ -z "$TARGET_HOME" ]; then
+    log_error "无法解析目标用户 Home 目录: $CURRENT_USER"
+    exit 1
+fi
+log_info "目标用户: $CURRENT_USER"
+log_info "目标用户 Home: $TARGET_HOME"
+
+# 🎯 统一“目标用户主组”：chown 时不再依赖 id -g -n 的兼容性
+CURRENT_GROUP=$(get_user_primary_group "$CURRENT_USER")
+if [ -z "$CURRENT_GROUP" ]; then
+    CURRENT_GROUP="$CURRENT_USER"
+    log_warn "无法解析目标用户主组，已回退为: $CURRENT_GROUP（后续 chown 可能失败）"
+else
+    log_info "目标用户主组: $CURRENT_GROUP"
+fi
+
 # 定义Linux下的Cursor路径
-CURSOR_CONFIG_DIR="$HOME/.config/Cursor"
+CURSOR_CONFIG_DIR="$TARGET_HOME/.config/Cursor"
 STORAGE_FILE="$CURSOR_CONFIG_DIR/User/globalStorage/storage.json"
 BACKUP_DIR="$CURSOR_CONFIG_DIR/User/globalStorage/backups"
 
@@ -157,7 +244,7 @@ CURSOR_BIN_PATHS=(
     "/usr/bin/cursor"
     "/usr/local/bin/cursor"
     "$INSTALL_DIR/cursor"               # 添加标准安装路径
-    "$HOME/.local/bin/cursor"
+    "$TARGET_HOME/.local/bin/cursor"
     "/snap/bin/cursor"
 )
 
@@ -181,7 +268,7 @@ find_cursor_path() {
     fi
     
     # 尝试查找可能的安装路径 (限制搜索范围和类型)
-    local cursor_paths=$(find /usr /opt $HOME/.local -path "$INSTALL_DIR/cursor" -o -name "cursor" -type f -executable 2>/dev/null)
+    local cursor_paths=$(find /usr /opt "$TARGET_HOME/.local" -path "$INSTALL_DIR/cursor" -o -name "cursor" -type f -executable 2>/dev/null)
     if [ -n "$cursor_paths" ]; then
         # 优先选择标准安装路径
         local standard_path=$(echo "$cursor_paths" | grep "$INSTALL_DIR/cursor" | head -1)
@@ -207,7 +294,7 @@ find_cursor_resources() {
         "$INSTALL_DIR" # 添加标准安装路径
         "/usr/lib/cursor"
         "/usr/share/cursor"
-        "$HOME/.local/share/cursor"
+        "$TARGET_HOME/.local/share/cursor"
     )
     
     for path in "${resource_paths[@]}"; do
@@ -351,7 +438,7 @@ install_cursor_appimage() {
     if mv "$cursor_source_dir" "$INSTALL_DIR"; then
         log_info "成功将文件移动到 '$INSTALL_DIR'"
         # 确保安装目录及其内容归属当前用户（如果需要）
-        chown -R "$CURRENT_USER":"$(id -g -n "$CURRENT_USER")" "$INSTALL_DIR" || log_warn "设置 '$INSTALL_DIR' 文件所有权失败，可能需要手动调整"
+        chown -R "$CURRENT_USER":"$CURRENT_GROUP" "$INSTALL_DIR" || log_warn "设置 '$INSTALL_DIR' 文件所有权失败，可能需要手动调整"
         chmod -R u+rwX,go+rX,go-w "$INSTALL_DIR" || log_warn "设置 '$INSTALL_DIR' 文件权限失败，可能需要手动调整"
     else
         log_error "移动文件到安装目录 '$INSTALL_DIR' 失败"
@@ -410,30 +497,96 @@ install_cursor_appimage() {
 # --- 结束：安装函数 ---
 
 # 检查并关闭 Cursor 进程
+
+# 获取 Cursor 相关进程 PID（兼容 pgrep/ps 多种实现）
+get_cursor_pids() {
+    local self_pid="$$"
+    local pids=""
+
+    # 优先使用 pgrep（更稳定）：仅按进程名匹配，避免误匹配到脚本命令行（例如 sudo bash ...cursor_linux_id_modifier.sh）
+    if command -v pgrep >/dev/null 2>&1; then
+        pids=$(pgrep -i "cursor" 2>/dev/null || true)
+        if [ -z "$pids" ]; then
+            pids=$(pgrep "cursor" 2>/dev/null || true)
+        fi
+        if [ -z "$pids" ]; then
+            pids=$(pgrep "Cursor" 2>/dev/null || true)
+        fi
+
+        if [ -n "$pids" ]; then
+            echo "$pids" | awk -v self="$self_pid" '$1 ~ /^[0-9]+$/ && $1 != self {print $1}' | sort -u
+            return 0
+        fi
+    fi
+
+    # 回退：兼容不同 ps 实现（BusyBox 可能不支持 aux / -ef）
+    if ps aux >/dev/null 2>&1; then
+        ps aux 2>/dev/null \
+            | grep -i '[c]ursor' \
+            | grep -v "cursor_linux_id_modifier.sh" \
+            | awk '{print $2}' \
+            | awk -v self="$self_pid" '$1 ~ /^[0-9]+$/ && $1 != self {print $1}' \
+            | sort -u
+        return 0
+    fi
+
+    if ps -ef >/dev/null 2>&1; then
+        ps -ef 2>/dev/null \
+            | grep -i '[c]ursor' \
+            | grep -v "cursor_linux_id_modifier.sh" \
+            | awk '{print $2}' \
+            | awk -v self="$self_pid" '$1 ~ /^[0-9]+$/ && $1 != self {print $1}' \
+            | sort -u
+        return 0
+    fi
+
+    ps 2>/dev/null \
+        | grep -i '[c]ursor' \
+        | grep -v "cursor_linux_id_modifier.sh" \
+        | awk '{print $1}' \
+        | awk -v self="$self_pid" '$1 ~ /^[0-9]+$/ && $1 != self {print $1}' \
+        | sort -u
+    return 0
+}
+
+# 打印 Cursor 相关进程详情（用于排障；不依赖固定列结构）
+print_cursor_process_details() {
+    log_debug "正在获取 Cursor 进程详细信息："
+
+    if ps aux >/dev/null 2>&1; then
+        ps aux 2>/dev/null | grep -i '[c]ursor' | grep -v "cursor_linux_id_modifier.sh" || true
+        return 0
+    fi
+
+    if ps -ef >/dev/null 2>&1; then
+        ps -ef 2>/dev/null | grep -i '[c]ursor' | grep -v "cursor_linux_id_modifier.sh" || true
+        return 0
+    fi
+
+    ps 2>/dev/null | grep -i '[c]ursor' | grep -v "cursor_linux_id_modifier.sh" || true
+    return 0
+}
+
 check_and_kill_cursor() {
     log_info "检查 Cursor 进程..."
     
     local attempt=1
     local max_attempts=5
     
-    # 函数：获取进程详细信息
-    get_process_details() {
-        local process_name="$1"
-        log_debug "正在获取 $process_name 进程详细信息："
-        ps aux | grep -i "cursor" | grep -v grep | grep -v "cursor_linux_id_modifier.sh"
-    }
-    
     while [ $attempt -le $max_attempts ]; do
-        # 使用更精确的匹配来获取 Cursor 进程，排除当前脚本和grep进程
-        CURSOR_PIDS=$(ps aux | grep -i "cursor" | grep -v "grep" | grep -v "cursor_linux_id_modifier.sh" | awk '{print $2}' || true)
+        # 跨发行版兼容：优先 pgrep，其次兼容 ps aux/ps -ef/ps 的 PID 列差异
+        local cursor_pids_raw
+        cursor_pids_raw=$(get_cursor_pids || true)
+        # 将换行分隔的 PID 列表转换为空格分隔，便于传给 kill（避免依赖 xargs）
+        CURSOR_PIDS=$(echo "$cursor_pids_raw" | tr '\n' ' ' | sed 's/[[:space:]][[:space:]]*/ /g; s/^ //; s/ $//' || true)
         
         if [ -z "$CURSOR_PIDS" ]; then
             log_info "未发现运行中的 Cursor 进程"
             return 0
         fi
         
-        log_warn "发现 Cursor 进程正在运行"
-        get_process_details "cursor"
+        log_warn "发现 Cursor 进程正在运行: $CURSOR_PIDS"
+        print_cursor_process_details
         
         log_warn "尝试关闭 Cursor 进程..."
         
@@ -446,8 +599,8 @@ check_and_kill_cursor() {
         
         sleep 1
         
-        # 再次检查进程是否还在运行，排除当前脚本和grep进程
-        if ! ps aux | grep -i "cursor" | grep -v "grep" | grep -v "cursor_linux_id_modifier.sh" > /dev/null; then
+        # 再次检查进程是否还在运行
+        if [ -z "$(get_cursor_pids | head -n 1)" ]; then
             log_info "Cursor 进程已成功关闭"
             return 0
         fi
@@ -457,7 +610,7 @@ check_and_kill_cursor() {
     done
     
     log_error "在 $max_attempts 次尝试后仍无法关闭 Cursor 进程"
-    get_process_details "cursor"
+    print_cursor_process_details
     log_error "请手动关闭进程后重试"
     exit 1
 }
@@ -475,7 +628,7 @@ backup_config() {
     if cp "$STORAGE_FILE" "$backup_file"; then
         chmod 644 "$backup_file"
         # 确保备份文件归属正确用户
-        chown "$CURRENT_USER":"$(id -g -n "$CURRENT_USER")" "$backup_file" || log_warn "设置备份文件所有权失败: $backup_file"
+        chown "$CURRENT_USER":"$CURRENT_GROUP" "$backup_file" || log_warn "设置备份文件所有权失败: $backup_file"
         log_info "配置已备份到: $backup_file"
     else
         log_error "备份失败: $STORAGE_FILE"
@@ -485,9 +638,35 @@ backup_config() {
 }
 
 # 生成随机 ID
+generate_hex_bytes() {
+    local bytes="$1"
+
+    # 优先使用 openssl
+    if command -v openssl >/dev/null 2>&1; then
+        openssl rand -hex "$bytes"
+        return 0
+    fi
+
+    # 兜底：/dev/urandom + od（多数发行版可用）
+    if [ -r /dev/urandom ] && command -v od >/dev/null 2>&1; then
+        # 使用更通用的 od 参数写法，兼容更多发行版实现
+        od -An -N "$bytes" -t x1 /dev/urandom | tr -d ' \n'
+        return 0
+    fi
+
+    # 最后兜底：如果 python3 可用
+    if command -v python3 >/dev/null 2>&1; then
+        python3 -c 'import os, sys; print(os.urandom(int(sys.argv[1])).hex())' "$bytes"
+        return 0
+    fi
+
+    log_error "缺少 openssl/od/python3，无法生成随机数（bytes=$bytes）"
+    return 1
+}
+
 generate_random_id() {
     # 生成32字节(64个十六进制字符)的随机数
-    openssl rand -hex 32
+    generate_hex_bytes 32
 }
 
 # 生成随机 UUID
@@ -500,8 +679,10 @@ generate_uuid() {
         if [ -f /proc/sys/kernel/random/uuid ]; then
             cat /proc/sys/kernel/random/uuid
         else
-            # 最后备选方案：使用openssl生成
-            openssl rand -hex 16 | sed 's/\\(..\\)\\(..\\)\\(..\\)\\(..\\)\\(..\\)\\(..\\)\\(..\\)\\(..\\)/\\1\\2\\3\\4-\\5\\6-\\7\\8-\\9\\10-\\11\\12\\13\\14\\15\\16/'
+            # 最后备选方案：使用随机 16 bytes 并格式化（避免 sed 捕获组超 9 的兼容性问题）
+            local hex
+            hex=$(generate_hex_bytes 16) || return 1
+            echo "${hex:0:8}-${hex:8:4}-${hex:12:4}-${hex:16:4}-${hex:20:12}"
         fi
     fi
 }
@@ -593,9 +774,9 @@ PY
 
 # 仅用于JS注入的ID生成（不写配置）
 generate_ids_for_js_only() {
-    CURSOR_ID_MACHINE_ID=$(openssl rand -hex 32)
+    CURSOR_ID_MACHINE_ID=$(generate_random_id)
     CURSOR_ID_MACHINE_GUID=$(generate_uuid)
-    CURSOR_ID_MAC_MACHINE_ID=$(openssl rand -hex 32)
+    CURSOR_ID_MAC_MACHINE_ID=$(generate_random_id)
     CURSOR_ID_DEVICE_ID=$(generate_uuid)
     CURSOR_ID_SQM_ID="{$(generate_uuid | tr '[:lower:]' '[:upper:]')}"
     CURSOR_ID_FIRST_SESSION_DATE=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
@@ -711,7 +892,7 @@ modify_or_add_config() {
     rm -f "$temp_file"
     
     # 设置所有者和基础权限（root执行时目标文件是用户家目录下的）
-    chown "$CURRENT_USER":"$(id -g -n "$CURRENT_USER")" "$file" || log_warn "设置文件所有权失败: $file"
+    chown "$CURRENT_USER":"$CURRENT_GROUP" "$file" || log_warn "设置文件所有权失败: $file"
     chmod 644 "$file" || log_warn "设置文件权限失败: $file" # 用户读写，组和其他读
     
     return 0
@@ -733,7 +914,7 @@ generate_new_config() {
     
     # 确保配置文件目录存在
     mkdir -p "$(dirname "$STORAGE_FILE")"
-    chown "$CURRENT_USER":"$(id -g -n "$CURRENT_USER")" "$(dirname "$STORAGE_FILE")" || log_warn "设置配置目录所有权失败: $(dirname "$STORAGE_FILE")"
+    chown "$CURRENT_USER":"$CURRENT_GROUP" "$(dirname "$STORAGE_FILE")" || log_warn "设置配置目录所有权失败: $(dirname "$STORAGE_FILE")"
     chmod 755 "$(dirname "$STORAGE_FILE")" || log_warn "设置配置目录权限失败: $(dirname "$STORAGE_FILE")"
 
     # 处理用户选择 - 索引0对应"不重置"选项，索引1对应"重置"选项
@@ -752,13 +933,13 @@ generate_new_config() {
             
             # 生成并设置新的设备ID
             local new_device_id=$(generate_uuid)
-            local new_machine_id=$(openssl rand -hex 32)
+            local new_machine_id=$(generate_random_id)
             # 🔧 新增: serviceMachineId (用于 storage.serviceMachineId)
             local new_service_machine_id=$(generate_uuid)
             # 🔧 新增: firstSessionDate (重置首次会话日期)
             local new_first_session_date=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
             # 🔧 新增: macMachineId 和 sqmId
-            local new_mac_machine_id=$(openssl rand -hex 32 2>/dev/null || head -c 32 /dev/urandom | xxd -p | tr -d '\n')
+            local new_mac_machine_id=$(generate_random_id)
             local new_sqm_id="{$(generate_uuid | tr '[:lower:]' '[:upper:]')}"
 
             CURSOR_ID_MACHINE_ID="$new_machine_id"
@@ -799,7 +980,7 @@ generate_new_config() {
 
                 # 🔧 新增: 修改 machineid 文件
                 log_info "🔧 [machineid] 正在修改 machineid 文件..."
-                local machineid_file_path="$HOME/.config/Cursor/machineid"
+                local machineid_file_path="$CURSOR_CONFIG_DIR/machineid"
                 if [ -f "$machineid_file_path" ]; then
                     # 备份原始 machineid 文件
                     local machineid_backup="$BACKUP_DIR/machineid.backup_$(date +%Y%m%d_%H%M%S)"
@@ -819,7 +1000,7 @@ generate_new_config() {
 
                 # 🔧 新增: 修改 .updaterId 文件（更新器设备标识符）
                 log_info "🔧 [updaterId] 正在修改 .updaterId 文件..."
-                local updater_id_file_path="$HOME/.config/Cursor/.updaterId"
+                local updater_id_file_path="$CURSOR_CONFIG_DIR/.updaterId"
                 if [ -f "$updater_id_file_path" ]; then
                     # 备份原始 .updaterId 文件
                     local updater_id_backup="$BACKUP_DIR/.updaterId.backup_$(date +%Y%m%d_%H%M%S)"
@@ -980,7 +1161,7 @@ modify_cursor_js_files() {
     local ids_missing=false
 
     if [ -z "$machine_id" ]; then
-        machine_id=$(openssl rand -hex 32)
+        machine_id=$(generate_random_id)
         ids_missing=true
     fi
     if [ -z "$machine_guid" ]; then
@@ -992,7 +1173,7 @@ modify_cursor_js_files() {
         ids_missing=true
     fi
     if [ -z "$mac_machine_id" ]; then
-        mac_machine_id=$(openssl rand -hex 32)
+        mac_machine_id=$(generate_random_id)
         ids_missing=true
     fi
     if [ -z "$sqm_id" ]; then
@@ -1031,7 +1212,7 @@ modify_cursor_js_files() {
     log_info "   sqmId: $sqm_id"
 
     # 每次执行都删除旧配置并重新生成，确保获得新的设备标识符
-    local ids_config_path="$HOME/.cursor_ids.json"
+    local ids_config_path="$TARGET_HOME/.cursor_ids.json"
     if [ -f "$ids_config_path" ]; then
         rm -f "$ids_config_path"
         log_info "🗑️  [清理] 已删除旧的 ID 配置文件"
@@ -1049,11 +1230,11 @@ modify_cursor_js_files() {
   "createdAt": "$first_session_date"
 }
 EOF
-    chown "$CURRENT_USER":"$(id -g -n "$CURRENT_USER")" "$ids_config_path" 2>/dev/null || true
+    chown "$CURRENT_USER":"$CURRENT_GROUP" "$ids_config_path" 2>/dev/null || true
     log_info "💾 [保存] 新的 ID 配置已保存到: $ids_config_path"
 
     # 部署外置 Hook 文件（供 Loader Stub 加载，支持多域名备用下载）
-    local hook_target_path="$HOME/.cursor_hook.js"
+    local hook_target_path="$TARGET_HOME/.cursor_hook.js"
     local script_dir
     script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     local hook_source_path="$script_dir/../hook/cursor_hook.js"
@@ -1072,7 +1253,7 @@ EOF
 
     if [ -f "$hook_source_path" ]; then
         if cp "$hook_source_path" "$hook_target_path"; then
-            chown "$CURRENT_USER":"$(id -g -n "$CURRENT_USER")" "$hook_target_path" 2>/dev/null || true
+            chown "$CURRENT_USER":"$CURRENT_GROUP" "$hook_target_path" 2>/dev/null || true
             log_info "✅ [Hook] 外置 Hook 已部署: $hook_target_path"
         else
             log_warn "⚠️  [Hook] 本地 Hook 复制失败，尝试在线下载..."
@@ -1091,7 +1272,7 @@ EOF
                 index=$((index + 1))
                 log_info "⏳ [Hook] ($index/$total_urls) 当前下载节点: $url"
                 if curl -fL --progress-bar "$url" -o "$hook_target_path"; then
-                    chown "$CURRENT_USER":"$(id -g -n "$CURRENT_USER")" "$hook_target_path" 2>/dev/null || true
+                    chown "$CURRENT_USER":"$CURRENT_GROUP" "$hook_target_path" 2>/dev/null || true
                     log_info "✅ [Hook] 外置 Hook 已在线下载: $hook_target_path"
                     hook_downloaded=true
                     break
@@ -1106,7 +1287,7 @@ EOF
                 index=$((index + 1))
                 log_info "⏳ [Hook] ($index/$total_urls) 当前下载节点: $url"
                 if wget --progress=bar:force -O "$hook_target_path" "$url"; then
-                    chown "$CURRENT_USER":"$(id -g -n "$CURRENT_USER")" "$hook_target_path" 2>/dev/null || true
+                    chown "$CURRENT_USER":"$CURRENT_GROUP" "$hook_target_path" 2>/dev/null || true
                     log_info "✅ [Hook] 外置 Hook 已在线下载: $hook_target_path"
                     hook_downloaded=true
                     break
@@ -1150,7 +1331,7 @@ EOF
                 log_warn "⚠️  [警告] 文件已被修改但无原始备份，将使用当前版本作为基础"
             fi
             cp "$file" "$original_backup"
-            chown "$CURRENT_USER":"$(id -g -n "$CURRENT_USER")" "$original_backup" 2>/dev/null || true
+            chown "$CURRENT_USER":"$CURRENT_GROUP" "$original_backup" 2>/dev/null || true
             chmod 444 "$original_backup" 2>/dev/null || true
             log_info "✅ [备份] 原始备份创建成功: $file_name"
         else
@@ -1166,7 +1347,7 @@ EOF
             file_modification_status+=("'$(basename "$file")': Backup Failed")
             continue
         fi
-        chown "$CURRENT_USER":"$(id -g -n "$CURRENT_USER")" "$backup_file" 2>/dev/null || true
+        chown "$CURRENT_USER":"$CURRENT_GROUP" "$backup_file" 2>/dev/null || true
         chmod 444 "$backup_file" 2>/dev/null || true
 
         chmod u+w "$file" || {
@@ -1484,7 +1665,7 @@ try{
             file_modification_status+=("'$(basename "$file")': Success")
 
             chmod u-w,go-w "$file" 2>/dev/null || true
-            chown "$CURRENT_USER":"$(id -g -n "$CURRENT_USER")" "$file" 2>/dev/null || true
+            chown "$CURRENT_USER":"$CURRENT_GROUP" "$file" 2>/dev/null || true
         else
             log_error "Hook注入失败 (无法移动临时文件)"
             rm -f "$temp_file"
@@ -1534,8 +1715,8 @@ disable_auto_update() {
           update_configs+=("$INSTALL_DIR/resources/app-update.yml")
           update_configs+=("$INSTALL_DIR/app-update.yml")
      fi
-     # $HOME/.local/share
-     update_configs+=("$HOME/.local/share/cursor/update-config.json")
+     # $TARGET_HOME/.local/share
+     update_configs+=("$TARGET_HOME/.local/share/cursor/update-config.json")
 
 
     local disabled_count=0
@@ -1561,7 +1742,7 @@ disable_auto_update() {
             elif [[ "$config" == *update-config.json ]]; then
                  # 直接覆盖 update-config.json
                  echo '{"autoCheck": false, "autoDownload": false}' > "$config"
-                 chown "$CURRENT_USER":"$(id -g -n "$CURRENT_USER")" "$config" || log_warn "设置所有权失败: $config"
+                 chown "$CURRENT_USER":"$CURRENT_GROUP" "$config" || log_warn "设置所有权失败: $config"
                 chmod 644 "$config" || log_warn "设置权限失败: $config"
                 ((disabled_count++))
                 log_info "已覆盖更新配置文件: $config"
@@ -1596,7 +1777,7 @@ disable_auto_update() {
           updater_paths+=($(find "$INSTALL_DIR" -name "updater" -type f -executable 2>/dev/null))
           updater_paths+=($(find "$INSTALL_DIR" -name "CursorUpdater" -type f -executable 2>/dev/null))
       fi
-      updater_paths+=("$HOME/.config/Cursor/updater") # 旧位置？
+      updater_paths+=("$CURSOR_CONFIG_DIR/updater") # 旧位置？
 
     for updater in "${updater_paths[@]}"; do
         if [ -f "$updater" ] && [ -x "$updater" ]; then
@@ -1727,7 +1908,7 @@ select_menu_option() {
 # 新增 Cursor 初始化清理函数
 cursor_initialize_cleanup() {
     log_info "正在执行 Cursor 初始化清理..."
-    # CURSOR_CONFIG_DIR 在脚本全局已定义: $HOME/.config/Cursor
+    # CURSOR_CONFIG_DIR 在脚本全局已定义: $TARGET_HOME/.config/Cursor
     local USER_CONFIG_BASE_PATH="$CURSOR_CONFIG_DIR/User"
 
     log_debug "用户配置基础路径: $USER_CONFIG_BASE_PATH"
