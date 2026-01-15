@@ -1572,8 +1572,8 @@ function Modify-MachineCodeConfig {
             $SQM_ID = "{$([System.Guid]::NewGuid().ToString().ToUpper())}"
             # 🔧 新增: serviceMachineId (用于 storage.serviceMachineId)
             $SERVICE_MACHINE_ID = [System.Guid]::NewGuid().ToString()
-            # 🔧 新增: firstSessionDate (重置首次会话日期)
-            $FIRST_SESSION_DATE = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+            # 🔧 新增: firstSessionDate (重置首次会话日期，使用 UTC 时间避免本地时间却带 Z 的语义错误)
+            $FIRST_SESSION_DATE = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
             $SESSION_ID = [System.Guid]::NewGuid().ToString()
 
             # 共享ID（用于配置与JS注入保持一致）
@@ -1664,8 +1664,18 @@ function Modify-MachineCodeConfig {
             [System.IO.File]::WriteAllText($tempPath, $updatedJson, [System.Text.Encoding]::UTF8)
 
             # 验证临时文件
-            $tempContent = Get-Content $tempPath -Raw -Encoding UTF8
-            $tempConfig = $tempContent | ConvertFrom-Json
+            $tempContent = Get-Content $tempPath -Raw -Encoding UTF8 -ErrorAction Stop
+            $tempConfig = $tempContent | ConvertFrom-Json -ErrorAction Stop
+
+            # 🔧 关键修复：PowerShell 的 ConvertFrom-Json 会把 ISO-8601 日期字符串自动解析为 DateTime
+            # 为避免“期望值(字符串) vs 实际值(DateTime)”导致的误判，这里对比前做一次值归一化
+            $toComparableString = {
+                param([object]$v)
+                if ($null -eq $v) { return $null }
+                if ($v -is [DateTime]) { return $v.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ") }
+                if ($v -is [DateTimeOffset]) { return $v.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss.fffZ") }
+                return [string]$v
+            }
 
             # 验证所有属性是否正确写入
             $tempVerificationPassed = $true
@@ -1674,9 +1684,16 @@ function Modify-MachineCodeConfig {
                 $expectedValue = $property.Value
                 $actualValue = $tempConfig.$key
 
-                if ($actualValue -ne $expectedValue) {
+                $expectedComparable = & $toComparableString $expectedValue
+                $actualComparable = & $toComparableString $actualValue
+
+                if ($actualComparable -ne $expectedComparable) {
                     $tempVerificationPassed = $false
                     Write-Host "$RED  ✗ 临时文件验证失败: ${key}$NC"
+                    $expectedType = if ($null -eq $expectedValue) { '<null>' } else { $expectedValue.GetType().FullName }
+                    $actualType = if ($null -eq $actualValue) { '<null>' } else { $actualValue.GetType().FullName }
+                    Write-Host "$YELLOW    [调试] 类型: 期望=${expectedType}; 实际=${actualType}$NC"
+                    Write-Host "$YELLOW    [调试] 值(归一化): 期望=${expectedComparable}; 实际=${actualComparable}$NC"
                     break
                 }
             }
@@ -1697,8 +1714,8 @@ function Modify-MachineCodeConfig {
             # 最终验证修改结果
             Write-Host "$BLUE⏳ [进度]$NC 7/7 - 验证新配置文件..."
 
-            $verifyContent = Get-Content $configPath -Raw -Encoding UTF8
-            $verifyConfig = $verifyContent | ConvertFrom-Json
+            $verifyContent = Get-Content $configPath -Raw -Encoding UTF8 -ErrorAction Stop
+            $verifyConfig = $verifyContent | ConvertFrom-Json -ErrorAction Stop
 
             $verificationPassed = $true
             $verificationResults = @()
@@ -1709,10 +1726,15 @@ function Modify-MachineCodeConfig {
                 $expectedValue = $property.Value
                 $actualValue = $verifyConfig.$key
 
-                if ($actualValue -eq $expectedValue) {
+                $expectedComparable = & $toComparableString $expectedValue
+                $actualComparable = & $toComparableString $actualValue
+
+                if ($actualComparable -eq $expectedComparable) {
                     $verificationResults += "✓ ${key}: 验证通过"
                 } else {
-                    $verificationResults += "✗ ${key}: 验证失败 (期望: ${expectedValue}, 实际: ${actualValue})"
+                    $expectedType = if ($null -eq $expectedValue) { '<null>' } else { $expectedValue.GetType().FullName }
+                    $actualType = if ($null -eq $actualValue) { '<null>' } else { $actualValue.GetType().FullName }
+                    $verificationResults += "✗ ${key}: 验证失败 (期望类型: ${expectedType}, 实际类型: ${actualType}; 期望: ${expectedComparable}, 实际: ${actualComparable})"
                     $verificationPassed = $false
                 }
             }
