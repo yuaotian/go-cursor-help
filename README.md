@@ -27,7 +27,7 @@
 | 1️⃣ | **Pro** 🔥 `HOT` | **¥65** | **$10** | $20 | $20 Base + Rewards + Overdraft ≈ **$45–$65** |
 | 2️⃣ | **Pro+** | **¥265** | **$40** | $60 | $70 Base + Rewards + Overdraft ≈ **$95–$130** |
 | 3️⃣ | **Ultra** 👑 | **¥888** | **$140** | $200 | $400+ Base + Massive Rewards ≈ **$400+** |
-| 🎁 | **Half-Month** 🏷️ `LIMITED` | **¥688** | **$100** | — | 1000 Reqs + $20 ≈ **More durable than Ultra** |
+| 🎁 | **Half-Month** 🏷️ `LIMITED` | **¥488** | **$70** | — | 1000 Reqs + $20 ≈ **More durable than Ultra** |
 
 > 📖 [Official Pricing](https://cursor.com/cn/docs/account/pricing)
 >
