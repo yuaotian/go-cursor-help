@@ -22,101 +22,25 @@
 
 > 💡 わずか **$10** で **$65+** の利用価値を獲得！ | 📖 [公式料金参考](https://cursor.com/cn/docs/account/pricing)
 
----
+<!-- ==================== 📦 Cursor 製品プラン一覧 ==================== -->
 
-<!-- ==================== 🏆 Cursor Pro メンバーシッププラン ==================== -->
+| タイプ | プラン | 💰 価格 | 📊 公式価格 | 💎 総価値 / 説明 |
+|:---:|:---|:---:|:---:|:---|
+| **🏆 会員** | **Pro** 🔥 `人気` | **¥65** / $10 | $20 | ≈ **$45–$65**（基本枠+Rewards+Overdraft） |
+| **🏆 会員** | **Pro+** 💫 | **¥265** / $40 | $60 | ≈ **$95–$130**（基本枠+Rewards+Overdraft） |
+| **🏆 会員** | **Ultra** 👑 `旗艦` | **¥888** / $140 | $200 | ≈ **$400+**（基本枠+大量Rewards） |
+| **🎯 限定** | **半月パス** 🏷️ `限定` | **¥488** / $70 | — | 14日間独占 1000回 + $20、**Ultraより長持ち** |
+| **🆕 基本** | **Cursor 試用アカウント** | **$1** /個 | — | 動作保証、大量購入割引 |
+| **🆕 基本** | **Gemini 3.0 Pro** 💎 | **¥85** / $12 | — | 1年サブスク、安定Google垢、3日間保証 |
 
-### 🏆 Cursor Pro メンバーシッププラン
-
-<table>
-<tr>
-<td align="center" width="33%">
-
-#### 🔥 Pro `人気`
-<img src="https://img.shields.io/badge/ベストセラー-HOT-FF4136?style=flat-square" alt="HOT"/>
-
-| 項目 | 詳細 |
-|:---:|:---:|
-| 💰 **価格** | **¥65** / $10 |
-| 📊 公式価格 | $20 |
-| 💎 総価値 | **$45–$65** |
-
-<sup>$20 基本枠 + Rewards + Overdraft</sup>
-
-</td>
-<td align="center" width="33%">
-
-#### 💫 Pro+
-<img src="https://img.shields.io/badge/上級版-PLUS-7B68EE?style=flat-square" alt="PLUS"/>
-
-| 項目 | 詳細 |
-|:---:|:---:|
-| 💰 **価格** | **¥265** / $40 |
-| 📊 公式価格 | $60 |
-| 💎 総価値 | **$95–$130** |
-
-<sup>$70 基本枠 + Rewards + Overdraft</sup>
-
-</td>
-<td align="center" width="33%">
-
-#### 👑 Ultra `旗艦`
-<img src="https://img.shields.io/badge/最上位-PREMIUM-FFD700?style=flat-square" alt="PREMIUM"/>
-
-| 項目 | 詳細 |
-|:---:|:---:|
-| 💰 **価格** | **¥888** / $140 |
-| 📊 公式価格 | $200 |
-| 💎 総価値 | **$400+** |
-
-<sup>$400+ 基本枠 + 大量Rewards</sup>
-
-</td>
-</tr>
-</table>
-
-> ℹ️ **価値説明**：総価値 = Base Credits（基本枠）+ Rewards（報酬）+ Overdraft（超過分）、月次リセットあり。
-
----
-
-<!-- ==================== 🎯 ビジネス版 & 限定商品 ==================== -->
-
-### 🎯 ビジネス版 & 限定商品
-
-<table>
-<tr>
-<td align="center" width="50%">
-
-#### 🏷️ 半月パス `限定`
-<img src="https://img.shields.io/badge/数量限定-LIMITED-E91E63?style=flat-square" alt="LIMITED"/>
-
-| 項目 | 詳細 |
-|:---:|:---:|
-| 💰 **価格** | **¥488** / $70 |
-| 🎁 含まれる | 1000回リクエスト + $20クレジット |
-| ⚡ 特徴 | **Ultraより長持ち！** |
-
-</td>
-<td align="center" width="50%">
-
-#### 🔥 ビジネス回数アカウント `新商品`
-<img src="https://img.shields.io/badge/新発売-NEW-00C853?style=flat-square" alt="NEW"/>
-
-| 項目 | 詳細 |
-|:---:|:---:|
-| 📦 サービス | 公式ビジネスメンバー |
-| ⏱️ 有効期間 | 14日間独占 |
-| 🎁 含まれる | **1000回**高速リクエスト + **$20**クレジット |
-
-</td>
-</tr>
-</table>
+> ℹ️ **価値説明**：会員プラン総価値 = Base Credits（基本枠）+ Rewards（報酬）+ Overdraft（超過分）、月次リセットあり。
 
 <details>
-<summary>📋 <b>ビジネス回数アカウント詳細</b>（クリックで展開）</summary>
+<summary>📋 <b>各製品の詳細説明</b>（クリックで展開）</summary>
 
 <br>
 
+#### 🏷️ 半月パス詳細
 | 項目 | 説明 |
 |:---|:---|
 | **サービス内容** | Cursor 公式ビジネスメンバー - 14日間使い切りアカウント（使用後削除） |
@@ -127,61 +51,18 @@
 
 > 💡 **$200/Ultra プランよりも長持ち！ぜひ体験してください！**
 
-</details>
-
 ---
 
-<!-- ==================== 🆕 基本アカウントサービス ==================== -->
-
-### 🆕 基本アカウントサービス
-
-<table>
-<tr>
-<td align="center" width="50%">
-
-#### 💳 Cursor 試用アカウント
-<img src="https://img.shields.io/badge/大量購入割引-BULK-2196F3?style=flat-square" alt="BULK"/>
-
-| 項目 | 詳細 |
-|:---:|:---:|
-| 💰 **価格** | **$1** /個 |
-| ✅ 保証 | 動作保証 |
-| 🎁 割引 | 大量購入で割引あり |
-
-</td>
-<td align="center" width="50%">
-
-#### 💎 Gemini 3.0 Pro
-<img src="https://img.shields.io/badge/1年サブスク-1YEAR-9C27B0?style=flat-square" alt="1YEAR"/>
-
-| 項目 | 詳細 |
-|:---:|:---:|
-| 💰 **価格** | **¥85** / $12 |
-| 🛡️ 保証 | 3日間 |
-| ⭐ 特徴 | 安定Google垢（6ヶ月-1年+） |
-
-</td>
-</tr>
-</table>
-
-<details>
-<summary>📋 <b>Cursor 試用アカウント詳細</b>（クリックで展開）</summary>
-
-<br>
-
+#### 💳 Cursor 試用アカウント詳細
 | 項目 | 説明 |
 |:---|:---|
 | **納品形式** | `アカウント ---- Cursorパスワード ---- メールパスワード ---- 長期Cookie` |
 | **保証について** | 受け取り後 **1時間以内** に確認してください。時間を過ぎた場合はサポート対象外 |
 | **ログインアドレス** | cursor.com（直接ログイン） |
 
-</details>
+---
 
-<details>
-<summary>📋 <b>Gemini 3.0 Pro 詳細</b>（クリックで展開）</summary>
-
-<br>
-
+#### 💎 Gemini 3.0 Pro 詳細
 | 項目 | 説明 |
 |:---|:---|
 | **商品説明** | 3日間保証。超安定したGoogleアカウント（6ヶ月-1年以上）。品質は短期メールアドレスを大幅に上回る。GCP開設にも使える高品質 |
@@ -194,32 +75,11 @@
 
 <!-- ==================== 📢 購入須知 & 連絡先 ==================== -->
 
-<table>
-<tr>
-<td>
-
-### ⚠️ 購入前に
-
-| 項目 | 説明 |
-|:---:|:---|
-| 💎 アカウント種類 | 正規チャージ、専用アカウント |
-| ⏱️ 有効期間 | 25〜30日 |
-| 💻 デバイス制限 | 推奨 ≤3台 |
-| 🛡️ アフターサポート | 7日保証（交換 / 日割り返金） |
-
-</td>
-<td>
-
-### 📱 連絡先
-
-| プラットフォーム | 連絡先 |
-|:---:|:---:|
-| <img src="https://img.shields.io/badge/Telegram-2CA5E0?style=flat-square&logo=telegram&logoColor=white" alt="Telegram"/> | [@yuaotian](https://t.me/yuaotian) |
-| <img src="https://img.shields.io/badge/WeChat-07C160?style=flat-square&logo=wechat&logoColor=white" alt="WeChat"/> | `JavaRookie666` |
-
-</td>
-</tr>
-</table>
+| ⚠️ **購入前に** | 📱 **連絡先** |
+|:---|:---|
+| 💎 正規チャージ、専用アカウント | <img src="https://img.shields.io/badge/Telegram-2CA5E0?style=flat-square&logo=telegram&logoColor=white"/> [@yuaotian](https://t.me/yuaotian) |
+| ⏱️ 有効期間 25〜30日 \| 💻 推奨 ≤3台 | <img src="https://img.shields.io/badge/WeChat-07C160?style=flat-square&logo=wechat&logoColor=white"/> `JavaRookie666` |
+| 🛡️ 7日保証（交換 / 日割り返金） | |
 
 ---
 

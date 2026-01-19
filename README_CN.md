@@ -22,101 +22,25 @@
 
 > 💡 仅需 **¥65** 即可获得 **$65+** 使用价值！ | 📖 [官网定价参考](https://cursor.com/cn/docs/account/pricing)
 
----
+<!-- ==================== 📦 Cursor 产品套餐一览 ==================== -->
 
-<!-- ==================== 🏆 Cursor Pro 会员套餐 ==================== -->
+| 类型 | 套餐 | 💰 售价 | 📊 官方价 | 💎 总价值 / 说明 |
+|:---:|:---|:---:|:---:|:---|
+| **🏆 会员** | **Pro** 🔥 `爆款` | **¥65** / $10 | $20 | ≈ **$45–$65**（基础+奖励+透支） |
+| **🏆 会员** | **Pro+** 💫 | **¥265** / $40 | $60 | ≈ **$95–$130**（基础+奖励+透支） |
+| **🏆 会员** | **Ultra** 👑 `旗舰` | **¥888** / $140 | $200 | ≈ **$400+**（基础+海量奖励） |
+| **🎯 限定** | **半月卡** 🏷️ `限量` | **¥488** / $70 | — | 14天独享 1000次 + $20，**比Ultra更耐用** |
+| **🆕 基础** | **Cursor 试用号** | **$1** /个 | — | 保证可用，批量优惠 |
+| **🆕 基础** | **Gemini 3.0 Pro** 💎 | **¥85** / $12 | — | 一年订阅，稳定谷歌老号，质保3天 |
 
-### 🏆 Cursor Pro 会员套餐
-
-<table>
-<tr>
-<td align="center" width="33%">
-
-#### 🔥 Pro `爆款`
-<img src="https://img.shields.io/badge/人气之选-HOT-FF4136?style=flat-square" alt="HOT"/>
-
-| 项目 | 详情 |
-|:---:|:---:|
-| 💰 **售价** | **¥65** / $10 |
-| 📊 官方价 | $20 |
-| 💎 总价值 | **$45–$65** |
-
-<sup>$20 基础 + 奖励 + 透支</sup>
-
-</td>
-<td align="center" width="33%">
-
-#### 💫 Pro+
-<img src="https://img.shields.io/badge/进阶版-PLUS-7B68EE?style=flat-square" alt="PLUS"/>
-
-| 项目 | 详情 |
-|:---:|:---:|
-| 💰 **售价** | **¥265** / $40 |
-| 📊 官方价 | $60 |
-| 💎 总价值 | **$95–$130** |
-
-<sup>$70 基础 + 奖励 + 透支</sup>
-
-</td>
-<td align="center" width="33%">
-
-#### 👑 Ultra `旗舰`
-<img src="https://img.shields.io/badge/顶级版-PREMIUM-FFD700?style=flat-square" alt="PREMIUM"/>
-
-| 项目 | 详情 |
-|:---:|:---:|
-| 💰 **售价** | **¥888** / $140 |
-| 📊 官方价 | $200 |
-| 💎 总价值 | **$400+** |
-
-<sup>$400+ 基础 + 海量奖励</sup>
-
-</td>
-</tr>
-</table>
-
-> ℹ️ **价值说明**：总价值 = Base Credits（基础额度）+ Rewards（奖励）+ Overdraft（透支），每月重置。
-
----
-
-<!-- ==================== 🎯 商业版 & 限定商品 ==================== -->
-
-### 🎯 商业版 & 限定商品
-
-<table>
-<tr>
-<td align="center" width="50%">
-
-#### 🏷️ 半月卡 `限量`
-<img src="https://img.shields.io/badge/限量发售-LIMITED-E91E63?style=flat-square" alt="LIMITED"/>
-
-| 项目 | 详情 |
-|:---:|:---:|
-| 💰 **售价** | **¥488** / $70 |
-| 🎁 包含 | 1000次请求 + $20额度 |
-| ⚡ 特点 | **比Ultra更耐用！** |
-
-</td>
-<td align="center" width="50%">
-
-#### 🔥 商业次数号 `新品`
-<img src="https://img.shields.io/badge/新品上市-NEW-00C853?style=flat-square" alt="NEW"/>
-
-| 项目 | 详情 |
-|:---:|:---:|
-| 📦 服务 | 官网商业版会员 |
-| ⏱️ 有效期 | 14天独享 |
-| 🎁 包含 | **1000次**快速请求 + **$20**额度 |
-
-</td>
-</tr>
-</table>
+> ℹ️ **价值说明**：会员套餐总价值 = Base Credits（基础额度）+ Rewards（奖励）+ Overdraft（透支），每月重置。
 
 <details>
-<summary>📋 <b>商业次数号详细说明</b>（点击展开）</summary>
+<summary>📋 <b>各产品详细说明</b>（点击展开）</summary>
 
 <br>
 
+#### 🏷️ 半月卡详情
 | 项目 | 说明 |
 |:---|:---|
 | **服务内容** | Cursor 官网商业版会员 - 14天用完就删号 |
@@ -127,61 +51,18 @@
 
 > 💡 **比 $200/Ultra 套餐更耐用！自行体验！**
 
-</details>
-
 ---
 
-<!-- ==================== 🆕 基础账号服务 ==================== -->
-
-### 🆕 基础账号服务
-
-<table>
-<tr>
-<td align="center" width="50%">
-
-#### 💳 Cursor 试用号
-<img src="https://img.shields.io/badge/批量优惠-BULK-2196F3?style=flat-square" alt="BULK"/>
-
-| 项目 | 详情 |
-|:---:|:---:|
-| 💰 **售价** | **$1** /个 |
-| ✅ 保障 | 保证可用 |
-| 🎁 优惠 | 批量购买享折扣 |
-
-</td>
-<td align="center" width="50%">
-
-#### 💎 Gemini 3.0 Pro
-<img src="https://img.shields.io/badge/一年订阅-1YEAR-9C27B0?style=flat-square" alt="1YEAR"/>
-
-| 项目 | 详情 |
-|:---:|:---:|
-| 💰 **售价** | **¥85** / $12 |
-| 🛡️ 质保 | 3天 |
-| ⭐ 特点 | 稳定谷歌老号（6月-1年+） |
-
-</td>
-</tr>
-</table>
-
-<details>
-<summary>📋 <b>Cursor 试用号详细说明</b>（点击展开）</summary>
-
-<br>
-
+#### 💳 Cursor 试用号详情
 | 项目 | 说明 |
 |:---|:---|
 | **发货格式** | `账号 ---- Cursor密码 ---- 邮箱密码 ---- 长效cookies` |
 | **质保说明** | 质保到手，请在 **1小时内** 检查并反馈，超时不提供售后 |
 | **登录地址** | cursor.com（直登账号） |
 
-</details>
+---
 
-<details>
-<summary>📋 <b>Gemini 3.0 Pro 详细说明</b>（点击展开）</summary>
-
-<br>
-
+#### 💎 Gemini 3.0 Pro 详情
 | 项目 | 说明 |
 |:---|:---|
 | **商品描述** | 质保三天，超级稳定的谷歌号注册（6月-1年以上），品质远超市面短效邮箱，开GCP都没问题 |
@@ -194,32 +75,11 @@
 
 <!-- ==================== 📢 购买须知 & 联系方式 ==================== -->
 
-<table>
-<tr>
-<td>
-
-### ⚠️ 购买须知
-
-| 项目 | 说明 |
-|:---:|:---|
-| 💎 账号类型 | 正规真金充值，独享账号 |
-| ⏱️ 有效期 | 25–30 天 |
-| 💻 设备限制 | 建议 ≤3 台设备 |
-| 🛡️ 售后保障 | 7天质保（换号 / 按天退款） |
-
-</td>
-<td>
-
-### 📱 联系方式
-
-| 平台 | 联系方式 |
-|:---:|:---:|
-| <img src="https://img.shields.io/badge/Telegram-2CA5E0?style=flat-square&logo=telegram&logoColor=white" alt="Telegram"/> | [@yuaotian](https://t.me/yuaotian) |
-| <img src="https://img.shields.io/badge/WeChat-07C160?style=flat-square&logo=wechat&logoColor=white" alt="WeChat"/> | `JavaRookie666` |
-
-</td>
-</tr>
-</table>
+| ⚠️ **购买须知** | 📱 **联系方式** |
+|:---|:---|
+| 💎 正规真金充值，独享账号 | <img src="https://img.shields.io/badge/Telegram-2CA5E0?style=flat-square&logo=telegram&logoColor=white"/> [@yuaotian](https://t.me/yuaotian) |
+| ⏱️ 有效期 25–30 天 \| 💻 建议 ≤3 台设备 | <img src="https://img.shields.io/badge/WeChat-07C160?style=flat-square&logo=wechat&logoColor=white"/> `JavaRookie666` |
+| 🛡️ 7天质保（换号 / 按天退款） | |
 
 ---
 
