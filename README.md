@@ -28,10 +28,37 @@
 | 2️⃣ | **Pro+** | **¥265** | **$40** | $60 | $70 Base + Rewards + Overdraft ≈ **$95–$130** |
 | 3️⃣ | **Ultra** 👑 | **¥888** | **$140** | $200 | $400+ Base + Massive Rewards ≈ **$400+** |
 | 🎁 | **Half-Month** 🏷️ `LIMITED` | **¥488** | **$70** | — | 1000 Reqs + $20 ≈ **More durable than Ultra** |
+| 🆕 | **Trial Account** | **—** | **$1** | — | Guaranteed working, Bulk discount |
+| 🆕 | **Gemini 3.0 Pro** | **¥85** | **$12** | — | Stable Google Acct, 3-Day Warranty |
 
 > 📖 [Official Pricing](https://cursor.com/cn/docs/account/pricing)
 >
 > *ℹ️ Value note: Total usage value = Base Credits + Rewards + Overdraft (monthly resets apply).*
+>
+> ### 💳 Cursor Trial Account Info
+>
+> ✓ Guaranteed to work
+>
+> **🔑 Delivery Format**
+> `Account ---- Cursor Password ---- Email Password ---- Long-term cookies`
+>
+> **⚠️ Warranty**
+> Check within 1 hour of receipt. No support after timeout.
+>
+> **🔗 Login URL**
+> Cursor: cursor.com (Direct Login)
+>
+> ### 💎 Gemini 3.0 Pro 1-Year Subscription
+>
+> **📦 Description**
+> 3-Day Warranty. Beats all cheap temporary email accounts. Registered with super stable Google accounts (6+ months to 1+ year old). High quality, suitable even for GCP. Don't compare with cheap accounts that die in 2 days. This is superior quality with a real warranty.
+>
+> **🔑 Account Format**
+> `Account----Password----Recovery Email----2FA`
+>
+> **⚠️ Instructions**
+> 1. After login: Immediately bind your own recovery email, password, and phone number.
+> 2. **Important**: Try to keep using the same IP address for the first 3 days.
 >
 > ### 🔥 [New] Cursor Business Exclusive Request-Based Account - 1000 Reqs + $20
 >
