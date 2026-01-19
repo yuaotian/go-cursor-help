@@ -18,61 +18,208 @@
 
 ## ⚡️ [Flash Sale] Cursor Pro High‑Credit Accounts
 
-🔥 **Private & Exclusive | Stable 30-Day | NOT a Cracked Trial**
+<img src="https://img.shields.io/badge/🔥_Private_&_Exclusive-30_Days_Stable-FF6B6B?style=for-the-badge" alt="Private & Exclusive"/> <img src="https://img.shields.io/badge/💎_Legit_Top--up-NOT_Cracked-4ECDC4?style=for-the-badge" alt="Legit Top-up"/> <img src="https://img.shields.io/badge/⭐_Official_Account-Full_Warranty-45B7D1?style=for-the-badge" alt="Official Account"/>
 
-> 💡 Get **$65+** usage value for only **$10**!
+> 💡 Get **$65+** usage value for only **$10**! | 📖 [Official Pricing Reference](https://cursor.com/cn/docs/account/pricing)
 
-| | Tier | 🇨🇳 RMB | 🇺🇸 USD | Official | Total Usage Value* |
-|:---:|:---:|:---:|:---:|:---:|:---|
-| 1️⃣ | **Pro** 🔥 `HOT` | **¥65** | **$10** | $20 | $20 Base + Rewards + Overdraft ≈ **$45–$65** |
-| 2️⃣ | **Pro+** | **¥265** | **$40** | $60 | $70 Base + Rewards + Overdraft ≈ **$95–$130** |
-| 3️⃣ | **Ultra** 👑 | **¥888** | **$140** | $200 | $400+ Base + Massive Rewards ≈ **$400+** |
-| 🎁 | **Half-Month** 🏷️ `LIMITED` | **¥488** | **$70** | — | 1000 Reqs + $20 ≈ **More durable than Ultra** |
-| 🆕 | **Trial Account** | **—** | **$1** | — | Guaranteed working, Bulk discount |
-| 🆕 | **Gemini 3.0 Pro** | **¥85** | **$12** | — | Stable Google Acct, 3-Day Warranty |
+---
 
-> 📖 [Official Pricing](https://cursor.com/cn/docs/account/pricing)
->
-> *ℹ️ Value note: Total usage value = Base Credits + Rewards + Overdraft (monthly resets apply).*
->
-> ### 💳 Cursor Trial Account Info
->
-> ✓ Guaranteed to work
->
-> **🔑 Delivery Format**
-> `Account ---- Cursor Password ---- Email Password ---- Long-term cookies`
->
-> **⚠️ Warranty**
-> Check within 1 hour of receipt. No support after timeout.
->
-> **🔗 Login URL**
-> Cursor: cursor.com (Direct Login)
->
-> ### 💎 Gemini 3.0 Pro 1-Year Subscription
->
-> **📦 Description**
-> 3-Day Warranty. Beats all cheap temporary email accounts. Registered with super stable Google accounts (6+ months to 1+ year old). High quality, suitable even for GCP. Don't compare with cheap accounts that die in 2 days. This is superior quality with a real warranty.
->
-> **🔑 Account Format**
-> `Account----Password----Recovery Email----2FA`
->
-> **⚠️ Instructions**
-> 1. After login: Immediately bind your own recovery email, password, and phone number.
-> 2. **Important**: Try to keep using the same IP address for the first 3 days.
->
-> ### 🔥 [New] Cursor Business Exclusive Request-Based Account - 1000 Reqs + $20
->
-> > **More durable than the $200/Ultra plan! Experience it yourself!**
->
-> - **Service**:       Cursor Official Business Member - 14-day account (deleted after use).
-> - **14-Day Exclusive**: Personal exclusive business official request-based account. Includes **1000** fast requests + **$20** model usage credit.
-> - **Billing**:       Deducts request counts first, then the additional $20 credit. Note: Max models consume more counts. No slow-speed unlimited mode.
-> - **Full Access**:   All models available, no functional restrictions.
-> - **Official & Warranty**: Guaranteed official account, full warranty, after-sales support. Renewable!
+<!-- ==================== 🏆 Cursor Pro Membership Plans ==================== -->
 
-⚠️ **Before you buy**: Private (not shared) | Valid 25–30 days | Up to 3 devices | 7‑day warranty (replacement / pro‑rated refund)
+### 🏆 Cursor Pro Membership Plans
 
-📱 **Contact**: Telegram: [@yuaotian](https://t.me/yuaotian) | WeChat: `JavaRookie666`
+<table>
+<tr>
+<td align="center" width="33%">
+
+#### 🔥 Pro `HOT`
+<img src="https://img.shields.io/badge/Best_Seller-HOT-FF4136?style=flat-square" alt="HOT"/>
+
+| Item | Details |
+|:---:|:---:|
+| 💰 **Price** | **¥65** / $10 |
+| 📊 Official | $20 |
+| 💎 Total Value | **$45–$65** |
+
+<sup>$20 Base + Rewards + Overdraft</sup>
+
+</td>
+<td align="center" width="33%">
+
+#### 💫 Pro+
+<img src="https://img.shields.io/badge/Advanced-PLUS-7B68EE?style=flat-square" alt="PLUS"/>
+
+| Item | Details |
+|:---:|:---:|
+| 💰 **Price** | **¥265** / $40 |
+| 📊 Official | $60 |
+| 💎 Total Value | **$95–$130** |
+
+<sup>$70 Base + Rewards + Overdraft</sup>
+
+</td>
+<td align="center" width="33%">
+
+#### 👑 Ultra `FLAGSHIP`
+<img src="https://img.shields.io/badge/Top_Tier-PREMIUM-FFD700?style=flat-square" alt="PREMIUM"/>
+
+| Item | Details |
+|:---:|:---:|
+| 💰 **Price** | **¥888** / $140 |
+| 📊 Official | $200 |
+| 💎 Total Value | **$400+** |
+
+<sup>$400+ Base + Massive Rewards</sup>
+
+</td>
+</tr>
+</table>
+
+> ℹ️ **Value Note**: Total value = Base Credits + Rewards + Overdraft (monthly resets apply).
+
+---
+
+<!-- ==================== 🎯 Business & Limited Edition ==================== -->
+
+### 🎯 Business & Limited Edition
+
+<table>
+<tr>
+<td align="center" width="50%">
+
+#### 🏷️ Half-Month Pass `LIMITED`
+<img src="https://img.shields.io/badge/Limited_Stock-LIMITED-E91E63?style=flat-square" alt="LIMITED"/>
+
+| Item | Details |
+|:---:|:---:|
+| 💰 **Price** | **¥488** / $70 |
+| 🎁 Includes | 1000 Requests + $20 Credit |
+| ⚡ Feature | **More durable than Ultra!** |
+
+</td>
+<td align="center" width="50%">
+
+#### 🔥 Business Request Account `NEW`
+<img src="https://img.shields.io/badge/Just_Launched-NEW-00C853?style=flat-square" alt="NEW"/>
+
+| Item | Details |
+|:---:|:---:|
+| 📦 Service | Official Business Member |
+| ⏱️ Validity | 14-Day Exclusive |
+| 🎁 Includes | **1000** Fast Reqs + **$20** Credit |
+
+</td>
+</tr>
+</table>
+
+<details>
+<summary>📋 <b>Business Request Account Details</b> (Click to expand)</summary>
+
+<br>
+
+| Item | Description |
+|:---|:---|
+| **Service** | Cursor Official Business Member - 14-day account (deleted after use) |
+| **14-Day Exclusive** | Personal exclusive business official request-based account with **1000** fast requests + **$20** model usage credit |
+| **Billing** | Deducts request counts first, then the additional $20 credit. Note: Max models consume more counts. No slow-speed unlimited mode |
+| **Full Access** | All models available, no functional restrictions |
+| **Official & Warranty** | Guaranteed official account, full warranty, after-sales support. Renewable! |
+
+> 💡 **More durable than the $200/Ultra plan! Experience it yourself!**
+
+</details>
+
+---
+
+<!-- ==================== 🆕 Basic Account Services ==================== -->
+
+### 🆕 Basic Account Services
+
+<table>
+<tr>
+<td align="center" width="50%">
+
+#### 💳 Cursor Trial Account
+<img src="https://img.shields.io/badge/Bulk_Discount-BULK-2196F3?style=flat-square" alt="BULK"/>
+
+| Item | Details |
+|:---:|:---:|
+| 💰 **Price** | **$1** /each |
+| ✅ Guarantee | Guaranteed working |
+| 🎁 Discount | Bulk purchase available |
+
+</td>
+<td align="center" width="50%">
+
+#### 💎 Gemini 3.0 Pro
+<img src="https://img.shields.io/badge/1_Year_Sub-1YEAR-9C27B0?style=flat-square" alt="1YEAR"/>
+
+| Item | Details |
+|:---:|:---:|
+| 💰 **Price** | **¥85** / $12 |
+| 🛡️ Warranty | 3 Days |
+| ⭐ Feature | Stable Google Acct (6mo-1yr+) |
+
+</td>
+</tr>
+</table>
+
+<details>
+<summary>📋 <b>Cursor Trial Account Details</b> (Click to expand)</summary>
+
+<br>
+
+| Item | Description |
+|:---|:---|
+| **Delivery Format** | `Account ---- Cursor Password ---- Email Password ---- Long-term cookies` |
+| **Warranty** | Check within **1 hour** of receipt. No support after timeout |
+| **Login URL** | cursor.com (Direct Login) |
+
+</details>
+
+<details>
+<summary>📋 <b>Gemini 3.0 Pro Details</b> (Click to expand)</summary>
+
+<br>
+
+| Item | Description |
+|:---|:---|
+| **Description** | 3-Day Warranty. Super stable Google accounts (6mo-1yr+). Quality far exceeds temporary email accounts. Suitable even for GCP |
+| **Account Format** | `Account----Password----Recovery Email----2FA` |
+| **Instructions** | ① Immediately bind your own recovery email, password, and phone number after login ② **Important**: Keep using the same IP address for the first 3 days |
+
+</details>
+
+---
+
+<!-- ==================== 📢 Purchase Notice & Contact ==================== -->
+
+<table>
+<tr>
+<td>
+
+### ⚠️ Before You Buy
+
+| Item | Description |
+|:---:|:---|
+| 💎 Account Type | Legit top-up, private account |
+| ⏱️ Validity | 25–30 days |
+| 💻 Device Limit | Recommended ≤3 devices |
+| 🛡️ After-sales | 7-day warranty (replacement / pro-rated refund) |
+
+</td>
+<td>
+
+### 📱 Contact
+
+| Platform | Contact |
+|:---:|:---:|
+| <img src="https://img.shields.io/badge/Telegram-2CA5E0?style=flat-square&logo=telegram&logoColor=white" alt="Telegram"/> | [@yuaotian](https://t.me/yuaotian) |
+| <img src="https://img.shields.io/badge/WeChat-07C160?style=flat-square&logo=wechat&logoColor=white" alt="WeChat"/> | `JavaRookie666` |
+
+</td>
+</tr>
+</table>
 
 ---
 
