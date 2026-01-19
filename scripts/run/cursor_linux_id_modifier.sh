@@ -969,7 +969,8 @@ generate_new_config() {
     
     # 使用菜单选择函数询问用户是否重置机器码
     set +e
-    select_menu_option "是否需要重置机器码? (通常情况下，只修改js文件即可)：" "不重置 - 仅修改js文件即可|重置 - 同时修改配置文件和机器码" 0
+    # 默认选择“重置”，满足“默认应全部处理”的需求
+    select_menu_option "是否需要重置机器码? (默认：重置并同步修改配置文件)：" "不重置 - 仅修改js文件即可|重置 - 同时修改配置文件和机器码" 1
     reset_choice=$?
     set -e
     
@@ -1909,7 +1910,24 @@ select_menu_option() {
     local key_input
     local cursor_up=$'\e[A' # 更标准的 ANSI 码
     local cursor_down=$'\e[B'
+    local cursor_up_alt=$'\eOA' # 兼容应用光标模式
+    local cursor_down_alt=$'\eOB'
     local enter_key=$'\n'
+    # 兼容管道执行场景：stdin 非 TTY 时改用 /dev/tty 读取
+    local input_fd=0
+    local input_fd_opened=0
+
+    if [ -t 0 ]; then
+        input_fd=0
+    elif [ -r /dev/tty ]; then
+        exec 3</dev/tty
+        input_fd=3
+        input_fd_opened=1
+    else
+        # 无可用 TTY，直接使用默认选项返回
+        echo -e "$prompt ${GREEN}${options[$selected_index]}${NC}"
+        return $selected_index
+    fi
 
     # 隐藏光标
     tput civis
@@ -1946,9 +1964,9 @@ select_menu_option() {
         # 读取按键 (使用 -sn1 或 -sn3 取决于系统对箭头键的处理)
         # -N 1 读取单个字符，可能需要多次读取箭头键
         # -N 3 一次读取3个字符，通常用于箭头键
-        read -rsn1 key_press_1 # 读取第一个字符
+        read -rsn1 -u "$input_fd" key_press_1 # 读取第一个字符
          if [[ "$key_press_1" == $'\e' ]]; then # 如果是 ESC，读取后续字符
-             read -rsn2 key_press_2 # 读取 '[' 和 A/B
+             read -rsn2 -u "$input_fd" key_press_2 # 读取 '[' 和 A/B
              key_input="$key_press_1$key_press_2"
          elif [[ "$key_press_1" == "" ]]; then # 如果是 Enter
              key_input=$enter_key
@@ -1959,16 +1977,23 @@ select_menu_option() {
         # 检测按键
         case "$key_input" in
             # 上箭头键
-            "$cursor_up")
+            "$cursor_up"|"$cursor_up_alt")
                 if [ $selected_index -gt 0 ]; then
                     ((selected_index--))
                     draw_menu
                 fi
                 ;;
             # 下箭头键
-            "$cursor_down")
+            "$cursor_down"|"$cursor_down_alt")
                 if [ $selected_index -lt $((${#options[@]}-1)) ]; then
                     ((selected_index++))
+                    draw_menu
+                fi
+                ;;
+            # 数字键选择（1..N），避免方向键不可用
+            [1-9])
+                if [ "$key_input" -ge 1 ] && [ "$key_input" -le "$num_options" ]; then
+                    selected_index=$((key_input - 1))
                     draw_menu
                 fi
                 ;;
@@ -1983,6 +2008,10 @@ select_menu_option() {
 
                  # 恢复光标
                  tput cnorm
+                 # 关闭 /dev/tty 句柄，避免资源占用
+                 if [ "$input_fd_opened" -eq 1 ]; then
+                     exec 3<&-
+                 fi
                  # 返回选择的索引
                  return $selected_index
                 ;;
