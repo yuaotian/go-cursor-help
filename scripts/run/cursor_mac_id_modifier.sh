@@ -3025,7 +3025,8 @@ main() {
     log_info "当前用户: $CURRENT_USER"
     log_cmd_output "sw_vers" "macOS 版本信息"
     log_cmd_output "which codesign" "codesign 路径"
-    log_cmd_output "ls -ld "$CURSOR_APP_PATH"" "Cursor 应用信息"
+    # 修复：统一引号并显式转义，避免引号嵌套导致脚本解析错误
+    log_cmd_output "ls -ld \"$CURSOR_APP_PATH\"" "Cursor 应用信息"
 
     # 新增环境检查
     if [[ $(uname) != "Darwin" ]]; then
