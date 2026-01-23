@@ -30,7 +30,7 @@
 | **🏆 Member** | **Pro+** 💫 | **¥265** / $40 | $60 | ≈ **$95–$130** (Base+Rewards+Overdraft) |
 | **🏆 Member** | **Ultra** 👑 `FLAGSHIP` | **¥888** / $140 | $200 | ≈ **$400+** (Base+Massive Rewards) |
 | **🎯 Limited** | **Half-Month Pass** 🏷️ `LIMITED` | **¥488** / $70 | — | 14-Day Exclusive 1000 Reqs + $20, **More durable than Ultra** |
-| **🆕 Basic** | **Cursor Trial Acct** | **$1** /each | — | Guaranteed working, Bulk discount |
+| **🆕 Basic** | **Cursor Trial Acct** | **$3** /each | — | Guaranteed working, Bulk discount |
 | **🆕 Basic** | **Gemini 3.0 Pro** 💎 | **¥85** / $12 | — | 1-Year Sub, Stable Google Acct, 3-Day Warranty |
 
 > ℹ️ **Value Note**: Member plan total value = Base Credits + Rewards + Overdraft (monthly resets apply).
