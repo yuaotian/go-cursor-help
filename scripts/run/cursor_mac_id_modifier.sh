@@ -2864,7 +2864,7 @@ main() {
     echo -e "${YELLOW}🤝  一起交流更多Cursor技巧和AI知识(脚本免费、关注公众号加群有更多技巧和大佬)  ${NC}"
     echo -e "${BLUE}================================${NC}"
     echo
-    echo -e "${YELLOW}⚡  [小小广告] Cursor官网正规成品号：Pro¥95 | Pro+¥265 | Ultra¥888 独享账号| ￥488 Team绝版次数号1000次+20刀额度 | 全部7天质保 | ，WeChat：JavaRookie666  ${NC}"
+    echo -e "${YELLOW}⚡  [小小广告] Cursor官网正规成品号：Unlimited ♾️ ¥1050 | 7天周卡 $100 ¥210 | 7天周卡 $500 ¥1050 | 7天周卡 $1000 ¥2450 | 全部7天质保 | ，WeChat：JavaRookie666  ${NC}"
     echo
     echo -e "${YELLOW}💡 [重要提示]${NC} 本工具采用分阶段执行策略，既能彻底清理又能修改机器码。"
     echo -e "${YELLOW}💡 [重要提示]${NC} 本工具免费，如果对您有帮助，请关注公众号【煎饼果子卷AI】"
@@ -3083,7 +3083,7 @@ main() {
     # 📱 显示公众号信息
     echo -e "${GREEN}================================${NC}"
     echo -e "${YELLOW}📱  关注公众号【煎饼果子卷AI】一起交流更多Cursor技巧和AI知识(脚本免费、关注公众号加群有更多技巧和大佬)  ${NC}"
-    echo -e "${YELLOW}⚡   [小小广告] Cursor官网正规成品号：Pro¥95 | Pro+¥265 | Ultra¥888 独享账号| ￥488 Team绝版次数号1000次+20刀额度 | 全部7天质保 | ，WeChat：JavaRookie666  ${NC}"
+    echo -e "${YELLOW}⚡   [小小广告] Cursor官网正规成品号：Unlimited ♾️ ¥1050 | 7天周卡 $100 ¥210 | 7天周卡 $500 ¥1050 | 7天周卡 $1000 ¥2450 | 全部7天质保 | ，WeChat：JavaRookie666  ${NC}"
     echo -e "${GREEN}================================${NC}"
     echo
     log_info "🚀 [提示] 现在可以重新启动 Cursor 尝试使用了！"

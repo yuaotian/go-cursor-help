@@ -43,7 +43,6 @@
 
 | Type | Plan | 💰 Price | 📊 Official | 💎 Total Value / Note |
 |:---:|:---|:---:|:---:|:---|
-| **🏆 Member** | **Pro** 🔥 `HOT` |  $12 | $20 | ≈ **$45–$65** (Base+Rewards+Overdraft) |
 | **🏆 Member** | **Unlimited ♾️** 👑 `FLAGSHIP` |  $150 | $99999999+♾️ | **Truly Unlimited** (Official Verified, 10-Day Warranty) |
 | **🎯 Limited** | **7-Day Pass $100** 🏷️ |  $30 | $100 | 7-Day Exclusive $100 Credit, Official Billing, Daily Support |
 | **🎯 Limited** | **7-Day Pass $500** 💎 |  $150 | $500 | 7-Day Exclusive $500 Credit, High-Intensity Dev |

@@ -1982,7 +1982,7 @@ Write-Host "$YELLOW📱  关注公众号【煎饼果子卷AI】 $NC"
 Write-Host "$YELLOW🤝  一起交流更多Cursor技巧和AI知识(脚本免费、关注公众号加群有更多技巧和大佬)  $NC"
 Write-Host "$YELLOW💡  [重要提示] 本工具免费，如果对您有帮助，请关注公众号【煎饼果子卷AI】  $NC"
 Write-Host ""
-Write-Host "$YELLOW⚡  [小小广告] Cursor官网正规成品号：Pro¥95 | Pro+¥265 | Ultra¥888 独享账号| ￥488 Team绝版次数号1000次+20刀额度 | 全部7天质保 | ，WeChat：JavaRookie666  $NC"
+Write-Host "$YELLOW⚡  [小小广告] Cursor官网正规成品号：Unlimited ♾️ ¥1050 | 7天周卡 $100 ¥210 | 7天周卡 $500 ¥1050 | 7天周卡 $1000 ¥2450 | 全部7天质保 | ，WeChat：JavaRookie666  $NC"
 Write-Host "$BLUE================================$NC"
 
 # 🎯 用户选择菜单
@@ -2491,7 +2491,7 @@ if ($executeMode -eq "MODIFY_ONLY") {
 Write-Host ""
 Write-Host "$GREEN================================$NC"
 Write-Host "$YELLOW📱  关注公众号【煎饼果子卷AI】一起交流更多Cursor技巧和AI知识(脚本免费、关注公众号加群有更多技巧和大佬)  $NC"
-Write-Host "$YELLOW⚡   [小小广告] Cursor官网正规成品号：Pro¥95 | Pro+¥265 | Ultra¥888 独享账号| ￥488 Team绝版次数号1000次+20刀额度 | 全部7天质保 | ，WeChat：JavaRookie666  $NC"
+Write-Host "$YELLOW⚡   [小小广告] Cursor官网正规成品号：Unlimited ♾️ ¥1050 | 7天周卡 $100 ¥210 | 7天周卡 $500 ¥1050 | 7天周卡 $1000 ¥2450 | 全部7天质保 | ，WeChat：JavaRookie666  $NC"
 Write-Host "$GREEN================================$NC"
 Write-Host ""
 
