@@ -24,10 +24,27 @@
 
 <!-- ==================== 📦 Cursor Product Plans Overview ==================== -->
 
+<div align="center">
+
+### 👑 NEW FLAGSHIP: Unlimited ♾️ Official Account
+
+> **Truly Unlimited Credits (Display 99999) | Private Official Account | 10-Day Warranty**
+
+| 💰 Price | 💎 Official Value | 🛡️ Validity |
+| :---: | :---: | :---: |
+| **$150** / ¥1050 | **$9,999,999** | **30 Days** |
+
+<img src="img/cursor_999999.png" width="500" alt="Unlimited"/>
+
+</div>
+
+---
+
+
 | Type | Plan | 💰 Price | 📊 Official | 💎 Total Value / Note |
 |:---:|:---|:---:|:---:|:---|
 | **🏆 Member** | **Pro** 🔥 `HOT` |  $12 | $20 | ≈ **$45–$65** (Base+Rewards+Overdraft) |
-| **🏆 Member** | **Unlimited ♾️** 👑 `FLAGSHIP` |  $150 | $200 | **Truly Unlimited** (Official Verified, 10-Day Warranty) |
+| **🏆 Member** | **Unlimited ♾️** 👑 `FLAGSHIP` |  $150 | $99999999+♾️ | **Truly Unlimited** (Official Verified, 10-Day Warranty) |
 | **🎯 Limited** | **7-Day Pass $100** 🏷️ |  $30 | $100 | 7-Day Exclusive $100 Credit, Official Billing, Daily Support |
 | **🎯 Limited** | **7-Day Pass $500** 💎 |  $150 | $500 | 7-Day Exclusive $500 Credit, High-Intensity Dev |
 | **🎯 Limited** | **7-Day Pass $1000** 🔥 |  $350 | $1000 | 7-Day Exclusive $1000 Credit, Ultra-High Intensity |
@@ -43,18 +60,7 @@
 
 ---
 
-#### ♾️ Unlimited Plan Details
-| Item | Description |
-|:---|:---|
-| **Product Name** | Cursor Unlimited ♾️ Official Account |
-| **Price** | ¥1050 / $150 |
-| **Official Value** | $9,999,999 |
-| **Core Features** | Truly Unlimited Credits (Shows 99999), Private & Exclusive, Verified Official |
-| **Validity** | 30 Days (10-Day Warranty, Supports Pro-rated Refund) |
 
-> 🖼️ **Use as much as you want!** <img src="img/cursor_999999.png" width="500" alt="Unlimited Credits"/>
-
----
 
 #### 🏷️ 7-Day Business Pass Series Details
 > **⚠️ Important: The 7-Day Pass is valid for exactly 7 days (from delivery). Account auto-deleted upon expiration!**
