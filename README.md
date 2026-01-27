@@ -26,15 +26,13 @@
 
 | Type | Plan | 💰 Price | 📊 Official | 💎 Total Value / Note |
 |:---:|:---|:---:|:---:|:---|
-| **🏆 Member** | **Pro** 🔥 `HOT` | **¥65** / $12 | $20 | ≈ **$45–$65** (Base+Rewards+Overdraft) |
-| **🏆 Member** | **Pro+** 💫 | **¥265** / $40 | $60 | ≈ **$95–$130** (Base+Rewards+Overdraft) |
-| **🏆 Member** | **Ultra** 👑 `FLAGSHIP` | **¥888** / $140 | $200 | ≈ **$400+** (Base+Massive Rewards) |
-| **🏆 Member** | **Unlimited ♾️** 👑 `FLAGSHIP` | **¥1050** / $150 | $200 | **Truly Unlimited** (Official Verified, 10-Day Warranty) |
-| **🎯 Limited** | **7-Day Pass $100** 🏷️ | **¥210** / $30 | $100 | 7-Day Exclusive $100 Credit, Official Billing, Daily Support |
-| **🎯 Limited** | **7-Day Pass $500** 💎 | **¥1050** / $150 | $500 | 7-Day Exclusive $500 Credit, High-Intensity Dev |
-| **🎯 Limited** | **7-Day Pass $1000** 🔥 | **¥2450** / $350 | $1000 | 7-Day Exclusive $1000 Credit, Ultra-High Intensity |
+| **🏆 Member** | **Pro** 🔥 `HOT` |  $12 | $20 | ≈ **$45–$65** (Base+Rewards+Overdraft) |
+| **🏆 Member** | **Unlimited ♾️** 👑 `FLAGSHIP` |  $150 | $200 | **Truly Unlimited** (Official Verified, 10-Day Warranty) |
+| **🎯 Limited** | **7-Day Pass $100** 🏷️ |  $30 | $100 | 7-Day Exclusive $100 Credit, Official Billing, Daily Support |
+| **🎯 Limited** | **7-Day Pass $500** 💎 |  $150 | $500 | 7-Day Exclusive $500 Credit, High-Intensity Dev |
+| **🎯 Limited** | **7-Day Pass $1000** 🔥 |  $350 | $1000 | 7-Day Exclusive $1000 Credit, Ultra-High Intensity |
 | **🆕 Basic** | **Cursor Trial Acct** | **$3** /each | — | Guaranteed working, Bulk discount |
-| **🆕 Basic** | **Gemini 3.0 Pro** 💎 | **¥85** / $10 | — | 1-Year Sub, Stable Google Acct, 3-Day Warranty |
+| **🆕 Basic** | **Gemini 3.0 Pro** 💎 | $10 | — | 1-Year Sub, Stable Google Acct, 3-Day Warranty |
 
 > ℹ️ **Value Note**: Member plan total value = Base Credits + Rewards + Overdraft (monthly resets apply).
 
