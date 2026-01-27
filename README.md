@@ -29,7 +29,10 @@
 | **🏆 Member** | **Pro** 🔥 `HOT` | **¥65** / $12 | $20 | ≈ **$45–$65** (Base+Rewards+Overdraft) |
 | **🏆 Member** | **Pro+** 💫 | **¥265** / $40 | $60 | ≈ **$95–$130** (Base+Rewards+Overdraft) |
 | **🏆 Member** | **Ultra** 👑 `FLAGSHIP` | **¥888** / $140 | $200 | ≈ **$400+** (Base+Massive Rewards) |
-| **🎯 Limited** | **Half-Month Pass** 🏷️ `LIMITED` | **¥488** / $65 | — | 14-Day Exclusive 1000 Reqs + $20, **More durable than Ultra** |
+| **🏆 Member** | **Unlimited ♾️** 👑 `FLAGSHIP` | **¥1050** / $150 | $200 | **真正无限额度**（官方可查，10天质保） |
+| **🎯 Limited** | **7天周卡 $100** 🏷️ | **¥210** / $30 | $100 | 7天独享 $100 额度，官方计费，按天售后 |
+| **🎯 Limited** | **7天周卡 $500** 💎 | **¥1050** / $150 | $500 | 7天独享 $500 额度，适合高强度开发 |
+| **🎯 Limited** | **7天周卡 $1000** 🔥 | **¥2450** / $350 | $1000 | 7天独享 $1000 额度，超高强度开发 |
 | **🆕 Basic** | **Cursor Trial Acct** | **$3** /each | — | Guaranteed working, Bulk discount |
 | **🆕 Basic** | **Gemini 3.0 Pro** 💎 | **¥85** / $10 | — | 1-Year Sub, Stable Google Acct, 3-Day Warranty |
 
@@ -40,16 +43,35 @@
 
 <br>
 
-#### 🏷️ Half-Month Pass Details
-| Item | Description |
-|:---|:---|
-| **Service** | Cursor Official Business Member - 14-day account (deleted after use) |
-| **14-Day Exclusive** | Personal exclusive business official request-based account with **1000** fast requests + **$20** model usage credit |
-| **Billing** | Deducts request counts first, then the additional $20 credit. Note: Max models consume more counts. No slow-speed unlimited mode |
-| **Full Access** | All models available, no functional restrictions |
-| **Official & Warranty** | Guaranteed official account, full warranty, after-sales support. Renewable! |
+---
 
-> 💡 **More durable than the $200/Ultra plan! Experience it yourself!**
+#### ♾️ Unlimited 无限额度详情
+| 项目 | 说明 |
+|:---|:---|
+| **商品名称** | Cursor 无限额度 ♾️ 官方号 |
+| **售价** | ¥1050 / $150 |
+| **官方价值** | $9999999 |
+| **核心特点** | 真正无限额度（99999额度显示），个人独享，官方可查 |
+| **有效期** | 30天（10天质保期，支持按天退款） |
+
+> 🖼️ **无论怎么用都用不完！** <img src="img/cursor_999999.png" width="500" alt="无限额度"/>
+
+---
+
+#### 🏷️ 7天商业版周卡系列详情
+> **⚠️ 重要提醒：7天周卡系列有效期为7天整（从发货时间起算），到期自动删号！**
+
+| 版本 | 额度 | 售价 | 说明 |
+|:---|:---|:---|:---|
+| **$100版** | $100 | **¥210** / $30 | 7天独享 $100 额度，官方计费，按天售后 |
+| **$500版** | $500 | **¥1050** / $150 | 7天独享 $500 额度，高强度开发首选 |
+| **$1000版** | $1000 | **¥2450** / $350 | 7天独享 $1000 额度，超高强度开发 |
+
+| 通用说明 | 内容 |
+|:---|:---|
+| **服务内容** | Cursor 官网商业版会员 - 7天周卡 |
+| **官方权益** | 个人独享官方账号，全功能開放，无限速 |
+| **使用限制** | 官方按量计费，额度用完即止。需自备网络加速工具 |
 
 ---
 
