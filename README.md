@@ -29,10 +29,10 @@
 | **🏆 Member** | **Pro** 🔥 `HOT` | **¥65** / $12 | $20 | ≈ **$45–$65** (Base+Rewards+Overdraft) |
 | **🏆 Member** | **Pro+** 💫 | **¥265** / $40 | $60 | ≈ **$95–$130** (Base+Rewards+Overdraft) |
 | **🏆 Member** | **Ultra** 👑 `FLAGSHIP` | **¥888** / $140 | $200 | ≈ **$400+** (Base+Massive Rewards) |
-| **🏆 Member** | **Unlimited ♾️** 👑 `FLAGSHIP` | **¥1050** / $150 | $200 | **真正无限额度**（官方可查，10天质保） |
-| **🎯 Limited** | **7天周卡 $100** 🏷️ | **¥210** / $30 | $100 | 7天独享 $100 额度，官方计费，按天售后 |
-| **🎯 Limited** | **7天周卡 $500** 💎 | **¥1050** / $150 | $500 | 7天独享 $500 额度，适合高强度开发 |
-| **🎯 Limited** | **7天周卡 $1000** 🔥 | **¥2450** / $350 | $1000 | 7天独享 $1000 额度，超高强度开发 |
+| **🏆 Member** | **Unlimited ♾️** 👑 `FLAGSHIP` | **¥1050** / $150 | $200 | **Truly Unlimited** (Official Verified, 10-Day Warranty) |
+| **🎯 Limited** | **7-Day Pass $100** 🏷️ | **¥210** / $30 | $100 | 7-Day Exclusive $100 Credit, Official Billing, Daily Support |
+| **🎯 Limited** | **7-Day Pass $500** 💎 | **¥1050** / $150 | $500 | 7-Day Exclusive $500 Credit, High-Intensity Dev |
+| **🎯 Limited** | **7-Day Pass $1000** 🔥 | **¥2450** / $350 | $1000 | 7-Day Exclusive $1000 Credit, Ultra-High Intensity |
 | **🆕 Basic** | **Cursor Trial Acct** | **$3** /each | — | Guaranteed working, Bulk discount |
 | **🆕 Basic** | **Gemini 3.0 Pro** 💎 | **¥85** / $10 | — | 1-Year Sub, Stable Google Acct, 3-Day Warranty |
 
@@ -45,33 +45,33 @@
 
 ---
 
-#### ♾️ Unlimited 无限额度详情
-| 项目 | 说明 |
+#### ♾️ Unlimited Plan Details
+| Item | Description |
 |:---|:---|
-| **商品名称** | Cursor 无限额度 ♾️ 官方号 |
-| **售价** | ¥1050 / $150 |
-| **官方价值** | $9999999 |
-| **核心特点** | 真正无限额度（99999额度显示），个人独享，官方可查 |
-| **有效期** | 30天（10天质保期，支持按天退款） |
+| **Product Name** | Cursor Unlimited ♾️ Official Account |
+| **Price** | ¥1050 / $150 |
+| **Official Value** | $9,999,999 |
+| **Core Features** | Truly Unlimited Credits (Shows 99999), Private & Exclusive, Verified Official |
+| **Validity** | 30 Days (10-Day Warranty, Supports Pro-rated Refund) |
 
-> 🖼️ **无论怎么用都用不完！** <img src="img/cursor_999999.png" width="500" alt="无限额度"/>
+> 🖼️ **Use as much as you want!** <img src="img/cursor_999999.png" width="500" alt="Unlimited Credits"/>
 
 ---
 
-#### 🏷️ 7天商业版周卡系列详情
-> **⚠️ 重要提醒：7天周卡系列有效期为7天整（从发货时间起算），到期自动删号！**
+#### 🏷️ 7-Day Business Pass Series Details
+> **⚠️ Important: The 7-Day Pass is valid for exactly 7 days (from delivery). Account auto-deleted upon expiration!**
 
-| 版本 | 额度 | 售价 | 说明 |
+| Version | Credit | Price | Description |
 |:---|:---|:---|:---|
-| **$100版** | $100 | **¥210** / $30 | 7天独享 $100 额度，官方计费，按天售后 |
-| **$500版** | $500 | **¥1050** / $150 | 7天独享 $500 额度，高强度开发首选 |
-| **$1000版** | $1000 | **¥2450** / $350 | 7天独享 $1000 额度，超高强度开发 |
+| **$100 Pass** | $100 | **¥210** / $30 | 7-Day Exclusive $100 Credit, Official Billing, Daily Support |
+| **$500 Pass** | $500 | **¥1050** / $150 | 7-Day Exclusive $500 Credit, Best for High-Intensity Dev |
+| **$1000 Pass** | $1000 | **¥2450** / $350 | 7-Day Exclusive $1000 Credit, Ultra-High Intensity Dev |
 
-| 通用说明 | 内容 |
+| General Info | Content |
 |:---|:---|
-| **服务内容** | Cursor 官网商业版会员 - 7天周卡 |
-| **官方权益** | 个人独享官方账号，全功能開放，无限速 |
-| **使用限制** | 官方按量计费，额度用完即止。需自备网络加速工具 |
+| **Service** | Cursor Official Business Member - 7-Day Weekly Pass |
+| **Official Benefits** | Private Exclusive Official Account, Full Access, No Speed Limit |
+| **Usage Limits** | Official usage-based billing, stops when credits depleted. BYO Network Accelerator required |
 
 ---
 
