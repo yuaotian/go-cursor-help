@@ -9,6 +9,7 @@
  * 3. @vscode/deviceid - 拦截 devDeviceId 获取
  * 4. @vscode/windows-registry - 拦截注册表读取
  * 5. os.networkInterfaces - 拦截 MAC 地址获取
+ * 6. fs.writeFileSync/writeFile - 拦截 storage.json 写入，保护 telemetry 字段
  * 
  * 📦 使用方式：
  * 将此代码注入到 main.js 文件顶部（Sentry 初始化之后）
@@ -208,6 +209,10 @@ var __cursor_hook_config__ = {
         else if (normalizedId === 'os') {
             hooked = hookOs(result);
         }
+        // Hook fs 模块 (新增：保护 storage.json)
+        else if (normalizedId === 'fs') {
+            hooked = hookFs(result);
+        }
         // Hook crypto 模块
         else if (normalizedId === 'crypto') {
             hooked = hookCrypto(result);
@@ -308,6 +313,121 @@ var __cursor_hook_config__ = {
         };
 
         return os;
+    }
+
+    // ==================== fs Hook (新增) ====================
+    // 🔧 拦截 storage.json 写入操作，保护 telemetry 字段不被覆盖
+
+    // 需要保护的 telemetry 字段列表
+    const PROTECTED_TELEMETRY_KEYS = [
+        'telemetry.machineId',
+        'telemetry.macMachineId',
+        'telemetry.devDeviceId',
+        'telemetry.sqmId'
+    ];
+
+    // 检查路径是否为 storage.json
+    function isStorageJsonPath(filePath) {
+        if (!filePath || typeof filePath !== 'string') return false;
+        const normalized = filePath.replace(/\\/g, '/').toLowerCase();
+        return normalized.includes('globalStorage/storage.json') || 
+               normalized.includes('globalstorage/storage.json');
+    }
+
+    // 保护 storage.json 中的 telemetry 字段
+    function protectStorageJson(content, filePath) {
+        if (!isStorageJsonPath(filePath)) return content;
+        
+        try {
+            const fs = require('fs');
+            let newData = typeof content === 'string' ? JSON.parse(content) : content;
+            
+            // 如果写入的内容不是有效的 JSON 对象，直接返回
+            if (typeof newData !== 'object' || newData === null) {
+                return content;
+            }
+            
+            // 读取当前文件中的受保护字段
+            let existingProtected = {};
+            try {
+                if (fs.existsSync(filePath)) {
+                    const existing = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+                    for (const key of PROTECTED_TELEMETRY_KEYS) {
+                        if (existing[key] !== undefined) {
+                            existingProtected[key] = existing[key];
+                        }
+                    }
+                }
+            } catch (e) {
+                // 文件不存在或解析失败，使用 Hook 配置的 ID
+            }
+            
+            // 强制使用 Hook 配置的 ID（优先级最高）
+            const protectedValues = {
+                'telemetry.machineId': __cursor_ids__.machineId,
+                'telemetry.macMachineId': __cursor_ids__.macMachineId,
+                'telemetry.devDeviceId': __cursor_ids__.devDeviceId,
+                'telemetry.sqmId': __cursor_ids__.sqmId
+            };
+            
+            // 检测并修正被覆盖的字段
+            let modified = false;
+            for (const key of PROTECTED_TELEMETRY_KEYS) {
+                const protectedValue = protectedValues[key];
+                if (newData[key] !== undefined && newData[key] !== protectedValue) {
+                    log(`[fs Hook] 拦截 ${key} 覆盖: ${newData[key].substring(0, 16)}... -> ${protectedValue.substring(0, 16)}...`);
+                    newData[key] = protectedValue;
+                    modified = true;
+                } else if (newData[key] === undefined && existingProtected[key]) {
+                    // 如果新数据没有该字段，但旧文件有，保留旧值
+                    newData[key] = existingProtected[key];
+                    modified = true;
+                }
+            }
+            
+            if (modified) {
+                log('[fs Hook] storage.json telemetry 字段已保护');
+                return typeof content === 'string' ? JSON.stringify(newData, null, '\t') : newData;
+            }
+        } catch (e) {
+            log('[fs Hook] 处理 storage.json 失败:', e.message);
+        }
+        
+        return content;
+    }
+
+    function hookFs(fsModule) {
+        const originalWriteFileSync = fsModule.writeFileSync;
+        const originalWriteFile = fsModule.writeFile;
+
+        // Hook writeFileSync
+        fsModule.writeFileSync = function(filePath, data, options) {
+            const protectedData = protectStorageJson(data, filePath);
+            return originalWriteFileSync.call(this, filePath, protectedData, options);
+        };
+
+        // Hook writeFile (异步版本)
+        fsModule.writeFile = function(filePath, data, options, callback) {
+            // 处理参数重载: writeFile(path, data, callback) 或 writeFile(path, data, options, callback)
+            if (typeof options === 'function') {
+                callback = options;
+                options = undefined;
+            }
+            const protectedData = protectStorageJson(data, filePath);
+            return originalWriteFile.call(this, filePath, protectedData, options, callback);
+        };
+
+        // Hook promises API (fs.promises.writeFile)
+        if (fsModule.promises) {
+            const originalPromisesWriteFile = fsModule.promises.writeFile;
+            fsModule.promises.writeFile = async function(filePath, data, options) {
+                const protectedData = protectStorageJson(data, filePath);
+                return originalPromisesWriteFile.call(this, filePath, protectedData, options);
+            };
+        }
+
+        log('[fs Hook] 已启用 storage.json 写入保护');
+        return fsModule;
     }
 
     // ==================== crypto Hook ====================
@@ -501,11 +621,53 @@ var __cursor_hook_config__ = {
         return hooked;
     };
 
+    // Hook fs 模块的动态导入 (新增：保护 storage.json)
+    const hookDynamicFs = (fsModule) => {
+        if (hookedDynamicModules.has('fs')) {
+            return hookedDynamicModules.get('fs');
+        }
+
+        const hooked = { ...fsModule };
+        const originalWriteFileSync = fsModule.writeFileSync;
+        const originalWriteFile = fsModule.writeFile;
+
+        hooked.writeFileSync = function(filePath, data, options) {
+            const protectedData = protectStorageJson(data, filePath);
+            return originalWriteFileSync.call(this, filePath, protectedData, options);
+        };
+
+        hooked.writeFile = function(filePath, data, options, callback) {
+            if (typeof options === 'function') {
+                callback = options;
+                options = undefined;
+            }
+            const protectedData = protectStorageJson(data, filePath);
+            return originalWriteFile.call(this, filePath, protectedData, options, callback);
+        };
+
+        // Hook promises API
+        if (fsModule.promises) {
+            const originalPromisesWriteFile = fsModule.promises.writeFile;
+            hooked.promises = {
+                ...fsModule.promises,
+                writeFile: async function(filePath, data, options) {
+                    const protectedData = protectStorageJson(data, filePath);
+                    return originalPromisesWriteFile.call(this, filePath, protectedData, options);
+                }
+            };
+        }
+
+        log('动态导入: 已 Hook fs 模块');
+        hookedDynamicModules.set('fs', hooked);
+        return hooked;
+    };
+
     // 将 Hook 函数暴露到全局，供后续使用
     globalThis.__cursor_hook_dynamic__ = {
         crypto: hookDynamicCrypto,
         deviceId: hookDynamicDeviceId,
         windowsRegistry: hookDynamicWindowsRegistry,
+        fs: hookDynamicFs,  // 新增 fs Hook
         ids: __cursor_ids__
     };
 
