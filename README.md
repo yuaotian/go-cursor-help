@@ -47,8 +47,8 @@
 | **🎯 Limited** | **7-Day Pass $100** 🏷️ |  $30 | $100 | 7-Day Exclusive $100 Credit, Official Billing, Daily Support |
 | **🎯 Limited** | **7-Day Pass $500** 💎 |  $150 | $500 | 7-Day Exclusive $500 Credit, High-Intensity Dev |
 | **🎯 Limited** | **7-Day Pass $1000** 🔥 |  $350 | $1000 | 7-Day Exclusive $1000 Credit, Ultra-High Intensity |
-| **🆕 Basic** | **Cursor Trial Acct** | **$3** /each | — | Guaranteed working, Bulk discount |
-| **🆕 Basic** | **Gemini 3.0 Pro** 💎 | $10 | — | 1-Year Sub, Stable Google Acct, 3-Day Warranty |
+| **🆕 Basic** | **Cursor Trial Acct** | **$5** /each | — | Guaranteed working, Bulk discount |
+| **🆕 Basic** | **Gemini 3.0 Pro** 💎 | $50 | — | 1-Year Sub, Stable Google Acct, 3-Day Warranty |
 
 > ℹ️ **Value Note**: Member plan total value = Base Credits + Rewards + Overdraft (monthly resets apply).
 
