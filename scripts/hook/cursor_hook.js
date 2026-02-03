@@ -120,6 +120,23 @@ var __cursor_hook_config__ = {
                 ids = JSON.parse(content);
                 // 补全缺失字段，保持向后兼容
                 let updated = false;
+                // 🔧 补齐核心 ID 字段（用于 Hook 与 storage.json 保护）
+                if (!ids.machineId || typeof ids.machineId !== 'string') {
+                    ids.machineId = generateHex64();
+                    updated = true;
+                }
+                if (!ids.macMachineId || typeof ids.macMachineId !== 'string') {
+                    ids.macMachineId = generateHex64();
+                    updated = true;
+                }
+                if (!ids.devDeviceId || typeof ids.devDeviceId !== 'string') {
+                    ids.devDeviceId = generateUUID();
+                    updated = true;
+                }
+                if (!ids.sqmId || typeof ids.sqmId !== 'string') {
+                    ids.sqmId = `{${generateUUID().toUpperCase()}}`;
+                    updated = true;
+                }
                 if (!ids.machineGuid) {
                     ids.machineGuid = generateUUID();
                     updated = true;
@@ -326,12 +343,81 @@ var __cursor_hook_config__ = {
         'telemetry.sqmId'
     ];
 
+    // 规范化 filePath（兼容 string/Buffer/URL 等）
+    function normalizeFilePath(filePath) {
+        try {
+            if (filePath === undefined || filePath === null) return '';
+            if (typeof filePath === 'string') return filePath;
+            if (Buffer.isBuffer(filePath)) return filePath.toString('utf8');
+
+            // WHATWG URL (fs 支持 URL 对象)
+            if (typeof filePath === 'object' && typeof filePath.href === 'string') {
+                // 优先将 file:// URL 转为本地路径，避免传递 "file:///..." 字符串导致 existsSync/readFileSync 失败
+                if (typeof filePath.protocol === 'string' && filePath.protocol === 'file:') {
+                    try {
+                        const url = require('url');
+                        if (url && typeof url.fileURLToPath === 'function') {
+                            return url.fileURLToPath(filePath);
+                        }
+                    } catch (_) {
+                        // ignore
+                    }
+                }
+                return filePath.href;
+            }
+
+            return String(filePath);
+        } catch (_) {
+            return '';
+        }
+    }
+
+    function previewValue(value) {
+        try {
+            const s = String(value);
+            return s.length > 16 ? s.slice(0, 16) + '...' : s;
+        } catch (_) {
+            return '<unprintable>';
+        }
+    }
+
+    // 将写入内容转为 utf8 文本，并提供回写为“同类类型”的包装器
+    function coerceContentToUtf8Text(content) {
+        try {
+            if (typeof content === 'string') {
+                return { text: content, wrap: (s) => s };
+            }
+            if (Buffer.isBuffer(content)) {
+                return { text: content.toString('utf8'), wrap: (s) => Buffer.from(s, 'utf8') };
+            }
+            // TypedArray / DataView
+            if (content && typeof content === 'object') {
+                if (content instanceof Uint8Array) {
+                    // Buffer 也属于 Uint8Array，但已在上面处理
+                    const buf = Buffer.from(content);
+                    return { text: buf.toString('utf8'), wrap: (s) => new Uint8Array(Buffer.from(s, 'utf8')) };
+                }
+                if (typeof ArrayBuffer !== 'undefined' && content instanceof ArrayBuffer) {
+                    const buf = Buffer.from(content);
+                    return { text: buf.toString('utf8'), wrap: (s) => Buffer.from(s, 'utf8') };
+                }
+                if (typeof ArrayBuffer !== 'undefined' && typeof ArrayBuffer.isView === 'function' && ArrayBuffer.isView(content)) {
+                    const buf = Buffer.from(content.buffer, content.byteOffset, content.byteLength);
+                    return { text: buf.toString('utf8'), wrap: (s) => Buffer.from(s, 'utf8') };
+                }
+            }
+        } catch (_) {
+            // ignore
+        }
+        return null;
+    }
+
     // 检查路径是否为 storage.json
     function isStorageJsonPath(filePath) {
-        if (!filePath || typeof filePath !== 'string') return false;
-        const normalized = filePath.replace(/\\/g, '/').toLowerCase();
-        return normalized.includes('globalStorage/storage.json') || 
-               normalized.includes('globalstorage/storage.json');
+        const raw = normalizeFilePath(filePath);
+        if (!raw) return false;
+        const normalized = raw.replace(/\\/g, '/').toLowerCase();
+        return normalized.includes('globalstorage/storage.json');
     }
 
     // 保护 storage.json 中的 telemetry 字段
@@ -340,57 +426,80 @@ var __cursor_hook_config__ = {
         
         try {
             const fs = require('fs');
-            let newData = typeof content === 'string' ? JSON.parse(content) : content;
+            const coerced = coerceContentToUtf8Text(content);
+            if (!coerced) return content;
+
+            let newData;
+            try {
+                newData = JSON.parse(coerced.text);
+            } catch (_) {
+                return content;
+            }
             
             // 如果写入的内容不是有效的 JSON 对象，直接返回
             if (typeof newData !== 'object' || newData === null) {
                 return content;
             }
             
-            // 读取当前文件中的受保护字段
+            // 保护值优先级：
+            // 1) __cursor_ids__（Hook 配置/环境变量/自动生成）
+            // 2) 现有 storage.json 中已存在的值
+            // 3) 本次写入值（最低）
+            const protectedValues = {
+                'telemetry.machineId': __cursor_ids__ && __cursor_ids__.machineId,
+                'telemetry.macMachineId': __cursor_ids__ && __cursor_ids__.macMachineId,
+                'telemetry.devDeviceId': __cursor_ids__ && __cursor_ids__.devDeviceId,
+                'telemetry.sqmId': __cursor_ids__ && __cursor_ids__.sqmId
+            };
+
+            // 仅当 Hook 配置不完整时，才读取旧文件值作为二级兜底
             let existingProtected = {};
-            try {
-                if (fs.existsSync(filePath)) {
-                    const existing = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-                    for (const key of PROTECTED_TELEMETRY_KEYS) {
-                        if (existing[key] !== undefined) {
-                            existingProtected[key] = existing[key];
+            const needExisting = PROTECTED_TELEMETRY_KEYS.some((k) => !(typeof protectedValues[k] === 'string' && protectedValues[k]));
+            if (needExisting) {
+                try {
+                    if (fs.existsSync(filePath)) {
+                        const existingText = fs.readFileSync(filePath, 'utf8');
+                        const existing = JSON.parse(existingText);
+                        if (existing && typeof existing === 'object') {
+                            for (const key of PROTECTED_TELEMETRY_KEYS) {
+                                if (typeof existing[key] === 'string' && existing[key]) {
+                                    existingProtected[key] = existing[key];
+                                }
+                            }
                         }
                     }
+                } catch (_) {
+                    // ignore
                 }
-            } catch (e) {
-                // 文件不存在或解析失败，使用 Hook 配置的 ID
             }
             
-            // 强制使用 Hook 配置的 ID（优先级最高）
-            const protectedValues = {
-                'telemetry.machineId': __cursor_ids__.machineId,
-                'telemetry.macMachineId': __cursor_ids__.macMachineId,
-                'telemetry.devDeviceId': __cursor_ids__.devDeviceId,
-                'telemetry.sqmId': __cursor_ids__.sqmId
-            };
-            
-            // 检测并修正被覆盖的字段
             let modified = false;
             for (const key of PROTECTED_TELEMETRY_KEYS) {
-                const protectedValue = protectedValues[key];
-                if (newData[key] !== undefined && newData[key] !== protectedValue) {
-                    log(`[fs Hook] 拦截 ${key} 覆盖: ${newData[key].substring(0, 16)}... -> ${protectedValue.substring(0, 16)}...`);
-                    newData[key] = protectedValue;
-                    modified = true;
-                } else if (newData[key] === undefined && existingProtected[key]) {
-                    // 如果新数据没有该字段，但旧文件有，保留旧值
-                    newData[key] = existingProtected[key];
+                const fromIds = protectedValues[key];
+                const desired = (typeof fromIds === 'string' && fromIds) ? fromIds
+                    : (typeof existingProtected[key] === 'string' && existingProtected[key]) ? existingProtected[key]
+                    : undefined;
+
+                if (desired === undefined) {
+                    continue;
+                }
+
+                // 方案B：无论写入内容是否包含该字段，都确保最终值稳定（缺失则补齐）
+                if (newData[key] !== desired) {
+                    log(`[fs Hook] 固定 ${key}: ${previewValue(newData[key])} -> ${previewValue(desired)}`);
+                    newData[key] = desired;
                     modified = true;
                 }
             }
             
             if (modified) {
                 log('[fs Hook] storage.json telemetry 字段已保护');
-                return typeof content === 'string' ? JSON.stringify(newData, null, '\t') : newData;
+                const nextText = JSON.stringify(newData, null, '\t');
+                return coerced.wrap(nextText);
             }
         } catch (e) {
-            log('[fs Hook] 处理 storage.json 失败:', e.message);
+            const msg = e && e.message ? e.message : String(e);
+            log('[fs Hook] 处理 storage.json 失败:', msg);
         }
         
         return content;
@@ -399,6 +508,35 @@ var __cursor_hook_config__ = {
     function hookFs(fsModule) {
         const originalWriteFileSync = fsModule.writeFileSync;
         const originalWriteFile = fsModule.writeFile;
+        const originalAppendFileSync = fsModule.appendFileSync;
+        const originalAppendFile = fsModule.appendFile;
+        const originalCreateWriteStream = fsModule.createWriteStream;
+        const originalOpenSync = fsModule.openSync;
+        const originalOpen = fsModule.open;
+        const originalCloseSync = fsModule.closeSync;
+        const originalClose = fsModule.close;
+
+        // fd 追踪：覆盖 open/close 路径（仅用于 storage.json）
+        const storageJsonFds = new Map();
+        let inFdFix = false;
+
+        const fixStorageJsonFile = (filePath) => {
+            if (inFdFix) return;
+            inFdFix = true;
+            try {
+                const current = fsModule.readFileSync(filePath, 'utf8');
+                const next = protectStorageJson(current, filePath);
+                if (typeof next === 'string' && next !== current) {
+                    originalWriteFileSync.call(fsModule, filePath, next, 'utf8');
+                    log('[fs Hook] close-fix: storage.json telemetry 字段已重新保护');
+                }
+            } catch (e) {
+                const msg = e && e.message ? e.message : String(e);
+                log('[fs Hook] close-fix 失败:', msg);
+            } finally {
+                inFdFix = false;
+            }
+        };
 
         // Hook writeFileSync
         fsModule.writeFileSync = function(filePath, data, options) {
@@ -423,6 +561,126 @@ var __cursor_hook_config__ = {
             fsModule.promises.writeFile = async function(filePath, data, options) {
                 const protectedData = protectStorageJson(data, filePath);
                 return originalPromisesWriteFile.call(this, filePath, protectedData, options);
+            };
+
+            if (typeof fsModule.promises.appendFile === 'function') {
+                const originalPromisesAppendFile = fsModule.promises.appendFile;
+                fsModule.promises.appendFile = async function(filePath, data, options) {
+                    const protectedData = protectStorageJson(data, filePath);
+                    return originalPromisesAppendFile.call(this, filePath, protectedData, options);
+                };
+            }
+        }
+
+        // Hook appendFileSync
+        if (typeof originalAppendFileSync === 'function') {
+            fsModule.appendFileSync = function(filePath, data, options) {
+                const protectedData = protectStorageJson(data, filePath);
+                return originalAppendFileSync.call(this, filePath, protectedData, options);
+            };
+        }
+
+        // Hook appendFile (异步版本)
+        if (typeof originalAppendFile === 'function') {
+            fsModule.appendFile = function(filePath, data, options, callback) {
+                if (typeof options === 'function') {
+                    callback = options;
+                    options = undefined;
+                }
+                const protectedData = protectStorageJson(data, filePath);
+                return originalAppendFile.call(this, filePath, protectedData, options, callback);
+            };
+        }
+
+        // Hook createWriteStream（仅对 storage.json：保持原生 WriteStream，但 close 后做补救性修正）
+        if (typeof originalCreateWriteStream === 'function') {
+            fsModule.createWriteStream = function(filePath, options) {
+                const stream = originalCreateWriteStream.apply(this, arguments);
+                if (isStorageJsonPath(filePath) && stream && typeof stream.on === 'function') {
+                    stream.on('close', () => {
+                        try {
+                            fixStorageJsonFile(filePath);
+                        } catch (_) {
+                            // ignore
+                        }
+                    });
+                }
+                return stream;
+            };
+        }
+
+        // Hook open/openSync：追踪 storage.json 的 fd
+        if (typeof originalOpenSync === 'function') {
+            fsModule.openSync = function(filePath) {
+                const fd = originalOpenSync.apply(this, arguments);
+                try {
+                    if (!inFdFix && isStorageJsonPath(filePath)) {
+                        storageJsonFds.set(fd, filePath);
+                    }
+                } catch (_) {
+                    // ignore
+                }
+                return fd;
+            };
+        }
+
+        if (typeof originalOpen === 'function') {
+            fsModule.open = function(filePath, flags, mode, callback) {
+                if (typeof mode === 'function') {
+                    callback = mode;
+                    mode = undefined;
+                }
+
+                const wrapped = function(err, fd) {
+                    try {
+                        if (!err && !inFdFix && isStorageJsonPath(filePath)) {
+                            storageJsonFds.set(fd, filePath);
+                        }
+                    } catch (_) {
+                        // ignore
+                    }
+                    if (typeof callback === 'function') {
+                        return callback.apply(this, arguments);
+                    }
+                };
+
+                if (mode === undefined) {
+                    return originalOpen.call(this, filePath, flags, wrapped);
+                }
+                return originalOpen.call(this, filePath, flags, mode, wrapped);
+            };
+        }
+
+        // Hook close/closeSync：关闭后再做一次“落盘后修正”（覆盖 fd 写入路径）
+        if (typeof originalCloseSync === 'function') {
+            fsModule.closeSync = function(fd) {
+                const filePath = storageJsonFds.get(fd);
+                const ret = originalCloseSync.apply(this, arguments);
+                if (filePath !== undefined) {
+                    storageJsonFds.delete(fd);
+                    fixStorageJsonFile(filePath);
+                }
+                return ret;
+            };
+        }
+
+        if (typeof originalClose === 'function') {
+            fsModule.close = function(fd, callback) {
+                const filePath = storageJsonFds.get(fd);
+                const wrapped = function(err) {
+                    try {
+                        if (!err && filePath !== undefined) {
+                            storageJsonFds.delete(fd);
+                            fixStorageJsonFile(filePath);
+                        }
+                    } catch (_) {
+                        // ignore
+                    }
+                    if (typeof callback === 'function') {
+                        return callback.apply(this, arguments);
+                    }
+                };
+                return originalClose.call(this, fd, wrapped);
             };
         }
 
@@ -511,17 +769,21 @@ var __cursor_hook_config__ = {
         return {
             ...registryModule,
             GetStringRegKey: function(hive, path, name) {
+                const pathStr = (typeof path === 'string') ? path : '';
                 // 拦截 MachineId 读取
-                if (name === 'MachineId' || path.includes('SQMClient')) {
+                if (name === 'MachineId' || pathStr.includes('SQMClient')) {
                     log('拦截注册表 MachineId/SQMClient 读取');
                     return __cursor_ids__.sqmId;
                 }
                 // 拦截 MachineGuid 读取
-                if (name === 'MachineGuid' || path.includes('Cryptography')) {
+                if (name === 'MachineGuid' || pathStr.includes('Cryptography')) {
                     log('拦截注册表 MachineGuid 读取');
                     return getMachineGuid();
                 }
-                return originalGetStringRegKey?.apply(this, arguments) || '';
+                if (typeof originalGetStringRegKey === 'function') {
+                    return originalGetStringRegKey.apply(this, arguments) || '';
+                }
+                return '';
             }
         };
     }
@@ -605,15 +867,19 @@ var __cursor_hook_config__ = {
         const hooked = {
             ...registryModule,
             GetStringRegKey: function(hive, path, name) {
-                if (name === 'MachineId' || path?.includes('SQMClient')) {
+                const pathStr = (typeof path === 'string') ? path : '';
+                if (name === 'MachineId' || pathStr.includes('SQMClient')) {
                     log('动态导入: 拦截 SQMClient');
                     return __cursor_ids__.sqmId;
                 }
-                if (name === 'MachineGuid' || path?.includes('Cryptography')) {
+                if (name === 'MachineGuid' || pathStr.includes('Cryptography')) {
                     log('动态导入: 拦截 MachineGuid');
                     return getMachineGuid();
                 }
-                return originalGetStringRegKey?.apply(this, arguments) || '';
+                if (typeof originalGetStringRegKey === 'function') {
+                    return originalGetStringRegKey.apply(this, arguments) || '';
+                }
+                return '';
             }
         };
 
@@ -630,6 +896,34 @@ var __cursor_hook_config__ = {
         const hooked = { ...fsModule };
         const originalWriteFileSync = fsModule.writeFileSync;
         const originalWriteFile = fsModule.writeFile;
+        const originalAppendFileSync = fsModule.appendFileSync;
+        const originalAppendFile = fsModule.appendFile;
+        const originalCreateWriteStream = fsModule.createWriteStream;
+        const originalOpenSync = fsModule.openSync;
+        const originalOpen = fsModule.open;
+        const originalCloseSync = fsModule.closeSync;
+        const originalClose = fsModule.close;
+
+        const storageJsonFds = new Map();
+        let inFdFix = false;
+
+        const fixStorageJsonFile = (filePath) => {
+            if (inFdFix) return;
+            inFdFix = true;
+            try {
+                const current = fsModule.readFileSync(filePath, 'utf8');
+                const next = protectStorageJson(current, filePath);
+                if (typeof next === 'string' && next !== current) {
+                    originalWriteFileSync.call(fsModule, filePath, next, 'utf8');
+                    log('动态导入: close-fix storage.json telemetry 字段已重新保护');
+                }
+            } catch (e) {
+                const msg = e && e.message ? e.message : String(e);
+                log('动态导入: close-fix 失败:', msg);
+            } finally {
+                inFdFix = false;
+            }
+        };
 
         hooked.writeFileSync = function(filePath, data, options) {
             const protectedData = protectStorageJson(data, filePath);
@@ -654,6 +948,121 @@ var __cursor_hook_config__ = {
                     const protectedData = protectStorageJson(data, filePath);
                     return originalPromisesWriteFile.call(this, filePath, protectedData, options);
                 }
+            };
+
+            if (typeof fsModule.promises.appendFile === 'function') {
+                const originalPromisesAppendFile = fsModule.promises.appendFile;
+                hooked.promises.appendFile = async function(filePath, data, options) {
+                    const protectedData = protectStorageJson(data, filePath);
+                    return originalPromisesAppendFile.call(this, filePath, protectedData, options);
+                };
+            }
+        }
+
+        if (typeof originalAppendFileSync === 'function') {
+            hooked.appendFileSync = function(filePath, data, options) {
+                const protectedData = protectStorageJson(data, filePath);
+                return originalAppendFileSync.call(this, filePath, protectedData, options);
+            };
+        }
+
+        if (typeof originalAppendFile === 'function') {
+            hooked.appendFile = function(filePath, data, options, callback) {
+                if (typeof options === 'function') {
+                    callback = options;
+                    options = undefined;
+                }
+                const protectedData = protectStorageJson(data, filePath);
+                return originalAppendFile.call(this, filePath, protectedData, options, callback);
+            };
+        }
+
+        if (typeof originalCreateWriteStream === 'function') {
+            hooked.createWriteStream = function(filePath, options) {
+                const stream = originalCreateWriteStream.apply(this, arguments);
+                if (isStorageJsonPath(filePath) && stream && typeof stream.on === 'function') {
+                    stream.on('close', () => {
+                        try {
+                            fixStorageJsonFile(filePath);
+                        } catch (_) {
+                            // ignore
+                        }
+                    });
+                }
+                return stream;
+            };
+        }
+
+        if (typeof originalOpenSync === 'function') {
+            hooked.openSync = function(filePath) {
+                const fd = originalOpenSync.apply(this, arguments);
+                try {
+                    if (!inFdFix && isStorageJsonPath(filePath)) {
+                        storageJsonFds.set(fd, filePath);
+                    }
+                } catch (_) {
+                    // ignore
+                }
+                return fd;
+            };
+        }
+
+        if (typeof originalOpen === 'function') {
+            hooked.open = function(filePath, flags, mode, callback) {
+                if (typeof mode === 'function') {
+                    callback = mode;
+                    mode = undefined;
+                }
+
+                const wrapped = function(err, fd) {
+                    try {
+                        if (!err && !inFdFix && isStorageJsonPath(filePath)) {
+                            storageJsonFds.set(fd, filePath);
+                        }
+                    } catch (_) {
+                        // ignore
+                    }
+                    if (typeof callback === 'function') {
+                        return callback.apply(this, arguments);
+                    }
+                };
+
+                if (mode === undefined) {
+                    return originalOpen.call(this, filePath, flags, wrapped);
+                }
+                return originalOpen.call(this, filePath, flags, mode, wrapped);
+            };
+        }
+
+        if (typeof originalCloseSync === 'function') {
+            hooked.closeSync = function(fd) {
+                const filePath = storageJsonFds.get(fd);
+                const ret = originalCloseSync.apply(this, arguments);
+                if (filePath !== undefined) {
+                    storageJsonFds.delete(fd);
+                    fixStorageJsonFile(filePath);
+                }
+                return ret;
+            };
+        }
+
+        if (typeof originalClose === 'function') {
+            hooked.close = function(fd, callback) {
+                const filePath = storageJsonFds.get(fd);
+                const wrapped = function(err) {
+                    try {
+                        if (!err && filePath !== undefined) {
+                            storageJsonFds.delete(fd);
+                            fixStorageJsonFile(filePath);
+                        }
+                    } catch (_) {
+                        // ignore
+                    }
+                    if (typeof callback === 'function') {
+                        return callback.apply(this, arguments);
+                    }
+                };
+                return originalClose.call(this, fd, wrapped);
             };
         }
 
