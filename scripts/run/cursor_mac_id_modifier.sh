@@ -1959,29 +1959,23 @@ EOF
 
 
         # ========== 方法C: Loader Stub 注入 ==========
+        # 注意：使用 CommonJS 语法（require），不使用 ESM 动态 import()
+        # 原因：Electron 的 main.js 运行在 CJS 上下文，ESM 动态 import 可能静默失败
         local inject_code='// ========== Cursor Hook Loader 开始 ==========
-;(async function(){/*__cursor_patched__*/
+;(function(){/*__cursor_patched__*/
 "use strict";
 if(globalThis.__cursor_hook_loaded__)return;
 globalThis.__cursor_hook_loaded__=true;
 
 try{
-    // 兼容 ESM/CJS：避免使用 import.meta（仅 ESM 支持），统一用动态 import 加载 Hook
-    var fsMod=await import("fs");
-    var pathMod=await import("path");
-    var osMod=await import("os");
-    var urlMod=await import("url");
+    // 使用 CommonJS require() 语法，确保在 Electron CJS 上下文中正常运行
+    var fs=require("fs");
+    var path=require("path");
+    var os=require("os");
 
-    var fs=fsMod&&(fsMod.default||fsMod);
-    var path=pathMod&&(pathMod.default||pathMod);
-    var os=osMod&&(osMod.default||osMod);
-    var url=urlMod&&(urlMod.default||urlMod);
-
-    if(fs&&path&&os&&url&&typeof url.pathToFileURL==="function"){
-        var hookPath=path.join(os.homedir(), ".cursor_hook.js");
-        if(typeof fs.existsSync==="function"&&fs.existsSync(hookPath)){
-            await import(url.pathToFileURL(hookPath).href);
-        }
+    var hookPath=path.join(os.homedir(), ".cursor_hook.js");
+    if(fs.existsSync(hookPath)){
+        require(hookPath);
     }
 }catch(e){
     // 失败静默，避免影响启动
