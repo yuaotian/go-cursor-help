@@ -20,21 +20,21 @@
 
 <img src="https://img.shields.io/badge/🔥_Private_&_Exclusive-30_Days_Stable-FF6B6B?style=for-the-badge" alt="Private & Exclusive"/> <img src="https://img.shields.io/badge/💎_Legit_Top--up-NOT_Cracked-4ECDC4?style=for-the-badge" alt="Legit Top-up"/> <img src="https://img.shields.io/badge/⭐_Official_Account-Full_Warranty-45B7D1?style=for-the-badge" alt="Official Account"/>
 
-> 💡 Get **$65+** usage value for only **$12**! | 📖 [Official Pricing Reference](https://cursor.com/cn/docs/account/pricing)
+> 💡 Get **$20 ~ $40+** usage value for only **$15**! | 📖 [Official Pricing Reference](https://cursor.com/cn/docs/account/pricing)
 
 <!-- ==================== 📦 Cursor Product Plans Overview ==================== -->
 
 <div align="center">
 
-### 👑 NEW FLAGSHIP: Unlimited ♾️ Official Account
+### 🗓️ MONTHLY PLAN (STANDARD)
 
-> **Truly Unlimited Credits (Display 99999) | Private Official Account | 10-Day Warranty**
+> 🚀 **Cursor Pro Monthly** | 💰 **Price: $15** (Official:  $20~$40+)
 
-| 💰 Price | 💎 Official Value | 🛡️ Validity |
+| 📋 Specs | 📅 Validity | 🛡️ Warranty |
 | :---: | :---: | :---: |
-| **$150** / ¥1050 | **$9,999,999** | **30 Days** |
+| Standard Pro features. Good for daily usage. | ~30 Days | 7-Day Warranty (Pro-rated refund) |
 
-<img src="img/cursor_999999.png" width="500" alt="Unlimited"/>
+**(⚠️ Best value for steady developers)**
 
 </div>
 
@@ -43,7 +43,7 @@
 
 | Type | Plan | 💰 Price | 📊 Official | 💎 Total Value / Note |
 |:---:|:---|:---:|:---:|:---|
-| **🏆 Member** | **Unlimited ♾️** 👑 `FLAGSHIP` |  $150 | $99999999+♾️ | **Truly Unlimited** (Official Verified, 10-Day Warranty) |
+| **🚀 Pro** | **Cursor Pro Monthly** 🗓️ `STANDARD` |  $15 | $20~$40+ | **Standard Pro features** (7-Day Warranty, Pro-rated refund) |
 | **🎯 Limited** | **7-Day Pass $100** 🏷️ |  $30 | $100 | 7-Day Exclusive $100 Credit, Official Billing, Daily Support |
 | **🎯 Limited** | **7-Day Pass $500** 💎 |  $150 | $500 | 7-Day Exclusive $500 Credit, High-Intensity Dev |
 | **🎯 Limited** | **7-Day Pass $1000** 🔥 |  $350 | $1000 | 7-Day Exclusive $1000 Credit, Ultra-High Intensity |
