@@ -20,7 +20,7 @@
 
 <img src="https://img.shields.io/badge/🔥_Limited_Stock-In_Stock-FF6B6B?style=for-the-badge" alt="Limited Stock"/> <img src="https://img.shields.io/badge/💎_Official_Seat-No_Plugins-4ECDC4?style=for-the-badge" alt="Official Seat"/> <img src="https://img.shields.io/badge/🛡️_30_Day_Guarantee-Most_Stable-45B7D1?style=for-the-badge" alt="30-Day Guarantee"/>
 
-> 💡 A true "veteran" package. Say goodbye to subscription anxiety and only pay for what you use.
+> 💡 A true "veteran" package. Say goodbye to subscription anxiety and switch to pay-as-you-go while stock is available.
 
 <!-- ==================== 📦 Cursor Limited Edition Overview ==================== -->
 
@@ -34,7 +34,7 @@
 | :---: | :---: | :---: |
 | Official seat login, no plugins or intermediaries. Supports Claude 4.6 Opus and GPT 5.4. Around 1-3 uses per conversation. 500 uses available. | 30 Days | 30-Day Guarantee |
 
-**(⚠️ Most stable option for steady daily development)**
+**(⚠️ Best pick if you want the most stable pay-as-you-go option right now)**
 
 </div>
 
@@ -59,7 +59,7 @@
 | **Seat Type** | Official seat. Log in with your official account directly |
 | **Supported Models** | Core models including Claude 4.6 Opus and GPT 5.4 |
 | **Usage** | Pay-as-you-go. Each conversation usually consumes about **1-3 uses**, depending on the model |
-| **After-sales** | **30-day** after-sales guarantee. This is currently the most stable option |
+| **After-sales** | **30-day** after-sales guarantee. This is currently the most stable and worry-free option |
 | **Availability** | **500 uses available**. Limited stock while supplies last |
 | **Important Note** | The **highest mode cannot be activated** |
 
