@@ -16,83 +16,52 @@
 
 <div align="center">
 
-## ⚡️ [Flash Sale] Cursor Pro High‑Credit Accounts
+## ⚡️ [Limited Stock] Cursor Pay-as-you-go Membership
 
-<img src="https://img.shields.io/badge/🔥_Private_&_Exclusive-30_Days_Stable-FF6B6B?style=for-the-badge" alt="Private & Exclusive"/> <img src="https://img.shields.io/badge/💎_Legit_Top--up-NOT_Cracked-4ECDC4?style=for-the-badge" alt="Legit Top-up"/> <img src="https://img.shields.io/badge/⭐_Official_Account-Full_Warranty-45B7D1?style=for-the-badge" alt="Official Account"/>
+<img src="https://img.shields.io/badge/🔥_Limited_Stock-In_Stock-FF6B6B?style=for-the-badge" alt="Limited Stock"/> <img src="https://img.shields.io/badge/💎_Official_Seat-No_Plugins-4ECDC4?style=for-the-badge" alt="Official Seat"/> <img src="https://img.shields.io/badge/🛡️_30_Day_Guarantee-Most_Stable-45B7D1?style=for-the-badge" alt="30-Day Guarantee"/>
 
-> 💡 Get **$20 ~ $40+** usage value for only **$15**! | 📖 [Official Pricing Reference](https://cursor.com/cn/docs/account/pricing)
+> 💡 A true "veteran" package. Say goodbye to subscription anxiety and only pay for what you use.
 
-<!-- ==================== 📦 Cursor Product Plans Overview ==================== -->
+<!-- ==================== 📦 Cursor Limited Edition Overview ==================== -->
 
 <div align="center">
 
-### 🗓️ MONTHLY PLAN (STANDARD)
+### 🗓️ 30-DAY LIMITED EDITION
 
-> 🚀 **Cursor Pro Monthly** | 💰 **Price: $15** (Official:  $20~$40+)
+> 🚀 **Cursor Limited Edition Pay-as-you-go Membership** | 💰 **Price: $75 USD / 30 Days**
 
-| 📋 Specs | 📅 Validity | 🛡️ Warranty |
+| 📋 Specs | 📅 Validity | 🛡️ After-sales |
 | :---: | :---: | :---: |
-| Standard Pro features. Good for daily usage. | ~30 Days | 7-Day Warranty (Pro-rated refund) |
+| Official seat login, no plugins or intermediaries. Supports Claude 4.6 Opus and GPT 5.4. Around 1-3 uses per conversation. 500 uses available. | 30 Days | 30-Day Guarantee |
 
-**(⚠️ Best value for steady developers)**
+**(⚠️ Most stable option for steady daily development)**
 
 </div>
 
 ---
 
-
-| Type | Plan | 💰 Price | 📊 Official | 💎 Total Value / Note |
+| Type | Offer | 💰 Price | 📦 Stock / Term | 💎 Key Notes |
 |:---:|:---|:---:|:---:|:---|
-| **🚀 Pro** | **Cursor Pro Monthly** 🗓️ `STANDARD` |  $15 | $20~$40+ | **Standard Pro features** (7-Day Warranty, Pro-rated refund) |
-| **🎯 Limited** | **7-Day Pass $100** 🏷️ |  $30 | $100 | 7-Day Exclusive $100 Credit, Official Billing, Daily Support |
-| **🎯 Limited** | **7-Day Pass $500** 💎 |  $150 | $500 | 7-Day Exclusive $500 Credit, High-Intensity Dev |
-| **🎯 Limited** | **7-Day Pass $1000** 🔥 |  $350 | $1000 | 7-Day Exclusive $1000 Credit, Ultra-High Intensity |
-| **🆕 Basic** | **Cursor Trial Acct** | **$5** /each | — | Guaranteed working, Bulk discount |
-| **🆕 Basic** | **Gemini 3.0 Pro** 💎 | $50 | — | 1-Year Sub, Stable Google Acct, 3-Day Warranty |
+| **🚀 Limited** | **Cursor Pay-as-you-go Membership** 🗓️ `30 DAYS` | **$75 USD** | **In Stock** / 30 Days | Official account login, no plugins or intermediaries, Claude 4.6 Opus + GPT 5.4, about 1-3 uses per chat, 500 uses available |
 
-> ℹ️ **Value Note**: Member plan total value = Base Credits + Rewards + Overdraft (monthly resets apply).
+> ℹ️ **Note**: Limited quantity, first come first served. The highest mode cannot be activated.
 
 <details>
-<summary>📋 <b>Product Details</b> (Click to expand)</summary>
+<summary>📋 <b>Offer Details</b> (Click to expand)</summary>
 
 <br>
 
 ---
 
-
-
-#### 🏷️ 7-Day Business Pass Series Details
-> **⚠️ Important: The 7-Day Pass is valid for exactly 7 days (from delivery). Account auto-deleted upon expiration!**
-
-| Version | Credit | Price | Description |
-|:---|:---|:---|:---|
-| **$100 Pass** | $100 | **¥210** / $30 | 7-Day Exclusive $100 Credit, Official Billing, Daily Support |
-| **$500 Pass** | $500 | **¥1050** / $150 | 7-Day Exclusive $500 Credit, Best for High-Intensity Dev |
-| **$1000 Pass** | $1000 | **¥2450** / $350 | 7-Day Exclusive $1000 Credit, Ultra-High Intensity Dev |
-
-| General Info | Content |
-|:---|:---|
-| **Service** | Cursor Official Business Member - 7-Day Weekly Pass |
-| **Official Benefits** | Private Exclusive Official Account, Full Access, No Speed Limit |
-| **Usage Limits** | Official usage-based billing, stops when credits depleted. BYO Network Accelerator required |
-
----
-
-#### 💳 Cursor Trial Account Details
+#### 💼 Membership Details
 | Item | Description |
 |:---|:---|
-| **Delivery Format** | `Account ---- Cursor Password ---- Email Password ---- Long-term cookies` |
-| **Warranty** | Check within **1 hour** of receipt. No support after timeout |
-| **Login URL** | cursor.com (Direct Login) |
-
----
-
-#### 💎 Gemini 3.0 Pro Details
-| Item | Description |
-|:---|:---|
-| **Description** | 3-Day Warranty. Super stable Google accounts (6mo-1yr+). Quality far exceeds temporary email accounts. Suitable even for GCP |
-| **Account Format** | `Account----Password----Recovery Email----2FA` |
-| **Instructions** | ① Immediately bind your own recovery email, password, and phone number after login ② **Important**: Keep using the same IP address for the first 3 days |
+| **Seat Type** | Official seat. Log in with your official account directly |
+| **Supported Models** | Core models including Claude 4.6 Opus and GPT 5.4 |
+| **Usage** | Pay-as-you-go. Each conversation usually consumes about **1-3 uses**, depending on the model |
+| **After-sales** | **30-day** after-sales guarantee. This is currently the most stable option |
+| **Availability** | **500 uses available**. Limited stock while supplies last |
+| **Important Note** | The **highest mode cannot be activated** |
 
 </details>
 
@@ -102,20 +71,11 @@
 
 | ⚠️ **Before You Buy** | 📱 **Contact** |
 |:---|:---|
-| 💎 Legit top-up, private account | <img src="https://img.shields.io/badge/Telegram-2CA5E0?style=flat-square&logo=telegram&logoColor=white"/> [@yuaotian](https://t.me/yuaotian) |
-| ⏱️ Valid 25–30 days \| 💻 Recommended ≤3 devices | <img src="https://img.shields.io/badge/WeChat-07C160?style=flat-square&logo=wechat&logoColor=white"/> `JavaRookie666` |
-| 🛡️ 7-day warranty (replacement / pro-rated refund) | |
+| 💎 Official seat login, no plugins, no intermediaries | <img src="https://img.shields.io/badge/Telegram-2CA5E0?style=flat-square&logo=telegram&logoColor=white"/> [@yuaotian](https://t.me/yuaotian) |
+| ⏱️ About 1-3 uses per conversation, depending on the model | <img src="https://img.shields.io/badge/WeChat-07C160?style=flat-square&logo=wechat&logoColor=white"/> `JavaRookie666` |
+| 🛡️ 30-day after-sales guarantee, limited stock | |
 
 ---
-
-### 📢 Advertising Space
-
-> 🔥 **Ad Space Available** - Contact for partnership opportunities
->
-> 📧 Contact: Telegram [@yuaotian](https://t.me/yuaotian) | WeChat: `JavaRookie666`
-
----
-
 </div>
 
 > ⚠️ **IMPORTANT NOTICE**
@@ -483,4 +443,5 @@ The above copyright notice and this permission notice shall be included in all
 copies or substantial portions of the Software.
 
 </details>
+
 
