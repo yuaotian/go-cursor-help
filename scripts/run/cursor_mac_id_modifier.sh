@@ -1826,11 +1826,20 @@ EOF
         fi
     fi
 
-    # 目标JS文件列表（main + shared process）
+    # 目标JS文件列表（main + shared process）。不同 Cursor 版本的 sharedProcessMain.js 路径不同。
     local js_files=(
         "$CURSOR_APP_PATH/Contents/Resources/app/out/main.js"
+    )
+    local shared_candidates=(
+        "$CURSOR_APP_PATH/Contents/Resources/app/out/sharedProcessMain.js"
         "$CURSOR_APP_PATH/Contents/Resources/app/out/vs/code/electron-utility/sharedProcess/sharedProcessMain.js"
     )
+    for candidate in "${shared_candidates[@]}"; do
+        if [ -f "$candidate" ]; then
+            js_files+=("$candidate")
+            break
+        fi
+    done
 
     local modified_count=0
 
@@ -1888,6 +1897,8 @@ EOF
         fi
 
         log_info "📝 [处理] 正在处理: ${file/$CURSOR_APP_PATH\//}"
+        local before_patch_backup="${file}.codex-safe-backup"
+        cp "$file" "$before_patch_backup"
 
         # ========== 方法A: someValue占位符替换（稳定锚点） ==========
         # 重要说明：
@@ -1988,7 +1999,7 @@ try{
         # 在版权声明后注入代码
         if grep -q '\*/' "$file"; then
             # 使用 awk 在版权声明后注入
-            awk -v inject="$inject_code" '
+            if awk -v inject="$inject_code" '
             /\*\// && !injected {
                 print
                 print ""
@@ -1997,19 +2008,36 @@ try{
                 next
             }
             { print }
-            ' "$file" > "${file}.new"
-            mv "${file}.new" "$file"
-            log_info "   ✓ [方案C] Loader Stub 已注入（版权声明后）"
+            ' "$file" > "${file}.new" && [ -s "${file}.new" ]; then
+                mv "${file}.new" "$file"
+                log_info "   ✓ [方案C] Loader Stub 已注入（版权声明后）"
+            else
+                log_error "❌ [安全检查] 生成的 JS 文件为空或写入失败，已恢复原文件"
+                cp "$before_patch_backup" "$file"
+                rm -f "${file}.new" "$before_patch_backup"
+                continue
+            fi
         else
             # 注入到文件开头
-            echo "$inject_code" > "${file}.new"
-            cat "$file" >> "${file}.new"
-            mv "${file}.new" "$file"
-            log_info "   ✓ [方案C] Loader Stub 已注入（文件开头）"
+            if { echo "$inject_code"; cat "$file"; } > "${file}.new" && [ -s "${file}.new" ]; then
+                mv "${file}.new" "$file"
+                log_info "   ✓ [方案C] Loader Stub 已注入（文件开头）"
+            else
+                log_error "❌ [安全检查] 生成的 JS 文件为空或写入失败，已恢复原文件"
+                cp "$before_patch_backup" "$file"
+                rm -f "${file}.new" "$before_patch_backup"
+                continue
+            fi
         fi
 
         # 清理临时文件
-        rm -f "${file}.tmp"
+        if [ ! -s "$file" ]; then
+            log_error "❌ [安全检查] 修改后的 JS 文件为空，已恢复原文件"
+            cp "$before_patch_backup" "$file"
+            rm -f "${file}.tmp" "${file}.new" "$before_patch_backup"
+            continue
+        fi
+        rm -f "${file}.tmp" "${file}.new" "$before_patch_backup"
 
         local summary="Hook加载器"
         if [ "$replaced" = true ]; then
