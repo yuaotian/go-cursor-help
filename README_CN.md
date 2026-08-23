@@ -451,7 +451,7 @@ irm https://raw.githubusercontent.com/yuaotian/go-cursor-help/refs/heads/master/
 
 <div align="center">
 
-[![Star History Chart](https://api.star-history.com/svg?repos=yuaotian/go-cursor-help&type=Date)](https://star-history.com/#yuaotian/go-cursor-help&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=yuaotian/go-cursor-help&type=Date)](https://star-history.dera.page/#yuaotian/go-cursor-help&Date)
 
 ![Repobeats analytics image](https://repobeats.axiom.co/api/embed/ddaa9df9a94b0029ec3fad399e1c1c4e75755477.svg "Repobeats analytics image")
 
