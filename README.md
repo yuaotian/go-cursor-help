@@ -14,51 +14,41 @@
 
 ---
 
-<!-- 公告区域：Cursor 与 Codex 官方 API 套餐与购买入口 -->
+<!-- 公告区域：Codex 官方 API 套餐与购买入口 -->
 
-## 📢 Cursor Pay-per-Use Official Membership — Limited Availability 🎉
+## 📢 Codex Access Plans
 
 <div align="center">
-<a href="https://pay.ldxp.cn/shop/yuaotian">
-<img src="img/Cursor-500-120-EN.png" alt="Cursor Pay-per-Use Official Membership — $120, 500 uses, 25-day warranty" width="750">
-</a>
+<img src="img/gpt-plan.png" alt="Codex Access Plans" width="600">
 </div>
 
-> **$120 · 500 uses · 25-day warranty · Sign in and start using**
+> **High-performance limits for coding, automation, and AI dev workflows**
+> ⚡ Build faster | 🧠 Refactor smarter | ⚙️ Automate workflows
 >
-> - Usage-based billing: 1 credit per request by default; 2 credits per request in Thinking Mode. Every 10 million tokens also counts toward credit usage.
-> - Service period: 25 calendar days from purchase, with full warranty included.
-> - Supported models and features are listed in the image above.
+> ✨ *Weekly is for trying it out. Monthly plans give the best value and stronger limits.*
 
-> [!IMPORTANT]
-> - **Do not use Max Mode.** It switches billing to the standard pay-as-you-go rate.
-> - Models **4.7, 5.5, and 5.4 are not supported** in this package. Please check compatibility before purchasing.
-> - Credit exhaustion is outside the scope of the day-based warranty.
+| Package | Total Limit | Price | Note |
+|:---|:---:|---:|:---|
+| **Weekly** (Promo) | 200 | **$8** | Trial price |
+| **30-Day Standard** | 500 | **$30** | |
+| **30-Day Stable** | 1000 | **$55** | Most Popular |
+| **30-Day Pro** | 2000 | **$90** | Max Limits |
 
- **Telegram:** [@yuaotian](https://t.me/yuaotian)
----
-
-## 📢 Codex Official API Packages
-
-| Package | Daily Limit | Weekly Limit | Monthly Limit | Price |
-|:---|:---:|:---:|:---:|---:|
-| Weekly Card (86 Promo) | 50 | 200 | - | $6 |
-| 15-Day Standard Package | 100 | 300 | 500 | $30 |
-| 30-Day Stable Package | 200 | 500 | 1000 | $55 |
-| 30-Day Advanced Package | 400 | 1000 | 2000 | $90 |
-
-### Why choose these packages?
+### Why choose these plans?
 
 - Stable, cost-conscious access with a direct connection to the official Codex API.
 - One Pro account maps to one residential broadband IP; resources are purchased with real money, not low-quality shared accounts.
-- Self-tested for nearly two weeks with cache optimization; GPT models and the image generation model (`image-2`) are supported.
-- Weekly card: **$6** for up to 200 weekly uses (about `$0.03/use`).
+- Self-tested for nearly two weeks with cache optimization; GPT models and the image generation model (`image-2.5`) are supported.
+- Best for developers who want higher coding workflow limits.
 
 > [!NOTE]
 > - One email address can use only one weekly card.
 > - Do not use jailbreak, adult-content, or reverse-engineering abuse; backend AI auditing may reject such requests.
 > - Need higher quotas, custom pay-as-you-go plans, or special requirements? Contact me directly.
 
+📢 **Small Ad**: Need bulk/high-volume access to Claude series models (e.g., opus5.5, fable5.1)? They are available and support distillation! Please DM on Telegram.
+
+**DM me to get yours now!**
 **Telegram:** [@yuaotian](https://t.me/yuaotian)
 
 ---
