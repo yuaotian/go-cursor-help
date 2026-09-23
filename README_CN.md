@@ -51,7 +51,7 @@
 **立即私信我获取！**
 **Telegram:** [@yuaotian](https://t.me/yuaotian)
 
-[周卡下单地址 (点击前往)](https://pay.ldxp.cn/item/oq0epw) | [小店主页地址 (更多套餐)](https://pay.ldxp.cn/shop/yuaotian)
+ [小店主页地址 (更多套餐)](https://pay.ldxp.cn/shop/yuaotian)
 
 ---
 
